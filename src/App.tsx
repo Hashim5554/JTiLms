@@ -17,7 +17,7 @@ import { AfternoonClubs } from './pages/AfternoonClubs';
 import { useAuthStore } from './store/auth';
 import { supabase } from './lib/supabase';
 import { useTheme } from './hooks/useTheme';
-import { setupRLSPolicies } from './lib/rls.js';
+import { setupRLSPolicies } from '@/lib/rls';
 
 function App() {
   const { user, setUser } = useAuthStore();
