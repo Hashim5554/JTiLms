@@ -9,6 +9,7 @@ export function Customize() {
   const [newPage, setNewPage] = useState({ title: '', path: '' });
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [classes, setClasses] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   useEffect(() => {
@@ -36,23 +37,28 @@ export function Customize() {
   const handleCreatePage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPage.title || !newPage.path) return;
+    
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('custom_pages')
+        .insert([{
+          title: newPage.title,
+          path: newPage.path.toLowerCase().replace(/\s+/g, '-'),
+          class_id: selectedClass || null
+        }])
+        .select();
 
-    const { data, error } = await supabase
-      .from('custom_pages')
-      .insert([{
-        title: newPage.title,
-        path: newPage.path.toLowerCase().replace(/\s+/g, '-'),
-        class_id: selectedClass || null
-      }])
-      .select();
-
-    if (error) {
-      setMessage({ type: 'error', text: error.message });
-    } else if (data) {
-      setCustomPages([...customPages, data[0]]);
-      setNewPage({ title: '', path: '' });
-      setSelectedClass('');
-      setMessage({ type: 'success', text: 'Page created successfully!' });
+      if (error) {
+        setMessage({ type: 'error', text: error.message });
+      } else if (data) {
+        setCustomPages([...customPages, data[0]]);
+        setNewPage({ title: '', path: '' });
+        setSelectedClass('');
+        setMessage({ type: 'success', text: 'Page created successfully!' });
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
