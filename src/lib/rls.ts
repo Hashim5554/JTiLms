@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 
-export async function setupRLSPolicies() {
+export async function setupRLSPolicies(): Promise<void> {
   try {
     // Custom Pages Policies
     await supabase.rpc('create_custom_pages_policies', {
