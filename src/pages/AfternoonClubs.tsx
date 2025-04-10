@@ -507,58 +507,58 @@ export function AfternoonClubs() {
       )}
 
       {isAdmin && (
-        <div className="card mb-6">
+        <div className="card mb-6 dark:bg-gray-800">
           <div className="card-header">
-            <h2 className="text-xl font-semibold">Create New Club</h2>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Create New Club</h2>
           </div>
           <div className="card-body">
             <form onSubmit={handleCreateClub} className="space-y-4">
               <div>
-                <label htmlFor="name" className="block text-sm font-medium">Club Name</label>
+                <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Club Name</label>
                 <input
                   type="text"
                   id="name"
                   value={newClub.name}
                   onChange={(e) => setNewClub({ ...newClub, name: e.target.value })}
-                  className="input-primary w-full"
+                  className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm focus:border-red-500 focus:ring-red-500 transition-colors duration-200"
                   required
                 />
               </div>
               <div>
-                <label htmlFor="description" className="block text-sm font-medium">Description</label>
+                <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
                 <textarea
                   id="description"
                   value={newClub.description}
                   onChange={(e) => setNewClub({ ...newClub, description: e.target.value })}
-                  className="input-primary w-full"
+                  className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm focus:border-red-500 focus:ring-red-500 transition-colors duration-200"
                   required
                 />
               </div>
               <div>
-                <label htmlFor="max_capacity" className="block text-sm font-medium">Maximum Capacity</label>
+                <label htmlFor="max_capacity" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Maximum Capacity</label>
                 <input
                   type="number"
                   id="max_capacity"
                   value={newClub.max_capacity}
                   onChange={(e) => setNewClub({ ...newClub, max_capacity: parseInt(e.target.value) })}
-                  className="input-primary w-full"
+                  className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm focus:border-red-500 focus:ring-red-500 transition-colors duration-200"
                   required
                   min="1"
                 />
               </div>
               <div>
-                <label htmlFor="schedule" className="block text-sm font-medium">Meeting Schedule</label>
+                <label htmlFor="schedule" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Meeting Schedule</label>
                 <input
                   type="text"
                   id="schedule"
                   value={newClub.schedule}
                   onChange={(e) => setNewClub({ ...newClub, schedule: e.target.value })}
-                  className="input-primary w-full"
+                  className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm focus:border-red-500 focus:ring-red-500 transition-colors duration-200"
                   required
                 />
               </div>
-              <button type="submit" className="btn-primary flex items-center gap-2">
-                <PlusCircle size={20} /> Create Club
+              <button type="submit" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all duration-200">
+                <PlusCircle size={20} className="mr-2" /> Create Club
               </button>
             </form>
           </div>
@@ -567,28 +567,28 @@ export function AfternoonClubs() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {clubs.length === 0 ? (
-          <div className="card col-span-full">
-            <p className="text-center text-gray-500">No clubs available.</p>
+          <div className="card col-span-full dark:bg-gray-800">
+            <p className="text-center text-gray-500 dark:text-gray-400">No clubs available.</p>
           </div>
         ) : (
           clubs.map((club: Club) => (
-            <div key={club.id} className="card">
+            <div key={club.id} className="card dark:bg-gray-800">
               <div className="card-header">
-                <h3 className="text-lg font-semibold">{club.name}</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{club.name}</h3>
                 {isAdmin && (
                   <button
                     onClick={() => handleDeleteClub(club.id)}
-                    className="btn-icon text-red-600 hover:text-red-700"
+                    className="btn-icon text-red-600 hover:text-red-700 dark:text-red-500 dark:hover:text-red-400"
                   >
                     <Trash2 size={20} />
                   </button>
                 )}
               </div>
               <div className="card-body">
-                <p className="text-gray-600 mb-4">{club.description}</p>
-                <div className="space-y-2 text-sm">
-                  <p><strong>Schedule:</strong> {club.schedule}</p>
-                  <p><strong>Capacity:</strong> {club.members_count}/{club.max_capacity}</p>
+                <p className="text-gray-600 dark:text-gray-300 mb-4">{club.description}</p>
+                <div className="space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                  <p><strong className="text-gray-900 dark:text-white">Schedule:</strong> {club.schedule}</p>
+                  <p><strong className="text-gray-900 dark:text-white">Capacity:</strong> {club.members_count}/{club.max_capacity}</p>
                 </div>
               </div>
               <div className="card-footer">
@@ -596,14 +596,14 @@ export function AfternoonClubs() {
                   userClubs.some((uc: ClubMember) => uc.club_id === club.id) ? (
                     <button
                       onClick={() => handleLeaveClub(club.id)}
-                      className="btn-secondary w-full"
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all duration-200"
                     >
                       Leave Club
                     </button>
                   ) : (
                     <button
                       onClick={() => handleJoinClub(club.id)}
-                      className="btn-primary w-full"
+                      className="w-full px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all duration-200 disabled:opacity-50"
                       disabled={club.members_count >= club.max_capacity}
                     >
                       Join Club
