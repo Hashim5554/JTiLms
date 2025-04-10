@@ -13,6 +13,7 @@ import {
   PlusCircle
 } from 'lucide-react';
 import '../styles/cards.css';
+import '../styles/card.css';
 
 interface Club {
   id: string;
