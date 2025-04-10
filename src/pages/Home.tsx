@@ -66,7 +66,6 @@ export function Home() {
             username
           )
         `)
-        .eq('class_id', currentClass.id)
         .order('created_at', { ascending: false });
 
       // If currentClass exists, filter by class_id or null (global announcements)
@@ -76,6 +75,7 @@ export function Home() {
       } else {
         // If no class selected, only show global announcements
         announcementsQuery = announcementsQuery.is('class_id', null);
+        discussionsQuery = discussionsQuery.is('class_id', null);
       }
 
       let dueWorksQuery = supabase
@@ -90,6 +90,8 @@ export function Home() {
       // If currentClass exists, filter by class_id
       if (currentClass?.id) {
         dueWorksQuery = dueWorksQuery.eq('class_id', currentClass.id);
+      } else {
+        dueWorksQuery = dueWorksQuery.is('class_id', null);
       }
 
       const [announcementsData, dueWorksData, discussionsData] = await Promise.all([

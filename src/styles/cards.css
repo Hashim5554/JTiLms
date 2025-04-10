@@ -50,4 +50,46 @@
 
 .dark .card-author {
   @apply text-gray-300;
+}
+
+/* Afternoon Clubs specific styles */
+.club-card {
+  @apply text-gray-900 dark:text-white;
+}
+
+.club-description {
+  @apply text-gray-700 dark:text-gray-300;
+}
+
+.club-meta {
+  @apply text-gray-600 dark:text-gray-400;
+}
+
+/* Animation classes */
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 } 
