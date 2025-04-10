@@ -17,6 +17,17 @@ interface ContextType {
   currentClass: Class | null;
 }
 
+interface Discussion {
+  id: string;
+  title: string;
+  content: string;
+  created_at: string;
+  created_by: string;
+  profiles?: {
+    username: string;
+  };
+}
+
 export function Home() {
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
   const [newDiscussion, setNewDiscussion] = useState('');
@@ -51,8 +62,11 @@ export function Home() {
         .from('discussions')
         .select(`
           *,
-          creator:profiles!discussions_created_by_fkey (username)
+          profiles!discussions_created_by_fkey (
+            username
+          )
         `)
+        .eq('class_id', currentClass.id)
         .order('created_at', { ascending: false });
 
       // If currentClass exists, filter by class_id or null (global announcements)
@@ -112,7 +126,7 @@ export function Home() {
         }])
         .select(`
           *,
-          creator:profiles!discussions_created_by_fkey (username)
+          profiles (username)
         `)
         .single();
 
@@ -300,7 +314,7 @@ export function Home() {
               <div key={discussion.id} className="card">
                 <div className="card-content">{discussion.content}</div>
                 <div className="card-meta">
-                  <span className="card-author">Posted by {discussion.creator?.username}</span>
+                  <span className="card-author">Posted by {discussion.profiles?.username}</span>
                   <span className="card-date">
                     {' '}
                     • {new Date(discussion.created_at).toLocaleDateString()}

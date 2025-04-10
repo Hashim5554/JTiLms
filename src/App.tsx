@@ -17,6 +17,7 @@ import { AfternoonClubs } from './pages/AfternoonClubs';
 import { useAuthStore } from './store/auth';
 import { supabase } from './lib/supabase';
 import { useTheme } from './hooks/useTheme';
+import { setupRLSPolicies } from './lib/rls';
 
 function App() {
   const { user, setUser } = useAuthStore();
@@ -30,6 +31,9 @@ function App() {
     // Set initial theme class
     document.documentElement.classList.remove('light', 'dark');
     document.documentElement.classList.add(theme);
+    
+    // Initialize RLS policies
+    setupRLSPolicies().catch(console.error);
   }, [theme]);
 
   async function checkUser() {

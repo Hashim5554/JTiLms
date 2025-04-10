@@ -75,8 +75,54 @@ export function Customize() {
   }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-gray-900">Customize System</h1>
+    <div className="page-container">
+      <div className="card">
+        <div className="card-header">
+          <h2>Customize Page</h2>
+        </div>
+        <div className="card-content">
+          <form onSubmit={handleCreatePage} className="form">
+            <div className="form-group">
+              <label htmlFor="title">Title</label>
+              <input
+                type="text"
+                id="title"
+                value={newPage.title}
+                onChange={(e) => setNewPage({ ...newPage, title: e.target.value })}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="path">Path</label>
+              <input
+                type="text"
+                id="path"
+                value={newPage.path}
+                onChange={(e) => setNewPage({ ...newPage, path: e.target.value })}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="class">Class</label>
+              <select
+                id="class"
+                value={selectedClass}
+                onChange={(e) => setSelectedClass(e.target.value)}
+              >
+                <option value="">All Classes</option>
+                {classes.map((cls) => (
+                  <option key={cls.id} value={cls.id}>
+                    Class {cls.grade}-{cls.section}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              Create Page
+            </button>
+          </form>
+        </div>
+      </div>
 
       {message && (
         <div className={`p-4 rounded-md ${
@@ -85,67 +131,6 @@ export function Customize() {
           {message.text}
         </div>
       )}
-
-      <div className="bg-white shadow sm:rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Create Custom Page</h2>
-        <form onSubmit={handleCreatePage} className="space-y-4">
-          <div>
-            <label htmlFor="title" className="block text-sm font-medium text-gray-700">
-              Page Title
-            </label>
-            <input
-              type="text"
-              id="title"
-              value={newPage.title}
-              onChange={(e) => setNewPage({ ...newPage, title: e.target.value })}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="path" className="block text-sm font-medium text-gray-700">
-              Page Path
-            </label>
-            <input
-              type="text"
-              id="path"
-              value={newPage.path}
-              onChange={(e) => setNewPage({ ...newPage, path: e.target.value })}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500"
-              placeholder="e.g., about-us"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="class" className="block text-sm font-medium text-gray-700">
-              Assign to Class (Optional)
-            </label>
-            <select
-              id="class"
-              value={selectedClass}
-              onChange={(e) => setSelectedClass(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500"
-            >
-              <option value="">All Classes</option>
-              {classes.map((cls) => (
-                <option key={cls.id} value={cls.id}>
-                  Class {cls.grade}-{cls.section}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <button
-              type="submit"
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
-            >
-              <PlusCircle className="h-5 w-5 mr-2" />
-              Create Page
-            </button>
-          </div>
-        </form>
-      </div>
 
       <div className="bg-white shadow sm:rounded-lg">
         <div className="px-4 py-5 sm:p-6">
