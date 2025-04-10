@@ -4,12 +4,44 @@ import type { Database } from '../types/supabase';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+// Validate environment variables
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing environment variables');
+  console.error('Missing Supabase environment variables');
 }
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+// Create Supabase client with error handling
+export const supabase = createClient<Database>(
+  supabaseUrl || '',
+  supabaseAnonKey || '',
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+    },
+    db: {
+      schema: 'public'
+    }
+  }
+);
 
+// Utility function to check if error is "not found"
+export const isNotFoundError = (error: any) => {
+  return error?.code === 'PGRST116';
+};
+
+// Validate database connection
+export const validateConnection = async () => {
+  try {
+    const { error } = await supabase.from('profiles').select('count').limit(1);
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Supabase connection error:', error);
+    return false;
+  }
+};
+
+// Enhanced error handling for auth
 export async function signInWithEmail(email: string, password: string) {
   try {
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -17,12 +49,17 @@ export async function signInWithEmail(email: string, password: string) {
       password,
     });
 
-    if (error) throw error;
+    if (error) {
+      if (error.message.includes('Invalid login credentials')) {
+        throw new Error('Invalid email or password');
+      }
+      throw error;
+    }
 
     return data;
-  } catch (error) {
-    console.error('Sign in error:', error);
-    throw error;
+  } catch (error: any) {
+    console.error('Authentication error:', error);
+    throw new Error(error.message || 'Failed to sign in');
   }
 }
 
