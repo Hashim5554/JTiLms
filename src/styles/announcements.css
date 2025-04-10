@@ -1,0 +1,53 @@
+/* Announcement Card Styles */
+.announcement-card {
+  @apply bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-4 transition-all duration-200;
+}
+
+.announcement-card:hover {
+  @apply shadow-lg transform -translate-y-1;
+}
+
+.announcement-title {
+  @apply text-xl font-semibold mb-2 text-gray-900 dark:text-white;
+}
+
+.announcement-content {
+  @apply text-gray-700 dark:text-gray-300 mb-4;
+}
+
+.announcement-meta {
+  @apply text-sm text-gray-500 dark:text-gray-400;
+}
+
+.announcement-date {
+  @apply text-sm text-gray-500 dark:text-gray-400;
+}
+
+.announcement-author {
+  @apply text-sm font-medium text-gray-700 dark:text-gray-300;
+}
+
+/* Dark mode overrides */
+.dark .announcement-card {
+  @apply border border-gray-700;
+}
+
+.dark .announcement-title {
+  @apply text-white;
+}
+
+.dark .announcement-content {
+  @apply text-gray-300;
+}
+
+.dark .announcement-meta {
+  @apply text-gray-400;
+}
+
+.dark .announcement-date {
+  @apply text-gray-400;
+}
+
+.dark .announcement-author {
+  @apply text-gray-300;
+} 

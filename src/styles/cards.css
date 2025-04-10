@@ -1,0 +1,53 @@
+/* Common Card Styles */
+.card {
+  @apply bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-4 transition-all duration-200;
+}
+
+.card:hover {
+  @apply shadow-lg transform -translate-y-1;
+}
+
+.card-title {
+  @apply text-xl font-semibold mb-2 text-gray-900 dark:text-white;
+}
+
+.card-content {
+  @apply text-gray-700 dark:text-gray-300 mb-4;
+}
+
+.card-meta {
+  @apply text-sm text-gray-500 dark:text-gray-400;
+}
+
+.card-date {
+  @apply text-sm text-gray-500 dark:text-gray-400;
+}
+
+.card-author {
+  @apply text-sm font-medium text-gray-700 dark:text-gray-300;
+}
+
+/* Dark mode overrides */
+.dark .card {
+  @apply border border-gray-700;
+}
+
+.dark .card-title {
+  @apply text-white;
+}
+
+.dark .card-content {
+  @apply text-gray-300;
+}
+
+.dark .card-meta {
+  @apply text-gray-400;
+}
+
+.dark .card-date {
+  @apply text-gray-400;
+}
+
+.dark .card-author {
+  @apply text-gray-300;
+} 
