@@ -42,6 +42,7 @@ export function Layout() {
     recordRoom: 0,
     clubs: 0
   });
+  const [notificationError, setNotificationError] = useState<string | null>(null);
 
   // Close mobile menu when route changes
   useEffect(() => {
@@ -49,10 +50,12 @@ export function Layout() {
   }, [location.pathname]);
 
   useEffect(() => {
-    loadCurrentClass();
-    loadNotifications();
-    const interval = setInterval(loadNotifications, 30000);
-    return () => clearInterval(interval);
+    if (user) {
+      loadCurrentClass();
+      loadNotifications();
+      const interval = setInterval(loadNotifications, 30000);
+      return () => clearInterval(interval);
+    }
   }, [user]);
 
   const loadCurrentClass = async () => {
@@ -99,7 +102,10 @@ export function Layout() {
     if (type) {
       markNotificationsAsRead(type)
         .then(() => loadNotifications())
-        .catch(console.error);
+        .catch(error => {
+          console.error('Error marking notifications as read:', error);
+          setNotificationError('Failed to update notifications');
+        });
     }
   }, [location.pathname, user]);
 
@@ -107,6 +113,7 @@ export function Layout() {
     if (!user) return;
     
     try {
+      setNotificationError(null);
       const [
         announcementsCount,
         subjectsCount,
@@ -130,6 +137,7 @@ export function Layout() {
       });
     } catch (error) {
       console.error('Error loading notifications:', error);
+      setNotificationError('Failed to load notifications');
     }
   };
 
@@ -193,6 +201,19 @@ export function Layout() {
               <X className="h-6 w-6" />
             </button>
           </div>
+
+          {/* Notification error message */}
+          {notificationError && (
+            <div className="px-4 py-2 bg-red-100 text-red-600 text-sm">
+              {notificationError}
+              <button
+                onClick={loadNotifications}
+                className="ml-2 underline hover:no-underline"
+              >
+                Retry
+              </button>
+            </div>
+          )}
 
           {/* Navigation */}
           <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
