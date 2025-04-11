@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Plus, Bell } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/auth';
 import { AnnouncementCard } from '../components/AnnouncementCard';
+import '../styles/animations.css';
 
 interface Message {
   type: 'success' | 'error';
@@ -49,8 +49,8 @@ export default function Announcements() {
         .from('announcements')
         .select(`
           *,
-          profiles:created_by(username),
-          classes:class_id(name)
+          profiles (username),
+          classes (name)
         `)
         .order('created_at', { ascending: false });
 
@@ -81,184 +81,123 @@ export default function Announcements() {
   const handleCreateAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      setLoading(true);
-      const { error } = await supabase.from('announcements').insert({
-        title: newAnnouncement.title,
-        content: newAnnouncement.content,
-        class_id: newAnnouncement.class_id || null,
-        created_by: user?.id,
-      });
+      const { error } = await supabase.from('announcements').insert([
+        {
+          title: newAnnouncement.title,
+          content: newAnnouncement.content,
+          class_id: newAnnouncement.class_id || null,
+          user_id: user?.id,
+        },
+      ]);
 
       if (error) throw error;
 
-      setMessage({ type: 'success', text: 'Announcement created successfully' });
       setNewAnnouncement({ title: '', content: '', class_id: '' });
+      setMessage({ type: 'success', text: 'Announcement created successfully' });
       loadAnnouncements();
     } catch (error) {
       console.error('Error creating announcement:', error);
       setMessage({ type: 'error', text: 'Failed to create announcement' });
-    } finally {
-      setLoading(false);
     }
   };
 
-  const filteredAnnouncements = announcements.filter(
-    (announcement) =>
-      announcement.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      announcement.content.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredAnnouncements = announcements.filter((announcement) =>
+    announcement.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    announcement.content.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="space-y-8"
-      >
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Announcements
-          </h1>
-          {isAdmin && (
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              onClick={() => {
-                const modal = document.getElementById('create-announcement-modal');
-                if (modal) (modal as HTMLDialogElement).showModal();
-              }}
-            >
-              <Plus className="h-5 w-5" />
-              New Announcement
-            </motion.button>
-          )}
-        </div>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Announcements</h1>
+        {isAdmin && (
+          <button
+            onClick={() => {
+              const modal = document.getElementById('create-announcement-modal') as HTMLDialogElement;
+              modal?.showModal();
+            }}
+            className="btn btn-primary flex items-center gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            New Announcement
+          </button>
+        )}
+      </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="relative"
-        >
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+      <div className="mb-6">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             placeholder="Search announcements..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
           />
-        </motion.div>
+        </div>
+      </div>
 
-        {message && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={`p-4 rounded-lg ${
-              message.type === 'success'
-                ? 'bg-green-100 text-green-800'
-                : 'bg-red-100 text-red-800'
-            }`}
-          >
-            {message.text}
-          </motion.div>
-        )}
+      {message && (
+        <div className={`alert alert-${message.type} mb-6 fade-in`}>
+          {message.text}
+        </div>
+      )}
 
-        {loading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500" />
-          </div>
-        ) : filteredAnnouncements.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center py-12"
-          >
-            <Bell className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-              No announcements found
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400">
-              {searchQuery
-                ? 'Try adjusting your search'
-                : 'Check back later for updates'}
-            </p>
-          </motion.div>
-        ) : (
-          <AnimatePresence>
-            <div className="grid gap-6">
-              {filteredAnnouncements.map((announcement) => (
-                <motion.div
-                  key={announcement.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <AnnouncementCard
-                    announcement={announcement}
-                    onDelete={loadAnnouncements}
-                  />
-                </motion.div>
-              ))}
+      {loading ? (
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
+        </div>
+      ) : filteredAnnouncements.length === 0 ? (
+        <div className="text-center py-12 fade-in">
+          <Bell className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+          <p className="text-gray-500 dark:text-gray-400">No announcements found</p>
+        </div>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {filteredAnnouncements.map((announcement) => (
+            <div key={announcement.id} className="fade-in">
+              <AnnouncementCard announcement={announcement} onDelete={loadAnnouncements} />
             </div>
-          </AnimatePresence>
-        )}
-      </motion.div>
+          ))}
+        </div>
+      )}
 
       {isAdmin && (
         <dialog id="create-announcement-modal" className="modal">
           <div className="modal-box">
             <h3 className="font-bold text-lg mb-4">Create New Announcement</h3>
-            <form onSubmit={handleCreateAnnouncement} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Title
+            <form onSubmit={handleCreateAnnouncement}>
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text">Title</span>
                 </label>
                 <input
                   type="text"
                   value={newAnnouncement.title}
-                  onChange={(e) =>
-                    setNewAnnouncement({
-                      ...newAnnouncement,
-                      title: e.target.value,
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => setNewAnnouncement({ ...newAnnouncement, title: e.target.value })}
+                  className="input input-bordered"
                   required
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Content
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text">Content</span>
                 </label>
                 <textarea
                   value={newAnnouncement.content}
-                  onChange={(e) =>
-                    setNewAnnouncement({
-                      ...newAnnouncement,
-                      content: e.target.value,
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  rows={4}
+                  onChange={(e) => setNewAnnouncement({ ...newAnnouncement, content: e.target.value })}
+                  className="textarea textarea-bordered h-32"
                   required
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Class (Optional)
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text">Class (Optional)</span>
                 </label>
                 <select
                   value={newAnnouncement.class_id}
-                  onChange={(e) =>
-                    setNewAnnouncement({
-                      ...newAnnouncement,
-                      class_id: e.target.value,
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => setNewAnnouncement({ ...newAnnouncement, class_id: e.target.value })}
+                  className="select select-bordered"
                 >
                   <option value="">All Classes</option>
                   {classes.map((class_) => (
@@ -268,25 +207,15 @@ export default function Announcements() {
                   ))}
                 </select>
               </div>
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                  onClick={() => {
-                    const modal = document.getElementById(
-                      'create-announcement-modal'
-                    );
-                    if (modal) (modal as HTMLDialogElement).close();
-                  }}
-                >
+              <div className="modal-action">
+                <button type="button" className="btn" onClick={() => {
+                  const modal = document.getElementById('create-announcement-modal') as HTMLDialogElement;
+                  modal?.close();
+                }}>
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                >
-                  {loading ? 'Creating...' : 'Create'}
+                <button type="submit" className="btn btn-primary">
+                  Create
                 </button>
               </div>
             </form>

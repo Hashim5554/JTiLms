@@ -17,6 +17,7 @@ import {
   BookOpen,
   Users
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Message {
   type: 'error' | 'success';
@@ -201,32 +202,46 @@ export function Subjects() {
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="flex justify-between items-center mb-6"
+      >
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Subjects</h1>
         <div className="flex items-center space-x-4">
           {isAdmin && (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => setIsClassModalOpen(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-800 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 dark:bg-gray-700 dark:hover:bg-gray-600"
             >
               <Users className="h-5 w-5 mr-2" />
               Change Class
-            </button>
+            </motion.button>
           )}
           {canManageSubjects && (
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => setIsCreateModalOpen(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-800 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 dark:bg-gray-700 dark:hover:bg-gray-600"
             >
               <PlusCircle className="h-5 w-5 mr-2" />
               Add Subject
-            </button>
+            </motion.button>
           )}
         </div>
-      </div>
+      </motion.div>
 
       {/* Search */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+      <motion.div 
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+        className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6"
+      >
         <div className="relative">
           <Search className="h-5 w-5 absolute left-3 top-3 text-gray-400" />
           <input
@@ -234,21 +249,34 @@ export function Subjects() {
             placeholder="Search subjects..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+            className="pl-10 w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-gray-500 focus:ring-gray-500"
           />
         </div>
-      </div>
+      </motion.div>
 
       {/* Subjects Grid */}
       {loading ? (
-        <div className="flex justify-center items-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
-        </div>
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex justify-center items-center h-64"
+        >
+          <Loader2 className="h-8 w-8 animate-spin text-gray-600 dark:text-gray-400" />
+        </motion.div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredSubjects.map((subject) => (
-            <div
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+        >
+          {filteredSubjects.map((subject, index) => (
+            <motion.div
               key={subject.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: index * 0.1 }}
+              whileHover={{ scale: 1.02 }}
               className="bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200"
             >
               <div className="p-6">
@@ -261,8 +289,8 @@ export function Subjects() {
                         className="h-12 w-12 rounded-lg object-cover"
                       />
                     ) : (
-                      <div className="h-12 w-12 rounded-lg bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
-                        <Book className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+                      <div className="h-12 w-12 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                        <Book className="h-6 w-6 text-gray-600 dark:text-gray-400" />
                       </div>
                     )}
                     <div>
@@ -276,16 +304,20 @@ export function Subjects() {
                   </div>
                   {canManageSubjects && (
                     <div className="flex items-center space-x-2">
-                      <button
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
                         onClick={() => {
                           setEditingSubject(subject);
                           setIsEditModalOpen(true);
                         }}
-                        className="p-1 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400"
+                        className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                       >
                         <Edit2 className="h-5 w-5" />
-                      </button>
-                      <button
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
                         onClick={() => handleDelete(subject.id)}
                         className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
                         disabled={deleting === subject.id}
@@ -295,268 +327,326 @@ export function Subjects() {
                         ) : (
                           <Trash2 className="h-5 w-5" />
                         )}
-                      </button>
+                      </motion.button>
                     </div>
                   )}
                 </div>
                 <Link
                   to={`/subjects/${subject.id}`}
-                  className="mt-4 inline-flex items-center text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300"
+                  className="mt-4 inline-flex items-center text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
                 >
                   View Details
                   <ChevronRight className="ml-1 h-4 w-4" />
                 </Link>
               </div>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       )}
 
       {/* Create Subject Modal */}
-      {isCreateModalOpen && (
-        <div className="fixed z-10 inset-0 overflow-y-auto">
-          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-            <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
-              <div className="absolute top-0 right-0 pt-4 pr-4">
-                <button
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="bg-white dark:bg-gray-800 rounded-md text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-              <div className="sm:flex sm:items-start">
-                <div className="mt-3 text-center sm:mt-0 sm:text-left w-full">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">Create New Subject</h3>
-                  <form onSubmit={handleCreateSubject} className="mt-6 space-y-6">
-                    <div>
-                      <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Subject Name
-                      </label>
-                      <input
-                        type="text"
-                        id="name"
-                        value={newSubject.name}
-                        onChange={(e) => setNewSubject({ ...newSubject, name: e.target.value })}
-                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Description
-                      </label>
-                      <textarea
-                        id="description"
-                        value={newSubject.description}
-                        onChange={(e) => setNewSubject({ ...newSubject, description: e.target.value })}
-                        rows={3}
-                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="image_url" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Image URL (optional)
-                      </label>
-                      <input
-                        type="url"
-                        id="image_url"
-                        value={newSubject.image_url}
-                        onChange={(e) => setNewSubject({ ...newSubject, image_url: e.target.value })}
-                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
-                      <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm"
-                      >
-                        {loading ? (
-                          <>
-                            <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                            Creating...
-                          </>
-                        ) : (
-                          'Create Subject'
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setIsCreateModalOpen(false)}
-                        className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </form>
+      <AnimatePresence>
+        {isCreateModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed z-10 inset-0 overflow-y-auto"
+          >
+            <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+              />
+              <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6"
+              >
+                <div className="absolute top-0 right-0 pt-4 pr-4">
+                  <button
+                    onClick={() => setIsCreateModalOpen(false)}
+                    className="bg-white dark:bg-gray-800 rounded-md text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  >
+                    <X className="h-6 w-6" />
+                  </button>
                 </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Subject Modal */}
-      {isEditModalOpen && editingSubject && (
-        <div className="fixed z-10 inset-0 overflow-y-auto">
-          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-            <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
-              <div className="absolute top-0 right-0 pt-4 pr-4">
-                <button
-                  onClick={() => {
-                    setIsEditModalOpen(false);
-                    setEditingSubject(null);
-                  }}
-                  className="bg-white dark:bg-gray-800 rounded-md text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-              <div className="sm:flex sm:items-start">
-                <div className="mt-3 text-center sm:mt-0 sm:text-left w-full">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">Edit Subject</h3>
-                  <form onSubmit={handleUpdateSubject} className="mt-6 space-y-6">
-                    <div>
-                      <label htmlFor="edit-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Subject Name
-                      </label>
-                      <input
-                        type="text"
-                        id="edit-name"
-                        value={editingSubject.name}
-                        onChange={(e) => setEditingSubject({ ...editingSubject, name: e.target.value })}
-                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="edit-description" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Description
-                      </label>
-                      <textarea
-                        id="edit-description"
-                        value={editingSubject.description}
-                        onChange={(e) => setEditingSubject({ ...editingSubject, description: e.target.value })}
-                        rows={3}
-                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="edit-image_url" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Image URL (optional)
-                      </label>
-                      <input
-                        type="url"
-                        id="edit-image_url"
-                        value={editingSubject.image_url || ''}
-                        onChange={(e) => setEditingSubject({ ...editingSubject, image_url: e.target.value })}
-                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
-                      <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm"
-                      >
-                        {loading ? (
-                          <>
-                            <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                            Updating...
-                          </>
-                        ) : (
-                          'Update Subject'
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsEditModalOpen(false);
-                          setEditingSubject(null);
-                        }}
-                        className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Class Selection Modal */}
-      {isClassModalOpen && (
-        <div className="fixed z-10 inset-0 overflow-y-auto">
-          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-            <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
-              <div className="absolute top-0 right-0 pt-4 pr-4">
-                <button
-                  onClick={() => setIsClassModalOpen(false)}
-                  className="bg-white dark:bg-gray-800 rounded-md text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                >
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-              <div className="sm:flex sm:items-start">
-                <div className="mt-3 text-center sm:mt-0 sm:text-left w-full">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">Select Class</h3>
-                  <div className="mt-6 space-y-4">
-                    {classes.map((classItem) => (
-                      <button
-                        key={classItem.id}
-                        onClick={() => {
-                          setSelectedClass(classItem.id);
-                          setIsClassModalOpen(false);
-                          // Here you would typically update the current class context or state
-                          setMessage({
-                            type: 'success',
-                            text: `Switched to ${classItem.name} class`
-                          });
-                        }}
-                        className={`w-full text-left px-4 py-2 rounded-md ${
-                          selectedClass === classItem.id
-                            ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300'
-                            : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white'
-                        }`}
-                      >
-                        {classItem.name}
-                      </button>
-                    ))}
+                <div className="sm:flex sm:items-start">
+                  <div className="mt-3 text-center sm:mt-0 sm:text-left w-full">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">Create New Subject</h3>
+                    <form onSubmit={handleCreateSubject} className="mt-6 space-y-6">
+                      <div>
+                        <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Subject Name
+                        </label>
+                        <input
+                          type="text"
+                          id="name"
+                          value={newSubject.name}
+                          onChange={(e) => setNewSubject({ ...newSubject, name: e.target.value })}
+                          className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Description
+                        </label>
+                        <textarea
+                          id="description"
+                          value={newSubject.description}
+                          onChange={(e) => setNewSubject({ ...newSubject, description: e.target.value })}
+                          rows={3}
+                          className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="image_url" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Image URL (optional)
+                        </label>
+                        <input
+                          type="url"
+                          id="image_url"
+                          value={newSubject.image_url}
+                          onChange={(e) => setNewSubject({ ...newSubject, image_url: e.target.value })}
+                          className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+                        <button
+                          type="submit"
+                          disabled={loading}
+                          className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm"
+                        >
+                          {loading ? (
+                            <>
+                              <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                              Creating...
+                            </>
+                          ) : (
+                            'Create Subject'
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsCreateModalOpen(false)}
+                          className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             </div>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Subject Modal */}
+      <AnimatePresence>
+        {isEditModalOpen && editingSubject && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed z-10 inset-0 overflow-y-auto"
+          >
+            <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+              />
+              <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6"
+              >
+                <div className="absolute top-0 right-0 pt-4 pr-4">
+                  <button
+                    onClick={() => {
+                      setIsEditModalOpen(false);
+                      setEditingSubject(null);
+                    }}
+                    className="bg-white dark:bg-gray-800 rounded-md text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  >
+                    <X className="h-6 w-6" />
+                  </button>
+                </div>
+                <div className="sm:flex sm:items-start">
+                  <div className="mt-3 text-center sm:mt-0 sm:text-left w-full">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">Edit Subject</h3>
+                    <form onSubmit={handleUpdateSubject} className="mt-6 space-y-6">
+                      <div>
+                        <label htmlFor="edit-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Subject Name
+                        </label>
+                        <input
+                          type="text"
+                          id="edit-name"
+                          value={editingSubject.name}
+                          onChange={(e) => setEditingSubject({ ...editingSubject, name: e.target.value })}
+                          className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="edit-description" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Description
+                        </label>
+                        <textarea
+                          id="edit-description"
+                          value={editingSubject.description}
+                          onChange={(e) => setEditingSubject({ ...editingSubject, description: e.target.value })}
+                          rows={3}
+                          className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="edit-image_url" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Image URL (optional)
+                        </label>
+                        <input
+                          type="url"
+                          id="edit-image_url"
+                          value={editingSubject.image_url || ''}
+                          onChange={(e) => setEditingSubject({ ...editingSubject, image_url: e.target.value })}
+                          className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+                        <button
+                          type="submit"
+                          disabled={loading}
+                          className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm"
+                        >
+                          {loading ? (
+                            <>
+                              <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                              Updating...
+                            </>
+                          ) : (
+                            'Update Subject'
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsEditModalOpen(false);
+                            setEditingSubject(null);
+                          }}
+                          className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Class Selection Modal */}
+      <AnimatePresence>
+        {isClassModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed z-10 inset-0 overflow-y-auto"
+          >
+            <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+              />
+              <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6"
+              >
+                <div className="absolute top-0 right-0 pt-4 pr-4">
+                  <button
+                    onClick={() => setIsClassModalOpen(false)}
+                    className="bg-white dark:bg-gray-800 rounded-md text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  >
+                    <X className="h-6 w-6" />
+                  </button>
+                </div>
+                <div className="sm:flex sm:items-start">
+                  <div className="mt-3 text-center sm:mt-0 sm:text-left w-full">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">Select Class</h3>
+                    <div className="mt-6 space-y-4">
+                      {classes.map((classItem) => (
+                        <button
+                          key={classItem.id}
+                          onClick={() => {
+                            setSelectedClass(classItem.id);
+                            setIsClassModalOpen(false);
+                            // Here you would typically update the current class context or state
+                            setMessage({
+                              type: 'success',
+                              text: `Switched to ${classItem.name} class`
+                            });
+                          }}
+                          className={`w-full text-left px-4 py-2 rounded-md ${
+                            selectedClass === classItem.id
+                              ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300'
+                              : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white'
+                          }`}
+                        >
+                          {classItem.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Message Toast */}
-      {message && (
-        <div className={`fixed bottom-4 right-4 px-4 py-2 rounded-md shadow-lg ${
-          message.type === 'success' ? 'bg-green-500' : 'bg-red-500'
-        } text-white`}>
-          <div className="flex items-center">
-            {message.type === 'success' ? (
-              <Check className="h-5 w-5 mr-2" />
-            ) : (
-              <X className="h-5 w-5 mr-2" />
-            )}
-            {message.text}
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {message && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className={`fixed bottom-4 right-4 px-4 py-2 rounded-md shadow-lg ${
+              message.type === 'success' ? 'bg-green-500' : 'bg-red-500'
+            } text-white`}
+          >
+            <div className="flex items-center">
+              {message.type === 'success' ? (
+                <Check className="h-5 w-5 mr-2" />
+              ) : (
+                <X className="h-5 w-5 mr-2" />
+              )}
+              {message.text}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
