@@ -50,7 +50,7 @@ const notificationTypes: Record<keyof NotificationCounts, NotificationType> = {
   dueWorks: 'dueWork'
 };
 
-export function Layout({ children }: { children: React.ReactNode }) {
+export function Layout() {
   const { user, signOut } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
@@ -67,6 +67,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [notificationError, setNotificationError] = useState<string | null>(null);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [classes, setClasses] = useState<Class[]>([]);
+  const [currentClass, setCurrentClass] = useState<Class | null>(null);
 
   // Close mobile menu when route changes
   useEffect(() => {
@@ -81,12 +82,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
     }
   }, [user]);
 
+  // Update current class when selectedClassId changes
+  useEffect(() => {
+    if (selectedClassId) {
+      const selectedClass = classes.find(c => c.id === selectedClassId);
+      setCurrentClass(selectedClass || null);
+    } else {
+      setCurrentClass(null);
+    }
+  }, [selectedClassId, classes]);
+
   const loadNotifications = async () => {
     try {
       const notificationPromises = Object.entries(notificationTypes).map(
         async ([key, type]) => {
           const count = await getUnreadNotificationCount(type);
-          return [key, count] as const;
+          return [key, count] as [keyof NotificationCounts, number];
         }
       );
 
@@ -203,7 +214,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <option value="">Select Class</option>
                 {classes.map((class_) => (
                   <option key={class_.id} value={class_.id}>
-                    {class_.name}
+                    {class_.grade} {class_.section}
                   </option>
                 ))}
               </select>
@@ -270,14 +281,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
             />
             {user?.role === 'ultra_admin' && (
               <>
-                <NavLink to="/users" icon={Users} label="Users" />
+                <NavLink to="/users" icon={Users2} label="Users" />
                 <NavLink to="/customize" icon={Palette} label="Customize" />
               </>
             )}
             <NavLink to="/settings" icon={Settings} label="Settings" />
           </nav>
 
-          {/* Theme Toggle and Logout */}
+          {/* Footer */}
           <div className="p-4 border-t border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between">
               <ThemeToggle />
@@ -286,7 +297,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 className="flex items-center text-gray-700 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400"
               >
                 <LogOut className="h-5 w-5 mr-2" />
-                <span>Logout</span>
+                <span className="text-sm font-medium">Logout</span>
               </button>
             </div>
           </div>
@@ -296,7 +307,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Main content */}
       <div className="lg:pl-64">
         <main className="p-6">
-          <Outlet />
+          <Outlet context={{ currentClass, selectedClassId, classes }} />
         </main>
       </div>
     </div>
