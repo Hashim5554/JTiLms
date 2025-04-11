@@ -655,28 +655,290 @@ export function AfternoonClubs() {
   );
 
   return (
-    <div className="page-container">
-      {message && (
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className={`p-4 rounded-lg mb-6 ${
-            message.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-          }`}
-        >
-          {message.text}
-        </motion.div>
+    <div className="content-container animate-fade-in">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-3xl font-bold text-theme-text-primary dark:text-white">
+          Afternoon Clubs
+        </h1>
+        {canManageClubs && (
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsCreateModalOpen(true)}
+            className="button-primary"
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            Create Club
+          </motion.button>
+        )}
+      </div>
+
+      {/* Message Display */}
+      <AnimatePresence>
+        {message && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className={`p-4 rounded-lg mb-4 ${
+              message.type === 'success' 
+                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+            }`}
+          >
+            {message.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Loading State */}
+      {loading && (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-theme-primary" />
+        </div>
       )}
 
-      {loading ? (
-        <div className="flex justify-center items-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-red-600" />
+      {/* Clubs Grid */}
+      {!loading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {clubs.map((club) => (
+            <motion.div
+              key={club.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              whileHover={{ scale: 1.02 }}
+              className="card"
+            >
+              <div className="card-header">
+                <h2 className="card-title">{club.name}</h2>
+                {canManageClubs && (
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => {
+                        setSelectedClub(club);
+                        setIsAssignModalOpen(true);
+                      }}
+                      className="p-2 hover:bg-theme-tertiary dark:hover:bg-gray-700 rounded-lg"
+                    >
+                      <UserPlus className="h-5 w-5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteClub(club.id)}
+                      className="p-2 hover:bg-red-100 dark:hover:bg-red-900 rounded-lg"
+                    >
+                      <Trash2 className="h-5 w-5 text-red-600" />
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="card-content">
+                <p>{club.description}</p>
+                <div className="mt-4 flex items-center space-x-4 text-sm text-theme-text-secondary dark:text-gray-400">
+                  <div className="flex items-center">
+                    <Users2 className="h-4 w-4 mr-1" />
+                    {club.members_count} / {club.max_capacity} members
+                  </div>
+                  <div className="flex items-center">
+                    <CalendarDays className="h-4 w-4 mr-1" />
+                    {club.schedule}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          ))}
         </div>
-      ) : canManageClubs ? (
-        <AdminClubView />
-      ) : (
-        <StudentClubView />
       )}
+
+      {/* Create Club Modal */}
+      <AnimatePresence>
+        {isCreateModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full"
+            >
+              <h2 className="text-xl font-bold mb-4">Create New Club</h2>
+              <form onSubmit={handleCreateClub}>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Name</label>
+                    <input
+                      type="text"
+                      value={newClub.name}
+                      onChange={(e) => setNewClub({ ...newClub, name: e.target.value })}
+                      className="input-primary"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Description</label>
+                    <textarea
+                      value={newClub.description}
+                      onChange={(e) => setNewClub({ ...newClub, description: e.target.value })}
+                      className="input-primary"
+                      rows={3}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Max Capacity</label>
+                    <input
+                      type="number"
+                      value={newClub.max_capacity}
+                      onChange={(e) => setNewClub({ ...newClub, max_capacity: parseInt(e.target.value) })}
+                      className="input-primary"
+                      min="1"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Schedule</label>
+                    <input
+                      type="text"
+                      value={newClub.schedule}
+                      onChange={(e) => setNewClub({ ...newClub, schedule: e.target.value })}
+                      className="input-primary"
+                      placeholder="e.g., Monday 2:00 PM - 3:00 PM"
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="mt-6 flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsCreateModalOpen(false)}
+                    className="button-secondary"
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" className="button-primary">
+                    Create
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Assign Members Modal */}
+      <AnimatePresence>
+        {isAssignModalOpen && selectedClub && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold">Assign Members to {selectedClub.name}</h2>
+                <button
+                  onClick={() => setIsAssignModalOpen(false)}
+                  className="p-2 hover:bg-theme-tertiary dark:hover:bg-gray-700 rounded-lg"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="mb-4">
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                    placeholder="Search users..."
+                    className="input-primary pl-10"
+                  />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-theme-text-secondary" />
+                </div>
+              </div>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {searchResults.map((user) => (
+                  <div
+                    key={user.id}
+                    className="flex items-center justify-between p-2 hover:bg-theme-tertiary dark:hover:bg-gray-700 rounded-lg"
+                  >
+                    <div className="flex items-center">
+                      {user.photo_url ? (
+                        <img
+                          src={user.photo_url}
+                          alt={user.username}
+                          className="h-8 w-8 rounded-full mr-3"
+                        />
+                      ) : (
+                        <div className="h-8 w-8 rounded-full bg-theme-tertiary dark:bg-gray-700 flex items-center justify-center mr-3">
+                          <Users className="h-5 w-5" />
+                        </div>
+                      )}
+                      <div>
+                        <div className="font-medium">{user.username}</div>
+                        <div className="text-sm text-theme-text-secondary">{user.email}</div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleAddMember(user.id)}
+                      className="p-2 hover:bg-green-100 dark:hover:bg-green-900 rounded-lg"
+                    >
+                      <UserPlus className="h-5 w-5 text-green-600" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4">
+                <h3 className="font-medium mb-2">Current Members</h3>
+                <div className="space-y-2">
+                  {clubMembers.map((member) => (
+                    <div
+                      key={member.id}
+                      className="flex items-center justify-between p-2 hover:bg-theme-tertiary dark:hover:bg-gray-700 rounded-lg"
+                    >
+                      <div className="flex items-center">
+                        {member.profiles?.photo_url ? (
+                          <img
+                            src={member.profiles.photo_url}
+                            alt={member.profiles.username}
+                            className="h-8 w-8 rounded-full mr-3"
+                          />
+                        ) : (
+                          <div className="h-8 w-8 rounded-full bg-theme-tertiary dark:bg-gray-700 flex items-center justify-center mr-3">
+                            <Users className="h-5 w-5" />
+                          </div>
+                        )}
+                        <div>
+                          <div className="font-medium">{member.profiles?.username}</div>
+                          <div className="text-sm text-theme-text-secondary">
+                            Joined {format(new Date(member.joined_at), 'MMM d, yyyy')}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveMember(member.id)}
+                        className="p-2 hover:bg-red-100 dark:hover:bg-red-900 rounded-lg"
+                      >
+                        <UserMinus className="h-5 w-5 text-red-600" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
