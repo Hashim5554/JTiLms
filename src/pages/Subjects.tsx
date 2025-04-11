@@ -55,9 +55,9 @@ export function Subjects() {
     setMessage(null);
     try {
       const { data, error } = await supabase
-        .from('subjects')
-        .select('*')
-        .order('name', { ascending: true });
+      .from('subjects')
+      .select('*')
+      .order('name', { ascending: true });
 
       if (error) {
         if (isNotFoundError(error)) {
@@ -81,7 +81,7 @@ export function Subjects() {
 
   const loadClasses = async () => {
     try {
-      const { data, error } = await supabase
+    const { data, error } = await supabase
         .from('classes')
         .select('*')
         .order('name', { ascending: true });
@@ -102,10 +102,10 @@ export function Subjects() {
 
     try {
       setDeleting(id);
-      const { error } = await supabase
-        .from('subjects')
-        .delete()
-        .eq('id', id);
+    const { error } = await supabase
+      .from('subjects')
+      .delete()
+      .eq('id', id);
 
       if (error) throw error;
 
@@ -210,7 +210,7 @@ export function Subjects() {
       >
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Subjects</h1>
         <div className="flex items-center space-x-4">
-          {isAdmin && (
+      {isAdmin && (
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -379,36 +379,36 @@ export function Subjects() {
                   <div className="mt-3 text-center sm:mt-0 sm:text-left w-full">
                     <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">Create New Subject</h3>
                     <form onSubmit={handleCreateSubject} className="mt-6 space-y-6">
-                      <div>
+            <div>
                         <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Subject Name
-                        </label>
-                        <input
-                          type="text"
-                          id="name"
+                Subject Name
+              </label>
+              <input
+                type="text"
+                id="name"
                           value={newSubject.name}
                           onChange={(e) => setNewSubject({ ...newSubject, name: e.target.value })}
                           className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                           required
-                        />
-                      </div>
-                      <div>
+              />
+            </div>
+            <div>
                         <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Description
-                        </label>
-                        <textarea
-                          id="description"
+                Description
+              </label>
+              <textarea
+                id="description"
                           value={newSubject.description}
                           onChange={(e) => setNewSubject({ ...newSubject, description: e.target.value })}
-                          rows={3}
+                rows={3}
                           className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                           required
-                        />
-                      </div>
-                      <div>
+              />
+            </div>
+            <div>
                         <label htmlFor="image_url" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                           Image URL (optional)
-                        </label>
+                </label>
                         <input
                           type="url"
                           id="image_url"
@@ -432,14 +432,14 @@ export function Subjects() {
                             'Create Subject'
                           )}
                         </button>
-                        <button
-                          type="button"
+                <button
+                  type="button"
                           onClick={() => setIsCreateModalOpen(false)}
                           className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm"
-                        >
+                >
                           Cancel
-                        </button>
-                      </div>
+                </button>
+              </div>
                     </form>
                   </div>
                 </div>
@@ -526,8 +526,8 @@ export function Subjects() {
                         />
                       </div>
                       <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
-                        <button
-                          type="submit"
+              <button
+                type="submit"
                           disabled={loading}
                           className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm"
                         >
@@ -549,10 +549,10 @@ export function Subjects() {
                           className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm"
                         >
                           Cancel
-                        </button>
-                      </div>
-                    </form>
-                  </div>
+              </button>
+            </div>
+          </form>
+        </div>
                 </div>
               </motion.div>
             </div>
@@ -596,7 +596,7 @@ export function Subjects() {
                     <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">Select Class</h3>
                     <div className="mt-6 space-y-4">
                       {classes.map((classItem) => (
-                        <button
+              <button
                           key={classItem.id}
                           onClick={() => {
                             setSelectedClass(classItem.id);
@@ -614,9 +614,9 @@ export function Subjects() {
                           }`}
                         >
                           {classItem.name}
-                        </button>
-                      ))}
-                    </div>
+              </button>
+        ))}
+      </div>
                   </div>
                 </div>
               </motion.div>

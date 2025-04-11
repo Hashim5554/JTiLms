@@ -274,11 +274,6 @@ export function Layout() {
             {/* User Info and Logout */}
             <div className="flex items-center justify-between">
               <div className="flex items-center">
-                <div className="h-8 w-8 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center">
-                  <span className="text-sm font-medium text-red-600 dark:text-red-400">
-                    {user?.username?.[0]?.toUpperCase() || 'U'}
-                  </span>
-                </div>
                 <div className="ml-3">
                   <p className="text-sm font-medium text-gray-900 dark:text-white">
                     {user?.username}

@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  MessageSquare, 
+  MessageSquare,
   Send, 
   Trash2, 
   User, 
@@ -93,7 +93,7 @@ export function Home() {
 
   useEffect(() => {
     if (currentClass || user?.role === 'ultra_admin') {
-      loadData();
+    loadData();
       loadSubjects();
       loadClassStudents();
     }
@@ -389,7 +389,7 @@ export function Home() {
         <div className="card p-8">
           <Loader2 className="h-12 w-12 animate-spin text-red-600 mx-auto" />
           <p className="mt-4 text-theme-text-secondary dark:text-gray-300">Loading...</p>
-        </div>
+      </div>
       </motion.div>
     );
   }
@@ -524,7 +524,7 @@ export function Home() {
               <AnimatePresence>
                 {announcements.map((announcement) => (
                   <motion.div 
-                    key={announcement.id}
+                    key={announcement.id} 
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
@@ -568,7 +568,7 @@ export function Home() {
               <AnimatePresence>
                 {dueWorks.map((work) => (
                   <motion.div 
-                    key={work.id}
+                    key={work.id} 
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
@@ -584,12 +584,12 @@ export function Home() {
                       </div>
                       <div className="flex flex-col items-end">
                         <span className={`px-2 py-1 text-xs rounded-full mb-2 ${
-                          new Date(work.due_date) < new Date()
+                        new Date(work.due_date) < new Date()
                             ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
                             : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                        }`}>
-                          {new Date(work.due_date).toLocaleDateString()}
-                        </span>
+                      }`}>
+                        {new Date(work.due_date).toLocaleDateString()}
+                      </span>
                         {new Date(work.due_date) < new Date() ? (
                           <AlertCircle className="h-5 w-5 text-red-600" />
                         ) : (
@@ -654,28 +654,28 @@ export function Home() {
         <div className="p-6">
           {activeTab === 'discussions' && (
             <>
-              <div className="mb-6">
-                <textarea
-                  value={newDiscussion}
-                  onChange={(e) => setNewDiscussion(e.target.value)}
-                  placeholder="Start a discussion..."
+          <div className="mb-6">
+            <textarea
+              value={newDiscussion}
+              onChange={(e) => setNewDiscussion(e.target.value)}
+              placeholder="Start a discussion..."
                   className="input-primary resize-none"
-                  rows={3}
-                />
-                <div className="mt-2 flex justify-end">
-                  <button
-                    onClick={handlePostDiscussion}
-                    disabled={!newDiscussion.trim()}
+              rows={3}
+            />
+            <div className="mt-2 flex justify-end">
+              <button
+                onClick={handlePostDiscussion}
+                disabled={!newDiscussion.trim()}
                     className="button-primary disabled:opacity-50 disabled:cursor-not-allowed transform transition-all duration-200 hover:scale-105 active:scale-95"
-                  >
-                    <PlusCircle className="h-5 w-5 mr-2" />
-                    Post
-                  </button>
-                </div>
-              </div>
-              <div className="space-y-4">
+              >
+                <PlusCircle className="h-5 w-5 mr-2" />
+                Post
+              </button>
+            </div>
+          </div>
+          <div className="space-y-4">
                 <AnimatePresence>
-                  {discussions.map((discussion) => (
+            {discussions.map((discussion) => (
                     <motion.div 
                       key={discussion.id}
                       initial={{ opacity: 0, y: 20 }}
@@ -731,7 +731,7 @@ export function Home() {
               <AnimatePresence>
                 {privateDiscussions.map((discussion) => (
                   <motion.div 
-                    key={discussion.id}
+                key={discussion.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
@@ -917,8 +917,8 @@ export function Home() {
                   >
                     Create
                   </button>
-                </div>
-              </div>
+          </div>
+        </div>
             </motion.div>
           </motion.div>
         )}
@@ -991,8 +991,8 @@ export function Home() {
                   >
                     Send
                   </button>
-                </div>
-              </div>
+      </div>
+    </div>
             </motion.div>
           </motion.div>
         )}
