@@ -36,6 +36,7 @@ interface HomeContextType {
 }
 
 interface ExtendedAttainmentTarget extends AttainmentTarget {
+  class_id: string | null;
   profiles?: {
     id: string;
     username: string;
@@ -383,8 +384,19 @@ export function Home() {
 
   const loadAttainmentTargets = async () => {
     try {
-      // Use mock data instead of Supabase query
-      setAttainmentTargets(mockAttainmentTargets);
+      const { data, error } = await supabase
+        .from('attainment_targets')
+        .select(`
+          *,
+          profiles!attainment_targets_created_by_fkey (
+            id,
+            username
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setAttainmentTargets(data || []);
     } catch (error) {
       console.error('Error loading attainment targets:', error);
     }
