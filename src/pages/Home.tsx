@@ -269,7 +269,10 @@ export function Home() {
         }])
         .select(`
           *,
-          profiles (username)
+          profiles (
+            id,
+            username
+          )
         `)
         .single();
 
@@ -361,7 +364,7 @@ export function Home() {
         .from('attainment_targets')
         .select(`
           *,
-          profiles:created_by (
+          profiles (
             id,
             username
           )
