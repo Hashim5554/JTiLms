@@ -50,18 +50,6 @@ interface ClubMember {
   clubs?: Club;
 }
 
-interface ClubAttendance {
-  id: string;
-  club_id: string;
-  user_id: string;
-  date: string;
-  status: 'present' | 'absent';
-  created_at: string;
-  profiles?: {
-    username: string;
-  };
-}
-
 interface Message {
   type: 'success' | 'error';
   text: string;
@@ -79,8 +67,6 @@ export function AfternoonClubs() {
   const [clubs, setClubs] = useState<Club[]>([]);
   const [selectedClub, setSelectedClub] = useState<Club | null>(null);
   const [clubMembers, setClubMembers] = useState<ClubMember[]>([]);
-  const [attendances, setAttendances] = useState<ClubAttendance[]>([]);
-  const [currentDate, setCurrentDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [loading, setLoading] = useState<boolean>(false);
   const [message, setMessage] = useState<Message | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -96,7 +82,6 @@ export function AfternoonClubs() {
     schedule: ''
   });
   const [userClubs, setUserClubs] = useState<ClubMember[]>([]);
-  const [activeTab, setActiveTab] = useState<'details' | 'members' | 'attendance'>('details');
 
   const isAdmin = user?.role === 'ultra_admin';
   const isTeacher = user?.role === 'teacher';
@@ -112,9 +97,8 @@ export function AfternoonClubs() {
   useEffect(() => {
     if (selectedClub) {
       loadClubMembers();
-      loadAttendances();
     }
-  }, [selectedClub, currentDate]);
+  }, [selectedClub]);
 
   const loadClubs = async () => {
     setLoading(true);
@@ -184,47 +168,24 @@ export function AfternoonClubs() {
     }
   };
 
-  const loadAttendances = async () => {
-    if (!selectedClub || !currentDate) return;
-    
-    try {
-      const { data } = await supabase
-        .from('club_attendance')
-        .select(`
-          *,
-          profiles:user_id (username)
-        `)
-        .eq('club_id', selectedClub.id)
-        .eq('date', currentDate);
-      
-      if (data) setAttendances(data);
-    } catch (error) {
-      if (error instanceof Error) {
-        setMessage({ type: 'error', text: error.message });
-      } else {
-        setMessage({ type: 'error', text: 'An unexpected error occurred' });
-      }
-    }
-  };
-
   const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
-    
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
     setIsSearching(true);
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .select('id, username, email, photo_url')
         .ilike('username', `%${searchQuery}%`)
-        .limit(10);
-      
-      if (data) setSearchResults(data);
+        .limit(5);
+
+      if (error) throw error;
+      setSearchResults(data || []);
     } catch (error) {
-      if (error instanceof Error) {
-        setMessage({ type: 'error', text: error.message });
-      } else {
-        setMessage({ type: 'error', text: 'An unexpected error occurred' });
-      }
+      console.error('Error searching users:', error);
     } finally {
       setIsSearching(false);
     }
@@ -232,50 +193,24 @@ export function AfternoonClubs() {
 
   const handleAddMember = async (userId: string) => {
     if (!selectedClub) return;
-    
+
     try {
-      // Check if user is already a member
-      const { data: existingMember } = await supabase
-        .from('club_members')
-        .select('*')
-        .eq('club_id', selectedClub.id)
-        .eq('user_id', userId)
-        .single();
-      
-      if (existingMember) {
-        setMessage({ type: 'error', text: 'User is already a member of this club' });
-        return;
-      }
-      
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('club_members')
         .insert([{
           club_id: selectedClub.id,
           user_id: userId
-        }])
-        .select(`
-          *,
-          profiles:user_id (
-            id,
-            username,
-            photo_url
-          )
-        `)
-        .single();
-      
+        }]);
+
       if (error) throw error;
-      
-      if (data) {
-        setClubMembers([...clubMembers, data]);
-        setSearchResults([]);
-        setSearchQuery('');
-        setMessage({ type: 'success', text: 'Member added successfully' });
-      }
-    } catch (error: any) {
+
+      await loadClubMembers();
+      setMessage({ type: 'success', text: 'Member added successfully' });
+    } catch (error) {
       if (error instanceof Error) {
         setMessage({ type: 'error', text: error.message });
       } else {
-        setMessage({ type: 'error', text: 'An unexpected error occurred' });
+        setMessage({ type: 'error', text: 'Failed to add member' });
       }
     }
   };
@@ -286,142 +221,80 @@ export function AfternoonClubs() {
         .from('club_members')
         .delete()
         .eq('id', memberId);
-      
-      if (error) throw error;
-      
-      setClubMembers(clubMembers.filter(member => member.id !== memberId));
-      setMessage({ type: 'success', text: 'Member removed successfully' });
-    } catch (error: any) {
-      if (error instanceof Error) {
-        setMessage({ type: 'error', text: error.message });
-      } else {
-        setMessage({ type: 'error', text: 'An unexpected error occurred' });
-      }
-    }
-  };
 
-  const handleAttendanceChange = async (userId: string, status: 'present' | 'absent') => {
-    if (!selectedClub || !currentDate) return;
-    
-    try {
-      // Check if attendance record already exists
-      const { data: existingData } = await supabase
-        .from('club_attendance')
-        .select('*')
-        .eq('club_id', selectedClub.id)
-        .eq('user_id', userId)
-        .eq('date', currentDate)
-        .single();
-      
-      let data;
-      
-      if (existingData) {
-        // Update existing record
-        const { data: updatedData, error } = await supabase
-          .from('club_attendance')
-          .update({ status })
-          .eq('id', existingData.id)
-          .select(`
-            *,
-            profiles:user_id (username)
-          `)
-          .single();
-        
-        if (error) throw error;
-        data = updatedData;
-      } else {
-        // Create new record
-        const { data: newData, error } = await supabase
-          .from('club_attendance')
-          .insert([{
-            club_id: selectedClub.id,
-            user_id: userId,
-            date: currentDate,
-            status
-          }])
-          .select(`
-            *,
-            profiles:user_id (username)
-          `)
-          .single();
-        
-        if (error) throw error;
-        data = newData;
-      }
-      
-      if (data) {
-        // Update the attendance list
-        const updatedAttendances = attendances.filter(a => 
-          !(a.club_id === selectedClub.id && a.user_id === userId && a.date === currentDate)
-        );
-        setAttendances([data, ...updatedAttendances]);
-        setMessage({ type: 'success', text: 'Attendance updated' });
-      }
-    } catch (error: any) {
+      if (error) throw error;
+
+      await loadClubMembers();
+      setMessage({ type: 'success', text: 'Member removed successfully' });
+    } catch (error) {
       if (error instanceof Error) {
         setMessage({ type: 'error', text: error.message });
       } else {
-        setMessage({ type: 'error', text: 'An unexpected error occurred' });
+        setMessage({ type: 'error', text: 'Failed to remove member' });
       }
     }
   };
 
   const handleCreateClub = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    if (!newClub.name || !newClub.description) {
+      setMessage({ type: 'error', text: 'Please fill in all required fields' });
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from('clubs')
         .insert([{
           ...newClub,
-          created_by: user?.id,
-          members_count: 0
+          created_by: user?.id
         }])
         .select()
         .single();
 
       if (error) throw error;
-      
-      setClubs([data, ...clubs]);
-      setIsCreateModalOpen(false);
-      setNewClub({
-        name: '',
-        description: '',
-        max_capacity: 30,
-        schedule: ''
-      });
-      setMessage({ type: 'success', text: 'Club created successfully!' });
-    } catch (error: any) {
-      setMessage({ type: 'error', text: error.message });
-    } finally {
-      setLoading(false);
+      if (data) {
+        setClubs([data, ...clubs]);
+        setNewClub({
+          name: '',
+          description: '',
+          max_capacity: 30,
+          schedule: ''
+        });
+        setIsCreateModalOpen(false);
+        setMessage({ type: 'success', text: 'Club created successfully' });
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        setMessage({ type: 'error', text: error.message });
+      } else {
+        setMessage({ type: 'error', text: 'Failed to create club' });
+      }
     }
   };
 
   const handleDeleteClub = async (clubId: string) => {
+    if (!confirm('Are you sure you want to delete this club?')) return;
+
     try {
       const { error } = await supabase
         .from('clubs')
         .delete()
         .eq('id', clubId);
-      
+
       if (error) throw error;
-      
+
       setClubs(clubs.filter(club => club.id !== clubId));
+      if (selectedClub?.id === clubId) {
+        setSelectedClub(null);
+      }
       setMessage({ type: 'success', text: 'Club deleted successfully' });
-    } catch (error: any) {
+    } catch (error) {
       if (error instanceof Error) {
         setMessage({ type: 'error', text: error.message });
       } else {
-        setMessage({ type: 'error', text: 'An unexpected error occurred' });
+        setMessage({ type: 'error', text: 'Failed to delete club' });
       }
-    }
-  };
-
-  const handleCapacityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseInt(e.target.value, 10);
-    if (!isNaN(value)) {
-      setNewClub(prev => ({ ...prev, max_capacity: value }));
     }
   };
 
@@ -429,20 +302,21 @@ export function AfternoonClubs() {
     try {
       const { error } = await supabase
         .from('club_members')
-        .insert([
-          {
-            club_id: clubId,
-            user_id: user?.id
-          }
-        ]);
+        .insert([{
+          club_id: clubId,
+          user_id: user?.id
+        }]);
 
       if (error) throw error;
 
-      await loadClubs();
       await loadUserClubs();
-      setMessage({ type: 'success', text: 'Successfully joined the club!' });
-    } catch (error: any) {
-      setMessage({ type: 'error', text: error.message });
+      setMessage({ type: 'success', text: 'Successfully joined the club' });
+    } catch (error) {
+      if (error instanceof Error) {
+        setMessage({ type: 'error', text: error.message });
+      } else {
+        setMessage({ type: 'error', text: 'Failed to join club' });
+      }
     }
   };
 
@@ -451,242 +325,229 @@ export function AfternoonClubs() {
       const { error } = await supabase
         .from('club_members')
         .delete()
-        .match({ club_id: clubId, user_id: user?.id });
+        .eq('club_id', clubId)
+        .eq('user_id', user?.id);
 
       if (error) throw error;
 
-      await loadClubs();
       await loadUserClubs();
-      setMessage({ type: 'success', text: 'Successfully left the club!' });
-    } catch (error: any) {
-      setMessage({ type: 'error', text: error.message });
+      setMessage({ type: 'success', text: 'Successfully left the club' });
+    } catch (error) {
+      if (error instanceof Error) {
+        setMessage({ type: 'error', text: error.message });
+      } else {
+        setMessage({ type: 'error', text: 'Failed to leave club' });
+      }
     }
   };
 
-  // Student view component
   const StudentClubView = () => (
     <div className="space-y-6">
-      {userClubs.length > 0 ? (
-        userClubs.map((clubMember: ClubMember) => {
-          const club = clubMember.clubs;
-          if (!club) return null;
-          
-          return (
-            <div key={club.id} className="bg-theme-primary shadow-lg rounded-xl p-4 hover:shadow-xl transition-shadow">
-              <div className="flex justify-between items-start mb-4">
-                <h4 className="text-lg font-medium text-theme-text-primary">{club.name}</h4>
+      <h2 className="text-2xl font-bold text-gray-900 dark:text-white">My Clubs</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {userClubs.map((userClub) => (
+          <motion.div
+            key={userClub.id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="card p-6"
+          >
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {userClub.clubs?.name}
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  {userClub.clubs?.description}
+                </p>
+              </div>
+              <button
+                onClick={() => handleLeaveClub(userClub.club_id)}
+                className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+              >
+                <UserMinus className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="mt-4 flex items-center text-sm text-gray-500 dark:text-gray-400">
+              <Users className="h-4 w-4 mr-2" />
+              <span>{userClub.clubs?.members_count || 0} members</span>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      <h2 className="text-2xl font-bold text-gray-900 dark:text-white mt-8">Available Clubs</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {clubs
+          .filter(club => !userClubs.some(userClub => userClub.club_id === club.id))
+          .map((club) => (
+            <motion.div
+              key={club.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="card p-6"
+            >
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {club.name}
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    {club.description}
+                  </p>
+                </div>
                 <button
-                  onClick={() => handleDeleteClub(club.id)}
-                  className="text-red-600 hover:text-red-700 p-1 rounded-lg hover:bg-red-50 transition-colors"
+                  onClick={() => handleJoinClub(club.id)}
+                  className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-colors"
                 >
-                  <X className="h-5 w-5" />
+                  <UserPlus className="h-5 w-5" />
                 </button>
               </div>
-              <p className="text-theme-text-secondary mb-4">{club.description}</p>
-              <div className="space-y-2 text-sm text-theme-text-tertiary">
-                <div className="flex items-center">
-                  <Users className="h-4 w-4 mr-2" />
-                  <span>{club.members_count}/{club.max_capacity} members</span>
-                </div>
-                <div className="flex items-center">
-                  <Calendar className="h-4 w-4 mr-2" />
-                  <span>{club.schedule}</span>
-                </div>
+              <div className="mt-4 flex items-center text-sm text-gray-500 dark:text-gray-400">
+                <Users className="h-4 w-4 mr-2" />
+                <span>{club.members_count} members</span>
               </div>
-            </div>
-          );
-        })
-      ) : (
-        <div className="bg-theme-primary shadow-lg rounded-xl p-6 text-center">
-          <p className="text-theme-text-secondary">You are not a member of any clubs</p>
-        </div>
-      )}
+            </motion.div>
+          ))}
+      </div>
     </div>
   );
 
-  if (user?.role !== 'ultra_admin' && user?.role !== 'teacher') {
-    return <div>Access denied. Admin privileges required.</div>;
-  }
+  const AdminClubView = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Clubs</h2>
+        <button
+          onClick={() => setIsCreateModalOpen(true)}
+          className="button-primary"
+        >
+          <Plus className="h-5 w-5 mr-2" />
+          Create Club
+        </button>
+      </div>
 
-  return (
-    <div className="container mx-auto px-4 py-8">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="space-y-8"
-      >
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Afternoon Clubs
-          </h1>
-          {canManageClubs && (
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setIsCreateModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors"
-            >
-              <Plus className="h-5 w-5" />
-              New Club
-            </motion.button>
-          )}
-        </div>
-
-        {message && (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {clubs.map((club) => (
           <motion.div
+            key={club.id}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className={`p-4 rounded-xl ${
-              message.type === 'success'
-                ? 'bg-green-100 text-green-800'
-                : 'bg-red-100 text-red-800'
-            }`}
+            className="card p-6"
           >
-            {message.text}
-          </motion.div>
-        )}
-
-        {loading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-500" />
-          </div>
-        ) : clubs.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center py-12"
-          >
-            <Users2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-              No clubs found
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400">
-              {canManageClubs
-                ? 'Create your first club to get started'
-                : 'No clubs are available at the moment'}
-            </p>
-          </motion.div>
-        ) : (
-          <AnimatePresence>
-            <div className="grid gap-6">
-              {clubs.map((club) => (
-                <motion.div
-                  key={club.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.2 }}
-                  className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden"
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {club.name}
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  {club.description}
+                </p>
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => {
+                    setSelectedClub(club);
+                    setIsAssignModalOpen(true);
+                  }}
+                  className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
                 >
-                  <div className="p-6">
-                    <div className="flex justify-between items-start gap-4">
-                      <div className="flex-1 space-y-3">
-                        <div className="flex items-center gap-2">
-                          <Users2 className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                          <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                            {club.name}
-                          </h3>
-                        </div>
-                        <p className="text-gray-600 dark:text-gray-300">
-                          {club.description}
-                        </p>
-                        <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-                          <span>{club.members?.length || 0} members</span>
-                          <span>•</span>
-                          <span>Created on {new Date(club.created_at).toLocaleString()}</span>
-                        </div>
-                      </div>
-                      {canManageClubs && (
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => handleDeleteClub(club.id)}
-                          className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50 rounded-xl transition-colors"
-                        >
-                          <Trash2 className="h-5 w-5" />
-                        </motion.button>
-                      )}
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
+                  <UserPlus className="h-5 w-5" />
+                </button>
+                <button
+                  onClick={() => handleDeleteClub(club.id)}
+                  className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                >
+                  <Trash2 className="h-5 w-5" />
+                </button>
+              </div>
             </div>
-          </AnimatePresence>
-        )}
-      </motion.div>
+            <div className="mt-4 flex items-center text-sm text-gray-500 dark:text-gray-400">
+              <Users className="h-4 w-4 mr-2" />
+              <span>{club.members_count} members</span>
+            </div>
+          </motion.div>
+        ))}
+      </div>
 
+      {/* Create Club Modal */}
       <AnimatePresence>
         {isCreateModalOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md"
             >
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Create New Club
-                </h3>
-                <button
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 rounded-xl transition-colors"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              <form onSubmit={handleCreateClub} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Name
-                  </label>
-                  <input
-                    type="text"
-                    value={newClub.name}
-                    onChange={(e) => setNewClub({ ...newClub, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
-                    required
-                  />
+              <h3 className="text-lg font-semibold mb-4">Create New Club</h3>
+              <form onSubmit={handleCreateClub}>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Name
+                    </label>
+                    <input
+                      type="text"
+                      value={newClub.name}
+                      onChange={(e) => setNewClub({ ...newClub, name: e.target.value })}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Description
+                    </label>
+                    <textarea
+                      value={newClub.description}
+                      onChange={(e) => setNewClub({ ...newClub, description: e.target.value })}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      rows={3}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Max Capacity
+                    </label>
+                    <input
+                      type="number"
+                      value={newClub.max_capacity}
+                      onChange={(e) => setNewClub({ ...newClub, max_capacity: parseInt(e.target.value) })}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      min="1"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Schedule
+                    </label>
+                    <input
+                      type="text"
+                      value={newClub.schedule}
+                      onChange={(e) => setNewClub({ ...newClub, schedule: e.target.value })}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      placeholder="e.g., Every Monday 2:00 PM"
+                      required
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Description
-                  </label>
-                  <textarea
-                    value={newClub.description}
-                    onChange={(e) => setNewClub({ ...newClub, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
-                    rows={3}
-                    required
-                  />
-                </div>
-                <div className="flex justify-end gap-2">
+                <div className="mt-6 flex justify-end space-x-3">
                   <button
                     type="button"
                     onClick={() => setIsCreateModalOpen(false)}
-                    className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors"
+                    className="button-secondary"
                   >
                     Cancel
                   </button>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors disabled:opacity-50"
-                  >
-                    {loading ? (
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Creating...
-                      </div>
-                    ) : (
-                      'Create'
-                    )}
+                  <button type="submit" className="button-primary">
+                    Create
                   </button>
                 </div>
               </form>
@@ -694,6 +555,128 @@ export function AfternoonClubs() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Assign Members Modal */}
+      <AnimatePresence>
+        {isAssignModalOpen && selectedClub && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md"
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">Assign Members to {selectedClub.name}</h3>
+                <button
+                  onClick={() => setIsAssignModalOpen(false)}
+                  className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div className="flex">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search users..."
+                    className="flex-1 rounded-l-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  />
+                  <button
+                    onClick={handleSearch}
+                    className="px-4 py-2 bg-red-600 text-white rounded-r-md hover:bg-red-700"
+                  >
+                    <Search className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="max-h-60 overflow-y-auto">
+                  {isSearching ? (
+                    <div className="flex justify-center py-4">
+                      <Loader2 className="h-6 w-6 animate-spin text-red-600" />
+                    </div>
+                  ) : searchResults.length > 0 ? (
+                    <div className="space-y-2">
+                      {searchResults.map((user) => (
+                        <div
+                          key={user.id}
+                          className="flex items-center justify-between p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                        >
+                          <div className="flex items-center">
+                            {user.photo_url ? (
+                              <img
+                                src={user.photo_url}
+                                alt={user.username}
+                                className="h-8 w-8 rounded-full mr-3"
+                              />
+                            ) : (
+                              <div className="h-8 w-8 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center mr-3">
+                                <span className="text-sm font-medium text-red-600 dark:text-red-400">
+                                  {user.username[0].toUpperCase()}
+                                </span>
+                              </div>
+                            )}
+                            <div>
+                              <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                {user.username}
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {user.email}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleAddMember(user.id)}
+                            className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-colors"
+                          >
+                            <UserPlus className="h-5 w-5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-center text-gray-500 dark:text-gray-400 py-4">
+                      No users found
+                    </p>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+
+  return (
+    <div className="page-container">
+      {message && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`p-4 rounded-lg mb-6 ${
+            message.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+          }`}
+        >
+          {message.text}
+        </motion.div>
+      )}
+
+      {loading ? (
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-red-600" />
+        </div>
+      ) : canManageClubs ? (
+        <AdminClubView />
+      ) : (
+        <StudentClubView />
+      )}
     </div>
   );
 }

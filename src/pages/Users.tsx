@@ -198,7 +198,7 @@ export function Users() {
       
       if (error) throw error;
       
-      await loadUsers();
+      setUsers(users.filter(user => user.id !== userId));
       setMessage({ type: 'success', text: 'User deleted successfully' });
     } catch (error: any) {
       console.error('Error deleting user:', error);
@@ -208,53 +208,23 @@ export function Users() {
     }
   };
 
-  const handleBulkDelete = async () => {
-    if (!confirm(`Are you sure you want to delete ${selectedUsers.length} users?`)) return;
-    
+  const handleRoleChange = async (userId: string, newRole: UserRole) => {
     setLoading(true);
     try {
       const { error } = await supabase
         .from('profiles')
-        .delete()
-        .in('id', selectedUsers);
+        .update({ role: newRole })
+        .eq('id', userId);
       
       if (error) throw error;
       
-      await loadUsers();
-      setSelectedUsers([]);
-      setMessage({ type: 'success', text: 'Users deleted successfully' });
+      setUsers(users.map(user => 
+        user.id === userId ? { ...user, role: newRole as 'ultra_admin' | 'student' | 'teacher' } : user
+      ));
+      setMessage({ type: 'success', text: 'User role updated successfully' });
     } catch (error: any) {
-      console.error('Error deleting users:', error);
-      setMessage({ type: 'error', text: error.message || 'Failed to delete users' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleAssignClass = async (userId: string, classId: string, isAssigned: boolean) => {
-    setLoading(true);
-    try {
-      if (isAssigned) {
-        const { error } = await supabase
-          .from('class_assignments')
-          .delete()
-          .eq('user_id', userId)
-          .eq('class_id', classId);
-        
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('class_assignments')
-          .insert([{ user_id: userId, class_id: classId }]);
-        
-        if (error) throw error;
-      }
-      
-      await loadUsers();
-      setMessage({ type: 'success', text: 'Class assignments updated successfully!' });
-    } catch (error: any) {
-      console.error('Error updating class assignments:', error);
-      setMessage({ type: 'error', text: error.message || 'Failed to update class assignments' });
+      console.error('Error updating user role:', error);
+      setMessage({ type: 'error', text: error.message || 'Failed to update user role' });
     } finally {
       setLoading(false);
     }
@@ -272,206 +242,252 @@ export function Users() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <div className="space-y-8">
-          <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Users
-            </h1>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setIsCreateModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors"
-            >
-              <Plus className="h-5 w-5" />
-              New User
-            </motion.button>
-          </div>
+    <div className="page-container">
+      {message && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`p-4 rounded-lg mb-6 ${
+            message.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+          }`}
+        >
+          {message.text}
+        </motion.div>
+      )}
 
-          {message && (
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Users</h2>
+        <button
+          onClick={() => setIsCreateModalOpen(true)}
+          className="button-primary"
+        >
+          <Plus className="h-5 w-5 mr-2" />
+          Add User
+        </button>
+      </div>
+
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 mb-6">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search users..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Filter className="text-gray-400" />
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value as UserRole | 'all')}
+              className="border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white"
+            >
+              <option value="all">All Roles</option>
+              <option value="student">Student</option>
+              <option value="teacher">Teacher</option>
+              <option value="ultra_admin">Admin</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-red-600" />
+        </div>
+      ) : filteredUsers.length === 0 ? (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-center py-12"
+        >
+          <User className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+            No users found
+          </h3>
+          <p className="text-gray-500 dark:text-gray-400">
+            {searchQuery ? 'Try adjusting your search' : 'Create a new user to get started'}
+          </p>
+        </motion.div>
+      ) : (
+        <div className="grid gap-4">
+          {filteredUsers.map((user) => (
             <motion.div
+              key={user.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className={`p-4 rounded-xl ${
-                message.type === 'success'
-                  ? 'bg-green-100 text-green-800'
-                  : 'bg-red-100 text-red-800'
-              }`}
+              className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4"
             >
-              {message.text}
-            </motion.div>
-          )}
-
-          {loading ? (
-            <div className="flex justify-center items-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-500" />
-            </div>
-          ) : users.length === 0 ? (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="text-center py-12"
-            >
-              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                No users found
-              </h3>
-              <p className="text-gray-500 dark:text-gray-400">
-                {user?.role === 'ultra_admin'
-                  ? 'Create your first user to get started'
-                  : 'No users are available at the moment'}
-              </p>
-            </motion.div>
-          ) : (
-            <AnimatePresence>
-              <div className="grid gap-6">
-                {users.map((user) => (
-                  <motion.div
-                    key={user.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    transition={{ duration: 0.2 }}
-                    style={{ width: '100%' }}
-                    className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden"
-                  >
-                    <div className="p-6">
-                      <div className="flex justify-between items-start gap-4">
-                        <div className="flex-1 space-y-3">
-                          <div className="flex items-center gap-2">
-                            <User className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                              {user.username}
-                            </h3>
-                          </div>
-                          <p className="text-gray-600 dark:text-gray-300">
-                            {user.email}
-                          </p>
-                          <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-                            <span>{user.role}</span>
-                            <span>•</span>
-                            <span>Created on {new Date(user.created_at).toLocaleString()}</span>
-                          </div>
-                        </div>
-                        {user.role === 'ultra_admin' && (
-                          <motion.button
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={() => handleDeleteUser(user.id)}
-                            className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50 rounded-xl transition-colors"
-                          >
-                            <Trash2 className="h-5 w-5" />
-                          </motion.button>
-                        )}
-                      </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  {user.photo_url ? (
+                    <img
+                      src={user.photo_url}
+                      alt={user.username}
+                      className="h-10 w-10 rounded-full"
+                    />
+                  ) : (
+                    <div className="h-10 w-10 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center">
+                      <span className="text-sm font-medium text-red-600 dark:text-red-400">
+                        {user.username[0].toUpperCase()}
+                      </span>
                     </div>
-                  </motion.div>
-                ))}
-              </div>
-            </AnimatePresence>
-          )}
-        </div>
-
-        <AnimatePresence>
-          {isCreateModalOpen && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-            >
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6"
-              >
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Create New User
-                  </h3>
-                  <button
-                    onClick={() => setIsCreateModalOpen(false)}
-                    className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 rounded-xl transition-colors"
+                  )}
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                      {user.username}
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {user.email}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-4">
+                  <select
+                    value={user.role}
+                    onChange={(e) => handleRoleChange(user.id, e.target.value as UserRole)}
+                    className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white"
                   >
-                    <X className="h-5 w-5" />
+                    <option value="student">Student</option>
+                    <option value="teacher">Teacher</option>
+                    <option value="ultra_admin">Admin</option>
+                  </select>
+                  <button
+                    onClick={() => handleDeleteUser(user.id)}
+                    className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                  >
+                    <Trash2 className="h-5 w-5" />
                   </button>
                 </div>
+              </div>
+              {user.class_assignments && user.class_assignments.length > 0 && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {user.class_assignments.map((assignment) => (
+                    <span
+                      key={assignment.class_id}
+                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-400"
+                    >
+                      {assignment.classes?.grade} {assignment.classes?.section}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          ))}
+        </div>
+      )}
 
-                <form onSubmit={handleCreateUser} className="space-y-4">
+      {/* Create User Modal */}
+      <AnimatePresence>
+        {isCreateModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md"
+            >
+              <h3 className="text-lg font-semibold mb-4">Create New User</h3>
+              <form onSubmit={handleCreateUser}>
+                <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Username
-                    </label>
-                    <input
-                      type="text"
-                      value={newUser.username}
-                      onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                       Email
                     </label>
                     <input
                       type="email"
                       value={newUser.email}
                       onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Username
+                    </label>
+                    <input
+                      type="text"
+                      value={newUser.username}
+                      onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      value={newUser.password}
+                      onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                       Role
                     </label>
                     <select
                       value={newUser.role}
                       onChange={(e) => setNewUser({ ...newUser, role: e.target.value as UserRole })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
-                      required
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                     >
                       <option value="student">Student</option>
                       <option value="teacher">Teacher</option>
-                      <option value="admin">Admin</option>
+                      <option value="ultra_admin">Admin</option>
                     </select>
                   </div>
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setIsCreateModalOpen(false)}
-                      className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors"
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Classes
+                    </label>
+                    <select
+                      multiple
+                      value={newUser.selectedClasses}
+                      onChange={(e) => {
+                        const selected = Array.from(e.target.selectedOptions, option => option.value);
+                        setNewUser({ ...newUser, selectedClasses: selected });
+                      }}
+                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                     >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors disabled:opacity-50"
-                    >
-                      {loading ? (
-                        <div className="flex items-center gap-2">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Creating...
-                        </div>
-                      ) : (
-                        'Create'
-                      )}
-                    </button>
+                      {classes.map((class_) => (
+                        <option key={class_.id} value={class_.id}>
+                          {class_.grade} {class_.section}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                </form>
-              </motion.div>
+                </div>
+                <div className="mt-6 flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsCreateModalOpen(false)}
+                    className="button-secondary"
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" className="button-primary">
+                    Create
+                  </button>
+                </div>
+              </form>
             </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
