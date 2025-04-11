@@ -35,10 +35,9 @@ interface NotificationCounts {
   recordRoom: number;
   clubs: number;
   timetable: number;
-  dueWorks: number;
 }
 
-type NotificationType = 'announcement' | 'subject' | 'library' | 'record' | 'club' | 'timetable' | 'dueWork';
+type NotificationType = 'announcement' | 'subject' | 'library' | 'record' | 'club' | 'timetable';
 
 const notificationTypes: Record<keyof NotificationCounts, NotificationType> = {
   announcements: 'announcement',
@@ -46,8 +45,7 @@ const notificationTypes: Record<keyof NotificationCounts, NotificationType> = {
   library: 'library',
   recordRoom: 'record',
   clubs: 'club',
-  timetable: 'timetable',
-  dueWorks: 'dueWork'
+  timetable: 'timetable'
 };
 
 export function Layout() {
@@ -61,8 +59,7 @@ export function Layout() {
     library: 0,
     recordRoom: 0,
     clubs: 0,
-    timetable: 0,
-    dueWorks: 0
+    timetable: 0
   });
   const [notificationError, setNotificationError] = useState<string | null>(null);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
@@ -240,18 +237,6 @@ export function Layout() {
               label="Clubs" 
               notificationCount={notifications.clubs} 
             />
-            <NavLink 
-              to="/timetable" 
-              icon={Clock} 
-              label="Timetable" 
-              notificationCount={notifications.timetable} 
-            />
-            <NavLink 
-              to="/due-works" 
-              icon={NotebookPen} 
-              label="Due Works" 
-              notificationCount={notifications.dueWorks} 
-            />
             {user?.role === 'ultra_admin' && (
               <>
                 <NavLink to="/users" icon={Users} label="Users" />
@@ -282,8 +267,20 @@ export function Layout() {
             </div>
           )}
 
-          {/* User Info and Logout */}
-          <div className="px-4 py-4 border-t border-gray-200 dark:border-gray-700">
+          {/* User Info, Timetable, and Logout */}
+          <div className="px-4 py-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
+            {/* Timetable Button */}
+            <a
+              href="https://lgs254f1.edupage.org/timetable/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+            >
+              <CalendarDays className="h-5 w-5 mr-2" />
+              <span>Timetable</span>
+            </a>
+
+            {/* User Info and Logout */}
             <div className="flex items-center justify-between">
               <div className="flex items-center">
                 <div className="h-8 w-8 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center">
