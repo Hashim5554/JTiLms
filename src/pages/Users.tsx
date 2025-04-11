@@ -96,12 +96,17 @@ export function Users() {
               section
             )
           )
-        `);
+        `)
+        .order('username');
       
       if (error) throw error;
-      if (data) setUsers(data);
+      if (data) {
+        setUsers(data);
+        setMessage(null);
+      }
     } catch (error: any) {
-      setMessage({ type: 'error', text: error.message });
+      console.error('Error loading users:', error);
+      setMessage({ type: 'error', text: 'Failed to load users. Please try again.' });
     } finally {
       setLoading(false);
     }
@@ -126,6 +131,11 @@ export function Users() {
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!newUser.email || !newUser.username || !newUser.password) {
+      setMessage({ type: 'error', text: 'Please fill in all required fields' });
+      return;
+    }
+
     setLoading(true);
     setMessage(null);
 
@@ -142,6 +152,8 @@ export function Users() {
         role: newUser.role
       });
 
+      if (!createdUser) throw new Error('Failed to create user');
+
       // Assign classes if any selected
       if (newUser.selectedClasses.length > 0) {
         const { error: assignmentError } = await supabase
@@ -157,7 +169,7 @@ export function Users() {
       }
 
       setMessage({ type: 'success', text: 'User created successfully!' });
-      loadUsers();
+      await loadUsers();
       setIsCreateModalOpen(false);
       setNewUser({
         email: '',
@@ -167,7 +179,8 @@ export function Users() {
         selectedClasses: []
       });
     } catch (error: any) {
-      setMessage({ type: 'error', text: error.message });
+      console.error('Error creating user:', error);
+      setMessage({ type: 'error', text: error.message || 'Failed to create user' });
     } finally {
       setLoading(false);
     }
@@ -185,10 +198,11 @@ export function Users() {
       
       if (error) throw error;
       
-      setUsers(users.filter(u => u.id !== userId));
+      await loadUsers();
       setMessage({ type: 'success', text: 'User deleted successfully' });
     } catch (error: any) {
-      setMessage({ type: 'error', text: error.message });
+      console.error('Error deleting user:', error);
+      setMessage({ type: 'error', text: error.message || 'Failed to delete user' });
     } finally {
       setLoading(false);
     }
@@ -206,17 +220,19 @@ export function Users() {
       
       if (error) throw error;
       
-      setUsers(users.filter(u => !selectedUsers.includes(u.id)));
+      await loadUsers();
       setSelectedUsers([]);
       setMessage({ type: 'success', text: 'Users deleted successfully' });
     } catch (error: any) {
-      setMessage({ type: 'error', text: error.message });
+      console.error('Error deleting users:', error);
+      setMessage({ type: 'error', text: error.message || 'Failed to delete users' });
     } finally {
       setLoading(false);
     }
   };
 
   const handleAssignClass = async (userId: string, classId: string, isAssigned: boolean) => {
+    setLoading(true);
     try {
       if (isAssigned) {
         const { error } = await supabase
@@ -234,10 +250,13 @@ export function Users() {
         if (error) throw error;
       }
       
-      loadUsers();
+      await loadUsers();
       setMessage({ type: 'success', text: 'Class assignments updated successfully!' });
     } catch (error: any) {
-      setMessage({ type: 'error', text: error.message });
+      console.error('Error updating class assignments:', error);
+      setMessage({ type: 'error', text: error.message || 'Failed to update class assignments' });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -318,6 +337,7 @@ export function Users() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
                     transition={{ duration: 0.2 }}
+                    style={{ width: '100%' }}
                     className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden"
                   >
                     <div className="p-6">

@@ -250,12 +250,6 @@ export function Layout() {
               notificationCount={notifications.subjects}
             />
             <NavLink 
-              to="/timetable" 
-              icon={CalendarDays} 
-              label="Timetable" 
-              notificationCount={notifications.timetable}
-            />
-            <NavLink 
               to="/due-works" 
               icon={NotebookPen} 
               label="Due Works" 
@@ -289,17 +283,26 @@ export function Layout() {
           </nav>
 
           {/* Footer */}
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
             <div className="flex items-center justify-between">
               <ThemeToggle />
-              <button
-                onClick={signOut}
-                className="flex items-center text-gray-700 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400"
-              >
-                <LogOut className="h-5 w-5 mr-2" />
-                <span className="text-sm font-medium">Logout</span>
-              </button>
             </div>
+            <a
+              href="https://lgs254f1.edupage.org/timetable/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+            >
+              <CalendarDays className="h-5 w-5 mr-2" />
+              <span>Timetable</span>
+            </a>
+            <button
+              onClick={signOut}
+              className="flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+            >
+              <LogOut className="h-5 w-5 mr-2" />
+              <span>Logout</span>
+            </button>
           </div>
         </div>
       </div>
