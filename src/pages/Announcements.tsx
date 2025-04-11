@@ -23,7 +23,7 @@ interface Announcement {
   };
 }
 
-export default function Announcements() {
+export function Announcements() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
