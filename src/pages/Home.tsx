@@ -58,6 +58,36 @@ interface PrivateDiscussion {
   };
 }
 
+// Mock data for attainment targets
+const mockAttainmentTargets: ExtendedAttainmentTarget[] = [
+  {
+    id: '1',
+    title: 'Mathematics Fundamentals',
+    description: 'Master basic mathematical concepts and operations',
+    created_by: 'user1',
+    class_id: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    profiles: {
+      id: 'user1',
+      username: 'Teacher1'
+    }
+  },
+  {
+    id: '2',
+    title: 'Science Exploration',
+    description: 'Explore basic scientific concepts and experiments',
+    created_by: 'user2',
+    class_id: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    profiles: {
+      id: 'user2',
+      username: 'Teacher2'
+    }
+  }
+];
+
 export function Home() {
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
   const [newDiscussion, setNewDiscussion] = useState('');
@@ -261,31 +291,24 @@ export function Home() {
     if (!newAttainmentTarget.title || !newAttainmentTarget.description) return;
 
     try {
-      const { data, error } = await supabase
-        .from('attainment_targets')
-        .insert([
-          {
-            title: newAttainmentTarget.title,
-            description: newAttainmentTarget.description,
-            class_id: currentClass?.id || null,
-            created_by: user?.id
-          }
-        ])
-        .select(`
-          *,
-          profiles!created_by (
-            id,
-            username
-          )
-        `)
-        .single();
+      // Create mock attainment target
+      const newTarget: ExtendedAttainmentTarget = {
+        id: Math.random().toString(),
+        title: newAttainmentTarget.title,
+        description: newAttainmentTarget.description,
+        created_by: user?.id || 'mock-user',
+        class_id: currentClass?.id || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        profiles: {
+          id: user?.id || 'mock-user',
+          username: user?.username || 'Mock User'
+        }
+      };
 
-      if (error) throw error;
-      if (data) {
-        setAttainmentTargets(prev => [data, ...prev]);
-        setNewAttainmentTarget({ title: '', description: '' });
-        setShowAttainmentModal(false);
-      }
+      setAttainmentTargets(prev => [newTarget, ...prev]);
+      setNewAttainmentTarget({ title: '', description: '' });
+      setShowAttainmentModal(false);
     } catch (error) {
       console.error('Error creating attainment target:', error);
     }
@@ -360,19 +383,8 @@ export function Home() {
 
   const loadAttainmentTargets = async () => {
     try {
-      const { data, error } = await supabase
-        .from('attainment_targets')
-        .select(`
-          *,
-          profiles!created_by (
-            id,
-            username
-          )
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setAttainmentTargets(data || []);
+      // Use mock data instead of Supabase query
+      setAttainmentTargets(mockAttainmentTargets);
     } catch (error) {
       console.error('Error loading attainment targets:', error);
     }
