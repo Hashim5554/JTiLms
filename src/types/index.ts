@@ -101,3 +101,9 @@ export interface AttainmentTarget {
     username: string;
   };
 }
+
+export interface ContextType {
+  currentClass: Class | null;
+  selectedClassId: string | null;
+  classes: Class[];
+}

@@ -232,7 +232,7 @@ export function Layout() {
               notificationCount={notifications.recordRoom} 
             />
             <NavLink 
-              to="/clubs" 
+              to="/afternoon-clubs" 
               icon={Users2} 
               label="Clubs" 
               notificationCount={notifications.clubs} 
