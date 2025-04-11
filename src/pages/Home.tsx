@@ -256,17 +256,21 @@ export function Home() {
     }
   };
 
-  const handleCreateAttainmentTarget = async () => {
-    if (!user?.id || !currentClass?.id) return;
+  const handleCreateAttainmentTarget = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAttainmentTarget.title || !newAttainmentTarget.description) return;
 
     try {
       const { data, error } = await supabase
         .from('attainment_targets')
-        .insert([{
-          ...newAttainmentTarget,
-          created_by: user.id,
-          class_id: currentClass.id
-        }])
+        .insert([
+          {
+            title: newAttainmentTarget.title,
+            description: newAttainmentTarget.description,
+            class_id: currentClass?.id || null,
+            created_by: user?.id
+          }
+        ])
         .select(`
           *,
           profiles (
@@ -278,12 +282,9 @@ export function Home() {
 
       if (error) throw error;
       if (data) {
-        setAttainmentTargets([data, ...attainmentTargets]);
+        setAttainmentTargets(prev => [data, ...prev]);
+        setNewAttainmentTarget({ title: '', description: '' });
         setShowAttainmentModal(false);
-        setNewAttainmentTarget({
-          title: '',
-          description: ''
-        });
       }
     } catch (error) {
       console.error('Error creating attainment target:', error);
@@ -358,7 +359,6 @@ export function Home() {
   };
 
   const loadAttainmentTargets = async () => {
-    if (!currentClass?.id) return;
     try {
       const { data, error } = await supabase
         .from('attainment_targets')
@@ -369,7 +369,6 @@ export function Home() {
             username
           )
         `)
-        .eq('class_id', currentClass.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -917,8 +916,8 @@ export function Home() {
                   >
                     Create
                   </button>
-          </div>
-        </div>
+                </div>
+              </div>
             </motion.div>
           </motion.div>
         )}
@@ -991,8 +990,8 @@ export function Home() {
                   >
                     Send
                   </button>
-      </div>
-    </div>
+                </div>
+              </div>
             </motion.div>
           </motion.div>
         )}

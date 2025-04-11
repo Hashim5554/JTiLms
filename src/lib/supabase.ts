@@ -6,7 +6,7 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // Validate environment variables
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase environment variables');
+  throw new Error('Missing Supabase environment variables');
 }
 
 // Create Supabase client with error handling
@@ -15,8 +15,9 @@ export const supabase = createClient<Database>(
   supabaseAnonKey || '',
   {
     auth: {
-      persistSession: true,
       autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true
     },
     db: {
       schema: 'public'
@@ -42,7 +43,7 @@ export const validateConnection = async () => {
 };
 
 // Enhanced error handling for auth
-export async function signInWithEmail(email: string, password: string) {
+export const signInWithEmail = async (email: string, password: string) => {
   try {
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -50,18 +51,26 @@ export async function signInWithEmail(email: string, password: string) {
     });
 
     if (error) {
-      if (error.message.includes('Invalid login credentials')) {
-        throw new Error('Invalid email or password');
-      }
+      console.error('Authentication error:', error);
       throw error;
     }
 
     return data;
-  } catch (error: any) {
-    console.error('Authentication error:', error);
-    throw new Error(error.message || 'Failed to sign in');
+  } catch (error) {
+    console.error('Sign in error:', error);
+    throw error;
   }
-}
+};
+
+export const signOut = async () => {
+  try {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+  } catch (error) {
+    console.error('Sign out error:', error);
+    throw error;
+  }
+};
 
 export async function createUser({
   email,
