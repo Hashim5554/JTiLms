@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useOutletContext } from 'react-router-dom';
+import { useParams, useOutletContext, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/auth';
-import type { Subject, Class } from '../types';
-import { PlusCircle, Trash2, Link as LinkIcon, Image, Edit } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import type { Subject, Class, SubjectMaterial } from '../types';
+import { PlusCircle, Trash2, Link as LinkIcon, Image, Edit, Plus, BookOpen, Calendar, Clock, Users, FileText, Edit2, Loader2, X } from 'lucide-react';
 
 interface SubjectLink {
   id: string;
@@ -20,14 +21,21 @@ interface ContextType {
   currentClass: Class | null;
 }
 
+interface Message {
+  type: 'success' | 'error';
+  text: string;
+}
+
 export function SubjectDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [subject, setSubject] = useState<Subject | null>(null);
   const [links, setLinks] = useState<SubjectLink[]>([]);
+  const [materials, setMaterials] = useState<SubjectMaterial[]>([]);
   const [newTitle, setNewTitle] = useState('');
   const [newUrl, setNewUrl] = useState('');
   const [loading, setLoading] = useState(true);
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editImageUrl, setEditImageUrl] = useState('');
@@ -35,10 +43,19 @@ export function SubjectDetail() {
   const { currentClass } = useOutletContext<ContextType>();
   const user = useAuthStore((state) => state.user);
   const isAdmin = user?.role === 'admin' || user?.role === 'ultra_admin';
+  const [message, setMessage] = useState<Message | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    file_url: '',
+    due_date: ''
+  });
 
   useEffect(() => {
     loadSubject();
     loadLinks();
+    loadMaterials();
   }, [id]);
 
   const loadSubject = async () => {
@@ -71,6 +88,24 @@ export function SubjectDetail() {
         .order('created_at', { ascending: false });
 
       if (data) setLinks(data);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadMaterials = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('subject_materials')
+        .select('*')
+        .eq('subject_id', id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setMaterials(data || []);
+    } catch (error) {
+      console.error('Error loading materials:', error);
+      setMessage({ type: 'error', text: 'Failed to load materials' });
     } finally {
       setLoading(false);
     }
@@ -128,7 +163,7 @@ export function SubjectDetail() {
 
     if (data && data[0]) {
       setSubject(data[0]);
-      setIsEditing(false);
+      setIsEditing(null);
     }
   };
 
@@ -136,203 +171,310 @@ export function SubjectDetail() {
     setShowImageInput(!showImageInput);
   };
 
-  if (!subject) return null;
+  const handleCreate = async () => {
+    try {
+      if (!formData.title || !formData.description) {
+        setMessage({ type: 'error', text: 'Title and description are required' });
+        return;
+      }
+
+      const { error } = await supabase
+        .from('subject_materials')
+        .insert([{
+          ...formData,
+          subject_id: id
+        }]);
+
+      if (error) throw error;
+
+      setMessage({ type: 'success', text: 'Material created successfully' });
+      setIsCreating(false);
+      setFormData({
+        title: '',
+        description: '',
+        file_url: '',
+        due_date: ''
+      });
+      loadMaterials();
+    } catch (error) {
+      console.error('Error creating material:', error);
+      setMessage({ type: 'error', text: 'Failed to create material' });
+    }
+  };
+
+  const handleDeleteMaterial = async (materialId: string) => {
+    try {
+      const { error } = await supabase
+        .from('subject_materials')
+        .delete()
+        .eq('id', materialId);
+
+      if (error) throw error;
+
+      setMessage({ type: 'success', text: 'Material deleted successfully' });
+      loadMaterials();
+    } catch (error) {
+      console.error('Error deleting material:', error);
+      setMessage({ type: 'error', text: 'Failed to delete material' });
+    }
+  };
+
+  const handleUpdateMaterial = async (materialId: string) => {
+    try {
+      if (!formData.title || !formData.description) {
+        setMessage({ type: 'error', text: 'Title and description are required' });
+        return;
+      }
+
+      const { error } = await supabase
+        .from('subject_materials')
+        .update(formData)
+        .eq('id', materialId);
+
+      if (error) throw error;
+
+      setMessage({ type: 'success', text: 'Material updated successfully' });
+      setIsEditing(null);
+      setFormData({
+        title: '',
+        description: '',
+        file_url: '',
+        due_date: ''
+      });
+      loadMaterials();
+    } catch (error) {
+      console.error('Error updating material:', error);
+      setMessage({ type: 'error', text: 'Failed to update material' });
+    }
+  };
+
+  const startEditing = (material: SubjectMaterial) => {
+    setIsEditing(material.id);
+    setFormData({
+      title: material.title,
+      description: material.description,
+      file_url: material.file_url || '',
+      due_date: material.due_date || ''
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-red-600" />
+      </div>
+    );
+  }
+
+  if (!subject) {
+    return (
+      <div className="text-center py-8">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Subject not found</h2>
+        <button
+          onClick={() => navigate('/subjects')}
+          className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+        >
+          Back to Subjects
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      {isEditing ? (
-        <div className="bg-white shadow sm:rounded-lg p-4 mb-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">Edit Subject</h2>
-          <form onSubmit={handleUpdateSubject} className="space-y-4">
-            <div>
-              <label htmlFor="edit-name" className="block text-sm font-medium text-gray-700">
-                Subject Name
-              </label>
-              <input
-                type="text"
-                id="edit-name"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500"
-              />
-            </div>
-            <div>
-              <label htmlFor="edit-description" className="block text-sm font-medium text-gray-700">
-                Description
-              </label>
-              <textarea
-                id="edit-description"
-                value={editDescription}
-                onChange={(e) => setEditDescription(e.target.value)}
-                rows={3}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500"
-              />
-            </div>
-            <div>
-              <div className="flex items-center justify-between">
-                <label className="block text-sm font-medium text-gray-700">
-                  Subject Image
-                </label>
-                <button
-                  type="button"
-                  onClick={toggleImageInput}
-                  className="inline-flex items-center text-sm text-red-600 hover:text-red-700"
-                >
-                  <Image className="h-5 w-5 mr-1" />
-                  {showImageInput ? 'Hide Image Input' : 'Add/Change Image'}
-                </button>
-              </div>
-              
-              {showImageInput && (
-                <div className="mt-2">
-                  <input
-                    type="url"
-                    value={editImageUrl}
-                    onChange={(e) => setEditImageUrl(e.target.value)}
-                    placeholder="Enter image URL"
-                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500"
-                  />
-                  <p className="mt-1 text-sm text-gray-500">
-                    Enter a URL for the subject image
-                  </p>
-                </div>
-              )}
-            </div>
-            <div className="flex justify-end space-x-3">
-              <button
-                type="button"
-                onClick={() => setIsEditing(false)}
-                className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
-              >
-                Save Changes
-              </button>
-            </div>
-          </form>
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{subject.name}</h1>
+          <p className="mt-2 text-gray-600 dark:text-gray-300">{subject.description}</p>
         </div>
-      ) : (
-        <div className="flex justify-between items-center">
-          <div className="flex items-center space-x-4">
-            <h1 className="text-3xl font-bold text-gray-900">{subject.name}</h1>
-            {isAdmin && (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
-              >
-                <Edit className="h-4 w-4 mr-1" />
-                Edit
-              </button>
-            )}
-          </div>
-          {currentClass && (
-            <div className="text-sm text-gray-500">
-              Class {currentClass.grade}-{currentClass.section}
-            </div>
-          )}
-        </div>
-      )}
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setIsCreating(true)}
+          className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+        >
+          <Plus className="h-5 w-5 mr-2" />
+          Add Material
+        </motion.button>
+      </div>
 
-      {subject.image_url && (
-        <div className="bg-white shadow sm:rounded-lg overflow-hidden">
-          <img 
-            src={subject.image_url} 
-            alt={subject.name} 
-            className="w-full h-64 object-cover"
-          />
-        </div>
-      )}
+      <AnimatePresence>
+        {message && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className={`p-4 rounded-lg mb-6 ${
+              message.type === 'success' 
+                ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200' 
+                : 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200'
+            }`}
+          >
+            {message.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <p className="text-gray-600">{subject.description}</p>
-
-      {isAdmin && (
-        <div className="bg-white shadow sm:rounded-lg p-4">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">Add Resource Link</h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="title" className="block text-sm font-medium text-gray-700">
-                Title
-              </label>
-              <input
-                type="text"
-                id="title"
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500"
-              />
-            </div>
-            <div>
-              <label htmlFor="url" className="block text-sm font-medium text-gray-700">
-                URL
-              </label>
-              <input
-                type="url"
-                id="url"
-                value={newUrl}
-                onChange={(e) => setNewUrl(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500"
-              />
-            </div>
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
-              >
-                <PlusCircle className="h-5 w-5 mr-2" />
-                Add Link
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-        <div className="px-4 py-5 sm:px-6">
-          <h3 className="text-lg font-medium text-gray-900">Resource Links</h3>
-        </div>
-        <ul className="divide-y divide-gray-200">
-          {links.map((link) => (
-            <li key={link.id} className="p-4">
-              <div className="flex justify-between items-start">
-                <div className="flex items-start space-x-3">
-                  <LinkIcon className="h-5 w-5 text-gray-400 mt-0.5" />
-                  <div>
-                    <a
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-lg font-medium text-red-600 hover:text-red-700"
-                    >
-                      {link.title}
-                    </a>
-                    <div className="mt-1 text-sm text-gray-500">
-                      Added by {link.profiles?.username} on{' '}
-                      {new Date(link.created_at).toLocaleString()}
-                    </div>
-                  </div>
-                </div>
-                {isAdmin && (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {materials.map((material) => (
+          <motion.div
+            key={material.id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-200"
+          >
+            <div className="p-6">
+              <div className="flex justify-between items-start mb-4">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{material.title}</h2>
+                <div className="flex space-x-2">
                   <button
-                    onClick={() => handleDelete(link.id)}
-                    className="text-red-600 hover:text-red-700"
+                    onClick={() => startEditing(material)}
+                    className="p-2 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 transition-colors"
+                  >
+                    <Edit2 className="h-5 w-5" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteMaterial(material.id)}
+                    className="p-2 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 transition-colors"
                   >
                     <Trash2 className="h-5 w-5" />
                   </button>
+                </div>
+              </div>
+              <p className="text-gray-600 dark:text-gray-300 mb-4">{material.description}</p>
+              <div className="space-y-2">
+                {material.file_url && (
+                  <a
+                    href={material.file_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    <span>View File</span>
+                  </a>
+                )}
+                {material.due_date && (
+                  <div className="flex items-center text-gray-600 dark:text-gray-300">
+                    <Calendar className="h-4 w-4 mr-2" />
+                    <span>Due: {new Date(material.due_date).toLocaleDateString()}</span>
+                  </div>
                 )}
               </div>
-            </li>
-          ))}
-          {links.length === 0 && (
-            <li className="p-4 text-center text-gray-500">
-              No resource links yet.
-            </li>
-          )}
-        </ul>
+            </div>
+          </motion.div>
+        ))}
       </div>
+
+      {/* Create/Edit Modal */}
+      <AnimatePresence>
+        {(isCreating || isEditing) && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-6"
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  {isEditing ? 'Edit Material' : 'Add Material'}
+                </h2>
+                <button
+                  onClick={() => {
+                    setIsCreating(false);
+                    setIsEditing(null);
+                    setFormData({
+                      title: '',
+                      description: '',
+                      file_url: '',
+                      due_date: ''
+                    });
+                  }}
+                  className="p-2 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Title
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    File URL
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.file_url}
+                    onChange={(e) => setFormData({ ...formData, file_url: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.due_date}
+                    onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
+                  />
+                </div>
+                <div className="flex justify-end space-x-3">
+                  <button
+                    onClick={() => {
+                      setIsCreating(false);
+                      setIsEditing(null);
+                      setFormData({
+                        title: '',
+                        description: '',
+                        file_url: '',
+                        due_date: ''
+                      });
+                    }}
+                    className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => isEditing ? handleUpdateMaterial(isEditing) : handleCreate()}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  >
+                    {isEditing ? 'Update' : 'Create'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

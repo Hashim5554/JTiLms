@@ -14,7 +14,6 @@ import {
   Menu,
   X,
   FileText,
-  Users2,
   Palette,
   Calendar,
   Sun,
@@ -23,7 +22,8 @@ import {
   CalendarDays,
   GraduationCap,
   BookMarked,
-  NotebookPen
+  NotebookPen,
+  Users2
 } from 'lucide-react';
 import { getUnreadNotificationCount, markNotificationsAsRead } from '../lib/notifications';
 import type { Class } from '../types/index';
@@ -233,13 +233,13 @@ export function Layout() {
             />
             <NavLink 
               to="/afternoon-clubs" 
-              icon={Users2} 
+              icon={Users} 
               label="Clubs" 
               notificationCount={notifications.clubs} 
             />
             {user?.role === 'ultra_admin' && (
               <>
-                <NavLink to="/users" icon={Users} label="Users" />
+                <NavLink to="/users" icon={Users2} label="Users" />
                 <NavLink to="/customize" icon={Palette} label="Customize" />
               </>
             )}
@@ -248,22 +248,13 @@ export function Layout() {
           {/* Class Selector */}
           {user?.role !== 'ultra_admin' && (
             <div className="px-4 py-4 border-t border-gray-200 dark:border-gray-700">
-              <label htmlFor="class-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Select Class
-              </label>
-              <select
-                id="class-select"
-                value={selectedClassId || ''}
-                onChange={(e) => handleClassChange(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
+              <Link
+                to="/select-class"
+                className="flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
               >
-                <option value="">Select a class</option>
-                {classes.map((classItem) => (
-                  <option key={classItem.id} value={classItem.id}>
-                    {classItem.grade} {classItem.section}
-                  </option>
-                ))}
-              </select>
+                <GraduationCap className="h-5 w-5 mr-2" />
+                <span>Change Class</span>
+              </Link>
             </div>
           )}
 

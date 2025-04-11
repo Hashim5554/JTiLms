@@ -19,11 +19,13 @@ import {
   UserMinus,
   CalendarDays,
   Users2,
-  Loader2
+  Loader2,
+  MapPin
 } from 'lucide-react';
 import { format } from 'date-fns';
 import '../styles/cards.css';
 import { motion, AnimatePresence } from 'framer-motion';
+import type { Club } from '../types/index';
 
 interface Club {
   id: string;
@@ -35,6 +37,10 @@ interface Club {
   schedule: string;
   members_count: number;
   members?: ClubMember[];
+  day?: string;
+  time?: string;
+  location?: string;
+  teacher?: string;
 }
 
 interface ClubMember {
@@ -72,14 +78,16 @@ export function AfternoonClubs() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
-  const [newClub, setNewClub] = useState<Omit<Club, 'id' | 'created_at' | 'created_by' | 'members_count'>>({
+  const [isCreating, setIsCreating] = useState(false);
+  const [isEditing, setIsEditing] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
     name: '',
     description: '',
-    max_capacity: 30,
-    schedule: ''
+    day: '',
+    time: '',
+    location: '',
+    capacity: '',
+    teacher: ''
   });
   const [userClubs, setUserClubs] = useState<ClubMember[]>([]);
 
@@ -106,7 +114,7 @@ export function AfternoonClubs() {
       const { data, error } = await supabase
         .from('clubs')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('name');
       
       if (error) throw error;
       if (data) setClubs(data);
@@ -235,18 +243,17 @@ export function AfternoonClubs() {
     }
   };
 
-  const handleCreateClub = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newClub.name || !newClub.description) {
-      setMessage({ type: 'error', text: 'Please fill in all required fields' });
-      return;
-    }
-
+  const handleCreate = async () => {
     try {
+      if (!formData.name || !formData.description) {
+        setMessage({ type: 'error', text: 'Name and description are required' });
+        return;
+      }
+
       const { data, error } = await supabase
         .from('clubs')
         .insert([{
-          ...newClub,
+          ...formData,
           created_by: user?.id
         }])
         .select()
@@ -255,37 +262,38 @@ export function AfternoonClubs() {
       if (error) throw error;
       if (data) {
         setClubs([data, ...clubs]);
-        setNewClub({
+        setFormData({
           name: '',
           description: '',
-          max_capacity: 30,
-          schedule: ''
+          day: '',
+          time: '',
+          location: '',
+          capacity: '',
+          teacher: ''
         });
-        setIsCreateModalOpen(false);
+        setIsCreating(false);
+        setIsEditing(null);
         setMessage({ type: 'success', text: 'Club created successfully' });
       }
     } catch (error) {
-      if (error instanceof Error) {
-        setMessage({ type: 'error', text: error.message });
-      } else {
-        setMessage({ type: 'error', text: 'Failed to create club' });
-      }
+      console.error('Error creating club:', error);
+      setMessage({ type: 'error', text: 'Failed to create club' });
     }
   };
 
-  const handleDeleteClub = async (clubId: string) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this club?')) return;
 
     try {
       const { error } = await supabase
         .from('clubs')
         .delete()
-        .eq('id', clubId);
+        .eq('id', id);
 
       if (error) throw error;
 
-      setClubs(clubs.filter(club => club.id !== clubId));
-      if (selectedClub?.id === clubId) {
+      setClubs(clubs.filter(club => club.id !== id));
+      if (selectedClub?.id === id) {
         setSelectedClub(null);
       }
       setMessage({ type: 'success', text: 'Club deleted successfully' });
@@ -339,6 +347,51 @@ export function AfternoonClubs() {
         setMessage({ type: 'error', text: 'Failed to leave club' });
       }
     }
+  };
+
+  const handleUpdate = async (id: string) => {
+    try {
+      if (!formData.name || !formData.description) {
+        setMessage({ type: 'error', text: 'Name and description are required' });
+        return;
+      }
+
+      const { error } = await supabase
+        .from('clubs')
+        .update(formData)
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setMessage({ type: 'success', text: 'Club updated successfully' });
+      setIsEditing(null);
+      setFormData({
+        name: '',
+        description: '',
+        day: '',
+        time: '',
+        location: '',
+        capacity: '',
+        teacher: ''
+      });
+      loadClubs();
+    } catch (error) {
+      console.error('Error updating club:', error);
+      setMessage({ type: 'error', text: 'Failed to update club' });
+    }
+  };
+
+  const startEditing = (club: Club) => {
+    setIsEditing(club.id);
+    setFormData({
+      name: club.name,
+      description: club.description,
+      day: club.day || '',
+      time: club.time || '',
+      location: club.location || '',
+      capacity: club.max_capacity.toString(),
+      teacher: club.teacher || ''
+    });
   };
 
   const StudentClubView = () => (
@@ -418,7 +471,7 @@ export function AfternoonClubs() {
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Clubs</h2>
         <button
-          onClick={() => setIsCreateModalOpen(true)}
+          onClick={() => setIsCreating(true)}
           className="button-primary"
         >
           <Plus className="h-5 w-5 mr-2" />
@@ -447,14 +500,14 @@ export function AfternoonClubs() {
                 <button
                   onClick={() => {
                     setSelectedClub(club);
-                    setIsAssignModalOpen(true);
+                    setIsEditing(club.id);
                   }}
                   className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
                 >
-                  <UserPlus className="h-5 w-5" />
+                  <Edit2 className="h-5 w-5" />
                 </button>
                 <button
-                  onClick={() => handleDeleteClub(club.id)}
+                  onClick={() => handleDelete(club.id)}
                   className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
                 >
                   <Trash2 className="h-5 w-5" />
@@ -468,205 +521,19 @@ export function AfternoonClubs() {
           </motion.div>
         ))}
       </div>
-
-      {/* Create Club Modal */}
-      <AnimatePresence>
-        {isCreateModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md"
-            >
-              <h3 className="text-lg font-semibold mb-4">Create New Club</h3>
-              <form onSubmit={handleCreateClub}>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Name
-                    </label>
-                    <input
-                      type="text"
-                      value={newClub.name}
-                      onChange={(e) => setNewClub({ ...newClub, name: e.target.value })}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Description
-                    </label>
-                    <textarea
-                      value={newClub.description}
-                      onChange={(e) => setNewClub({ ...newClub, description: e.target.value })}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                      rows={3}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Max Capacity
-                    </label>
-                    <input
-                      type="number"
-                      value={newClub.max_capacity}
-                      onChange={(e) => setNewClub({ ...newClub, max_capacity: parseInt(e.target.value) })}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                      min="1"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Schedule
-                    </label>
-                    <input
-                      type="text"
-                      value={newClub.schedule}
-                      onChange={(e) => setNewClub({ ...newClub, schedule: e.target.value })}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                      placeholder="e.g., Every Monday 2:00 PM"
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="mt-6 flex justify-end space-x-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsCreateModalOpen(false)}
-                    className="button-secondary"
-                  >
-                    Cancel
-                  </button>
-                  <button type="submit" className="button-primary">
-                    Create
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Assign Members Modal */}
-      <AnimatePresence>
-        {isAssignModalOpen && selectedClub && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md"
-            >
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">Assign Members to {selectedClub.name}</h3>
-                <button
-                  onClick={() => setIsAssignModalOpen(false)}
-                  className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <div className="space-y-4">
-                <div className="flex">
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search users..."
-                    className="flex-1 rounded-l-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  />
-                  <button
-                    onClick={handleSearch}
-                    className="px-4 py-2 bg-red-600 text-white rounded-r-md hover:bg-red-700"
-                  >
-                    <Search className="h-5 w-5" />
-                  </button>
-                </div>
-                <div className="max-h-60 overflow-y-auto">
-                  {isSearching ? (
-                    <div className="flex justify-center py-4">
-                      <Loader2 className="h-6 w-6 animate-spin text-red-600" />
-                    </div>
-                  ) : searchResults.length > 0 ? (
-                    <div className="space-y-2">
-                      {searchResults.map((user) => (
-                        <div
-                          key={user.id}
-                          className="flex items-center justify-between p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-                        >
-                          <div className="flex items-center">
-                            {user.photo_url ? (
-                              <img
-                                src={user.photo_url}
-                                alt={user.username}
-                                className="h-8 w-8 rounded-full mr-3"
-                              />
-                            ) : (
-                              <div className="h-8 w-8 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center mr-3">
-                                <span className="text-sm font-medium text-red-600 dark:text-red-400">
-                                  {user.username[0].toUpperCase()}
-                                </span>
-                              </div>
-                            )}
-                            <div>
-                              <p className="text-sm font-medium text-gray-900 dark:text-white">
-                                {user.username}
-                              </p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {user.email}
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => handleAddMember(user.id)}
-                            className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-colors"
-                          >
-                            <UserPlus className="h-5 w-5" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-center text-gray-500 dark:text-gray-400 py-4">
-                      No users found
-                    </p>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 
   return (
-    <div className="content-container animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold text-theme-text-primary dark:text-white">
-          Afternoon Clubs
-        </h1>
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Afternoon Clubs</h1>
         {canManageClubs && (
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => setIsCreateModalOpen(true)}
-            className="button-primary"
+            onClick={() => setIsCreating(true)}
+            className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
           >
             <Plus className="h-5 w-5 mr-2" />
             Create Club
@@ -674,17 +541,16 @@ export function AfternoonClubs() {
         )}
       </div>
 
-      {/* Message Display */}
       <AnimatePresence>
         {message && (
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className={`p-4 rounded-lg mb-4 ${
+            className={`p-4 rounded-lg mb-6 ${
               message.type === 'success' 
-                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200' 
+                : 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200'
             }`}
           >
             {message.text}
@@ -692,57 +558,72 @@ export function AfternoonClubs() {
         )}
       </AnimatePresence>
 
-      {/* Loading State */}
-      {loading && (
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-theme-primary" />
+      {loading ? (
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-red-600" />
         </div>
-      )}
-
-      {/* Clubs Grid */}
-      {!loading && (
+      ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {clubs.map((club) => (
             <motion.div
               key={club.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              whileHover={{ scale: 1.02 }}
-              className="card"
+              exit={{ opacity: 0, y: -20 }}
+              className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-200"
             >
-              <div className="card-header">
-                <h2 className="card-title">{club.name}</h2>
-                {canManageClubs && (
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => {
-                        setSelectedClub(club);
-                        setIsAssignModalOpen(true);
-                      }}
-                      className="p-2 hover:bg-theme-tertiary dark:hover:bg-gray-700 rounded-lg"
-                    >
-                      <UserPlus className="h-5 w-5" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteClub(club.id)}
-                      className="p-2 hover:bg-red-100 dark:hover:bg-red-900 rounded-lg"
-                    >
-                      <Trash2 className="h-5 w-5 text-red-600" />
-                    </button>
-                  </div>
-                )}
-              </div>
-              <div className="card-content">
-                <p>{club.description}</p>
-                <div className="mt-4 flex items-center space-x-4 text-sm text-theme-text-secondary dark:text-gray-400">
-                  <div className="flex items-center">
-                    <Users2 className="h-4 w-4 mr-1" />
-                    {club.members_count} / {club.max_capacity} members
-                  </div>
-                  <div className="flex items-center">
-                    <CalendarDays className="h-4 w-4 mr-1" />
-                    {club.schedule}
-                  </div>
+              <div className="p-6">
+                <div className="flex justify-between items-start mb-4">
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{club.name}</h2>
+                  {canManageClubs && (
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => startEditing(club)}
+                        className="p-2 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 transition-colors"
+                      >
+                        <Edit2 className="h-5 w-5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(club.id)}
+                        className="p-2 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 transition-colors"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <p className="text-gray-600 dark:text-gray-300 mb-4">{club.description}</p>
+                <div className="space-y-2">
+                  {club.day && (
+                    <div className="flex items-center text-gray-600 dark:text-gray-300">
+                      <Calendar className="h-4 w-4 mr-2" />
+                      <span>{club.day}</span>
+                    </div>
+                  )}
+                  {club.time && (
+                    <div className="flex items-center text-gray-600 dark:text-gray-300">
+                      <Clock className="h-4 w-4 mr-2" />
+                      <span>{club.time}</span>
+                    </div>
+                  )}
+                  {club.location && (
+                    <div className="flex items-center text-gray-600 dark:text-gray-300">
+                      <MapPin className="h-4 w-4 mr-2" />
+                      <span>{club.location}</span>
+                    </div>
+                  )}
+                  {club.max_capacity && (
+                    <div className="flex items-center text-gray-600 dark:text-gray-300">
+                      <Users className="h-4 w-4 mr-2" />
+                      <span>Capacity: {club.max_capacity}</span>
+                    </div>
+                  )}
+                  {club.teacher && (
+                    <div className="flex items-center text-gray-600 dark:text-gray-300">
+                      <Users className="h-4 w-4 mr-2" />
+                      <span>Teacher: {club.teacher}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -750,189 +631,147 @@ export function AfternoonClubs() {
         </div>
       )}
 
-      {/* Create Club Modal */}
+      {/* Create/Edit Modal */}
       <AnimatePresence>
-        {isCreateModalOpen && (
+        {(isCreating || isEditing) && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full"
+              className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-6"
             >
-              <h2 className="text-xl font-bold mb-4">Create New Club</h2>
-              <form onSubmit={handleCreateClub}>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Name</label>
-                    <input
-                      type="text"
-                      value={newClub.name}
-                      onChange={(e) => setNewClub({ ...newClub, name: e.target.value })}
-                      className="input-primary"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Description</label>
-                    <textarea
-                      value={newClub.description}
-                      onChange={(e) => setNewClub({ ...newClub, description: e.target.value })}
-                      className="input-primary"
-                      rows={3}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Max Capacity</label>
-                    <input
-                      type="number"
-                      value={newClub.max_capacity}
-                      onChange={(e) => setNewClub({ ...newClub, max_capacity: parseInt(e.target.value) })}
-                      className="input-primary"
-                      min="1"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Schedule</label>
-                    <input
-                      type="text"
-                      value={newClub.schedule}
-                      onChange={(e) => setNewClub({ ...newClub, schedule: e.target.value })}
-                      className="input-primary"
-                      placeholder="e.g., Monday 2:00 PM - 3:00 PM"
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="mt-6 flex justify-end space-x-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsCreateModalOpen(false)}
-                    className="button-secondary"
-                  >
-                    Cancel
-                  </button>
-                  <button type="submit" className="button-primary">
-                    Create
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Assign Members Modal */}
-      <AnimatePresence>
-        {isAssignModalOpen && selectedClub && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold">Assign Members to {selectedClub.name}</h2>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  {isEditing ? 'Edit Club' : 'Create Club'}
+                </h2>
                 <button
-                  onClick={() => setIsAssignModalOpen(false)}
-                  className="p-2 hover:bg-theme-tertiary dark:hover:bg-gray-700 rounded-lg"
+                  onClick={() => {
+                    setIsCreating(false);
+                    setIsEditing(null);
+                    setFormData({
+                      name: '',
+                      description: '',
+                      day: '',
+                      time: '',
+                      location: '',
+                      capacity: '',
+                      teacher: ''
+                    });
+                  }}
+                  className="p-2 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 transition-colors"
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
-              <div className="mb-4">
-                <div className="relative">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Name
+                  </label>
                   <input
                     type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                    placeholder="Search users..."
-                    className="input-primary pl-10"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
                   />
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-theme-text-secondary" />
                 </div>
-              </div>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {searchResults.map((user) => (
-                  <div
-                    key={user.id}
-                    className="flex items-center justify-between p-2 hover:bg-theme-tertiary dark:hover:bg-gray-700 rounded-lg"
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Day
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.day}
+                    onChange={(e) => setFormData({ ...formData, day: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Time
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.time}
+                    onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Location
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.location}
+                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Capacity
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.capacity}
+                    onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Teacher
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.teacher}
+                    onChange={(e) => setFormData({ ...formData, teacher: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
+                  />
+                </div>
+                <div className="flex justify-end space-x-3">
+                  <button
+                    onClick={() => {
+                      setIsCreating(false);
+                      setIsEditing(null);
+                      setFormData({
+                        name: '',
+                        description: '',
+                        day: '',
+                        time: '',
+                        location: '',
+                        capacity: '',
+                        teacher: ''
+                      });
+                    }}
+                    className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                   >
-                    <div className="flex items-center">
-                      {user.photo_url ? (
-                        <img
-                          src={user.photo_url}
-                          alt={user.username}
-                          className="h-8 w-8 rounded-full mr-3"
-                        />
-                      ) : (
-                        <div className="h-8 w-8 rounded-full bg-theme-tertiary dark:bg-gray-700 flex items-center justify-center mr-3">
-                          <Users className="h-5 w-5" />
-                        </div>
-                      )}
-                      <div>
-                        <div className="font-medium">{user.username}</div>
-                        <div className="text-sm text-theme-text-secondary">{user.email}</div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleAddMember(user.id)}
-                      className="p-2 hover:bg-green-100 dark:hover:bg-green-900 rounded-lg"
-                    >
-                      <UserPlus className="h-5 w-5 text-green-600" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4">
-                <h3 className="font-medium mb-2">Current Members</h3>
-                <div className="space-y-2">
-                  {clubMembers.map((member) => (
-                    <div
-                      key={member.id}
-                      className="flex items-center justify-between p-2 hover:bg-theme-tertiary dark:hover:bg-gray-700 rounded-lg"
-                    >
-                      <div className="flex items-center">
-                        {member.profiles?.photo_url ? (
-                          <img
-                            src={member.profiles.photo_url}
-                            alt={member.profiles.username}
-                            className="h-8 w-8 rounded-full mr-3"
-                          />
-                        ) : (
-                          <div className="h-8 w-8 rounded-full bg-theme-tertiary dark:bg-gray-700 flex items-center justify-center mr-3">
-                            <Users className="h-5 w-5" />
-                          </div>
-                        )}
-                        <div>
-                          <div className="font-medium">{member.profiles?.username}</div>
-                          <div className="text-sm text-theme-text-secondary">
-                            Joined {format(new Date(member.joined_at), 'MMM d, yyyy')}
-                          </div>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleRemoveMember(member.id)}
-                        className="p-2 hover:bg-red-100 dark:hover:bg-red-900 rounded-lg"
-                      >
-                        <UserMinus className="h-5 w-5 text-red-600" />
-                      </button>
-                    </div>
-                  ))}
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => isEditing ? handleUpdate(isEditing) : handleCreate()}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  >
+                    {isEditing ? 'Update' : 'Create'}
+                  </button>
                 </div>
               </div>
             </motion.div>

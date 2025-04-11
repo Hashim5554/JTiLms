@@ -2,34 +2,84 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/auth';
-import { Discussion, Announcement, DueWork, ContextType } from '../types';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  MessageSquare,
-  Calendar,
+  MessageSquare, 
+  Send, 
+  Trash2, 
+  User, 
+  Plus,
   Target,
-  FileText,
+  Mail,
+  Loader2,
+  Calendar,
   Bell,
   PlusCircle,
-  BookOpen,
-  Loader2,
   Clock,
-  CheckCircle2,
   AlertCircle,
-  ChevronRight,
+  Lock,
   X
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Class, 
+  Profile, 
+  Discussion, 
+  Announcement, 
+  DueWork, 
+  AttainmentTarget
+} from '../types';
 import '../styles/cards.css';
+
+interface HomeContextType {
+  currentClass: Class | null;
+  classes: Class[];
+}
+
+interface ExtendedAttainmentTarget extends AttainmentTarget {
+  profiles?: {
+    id: string;
+    username: string;
+  };
+}
+
+interface PrivateDiscussion {
+  id: string;
+  content: string;
+  created_by: string;
+  recipient_id: string;
+  class_id: string;
+  created_at: string;
+  updated_at: string;
+  profiles?: {
+    username: string;
+  };
+  recipient?: {
+    username: string;
+  };
+}
 
 export function Home() {
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
   const [newDiscussion, setNewDiscussion] = useState('');
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [dueWorks, setDueWorks] = useState<DueWork[]>([]);
-  const [activeTab, setActiveTab] = useState<'discussions' | 'attainment' | 'due' | 'answers'>('discussions');
+  const [attainmentTargets, setAttainmentTargets] = useState<ExtendedAttainmentTarget[]>([]);
+  const [privateDiscussions, setPrivateDiscussions] = useState<PrivateDiscussion[]>([]);
+  const [activeTab, setActiveTab] = useState<'discussions' | 'attainment' | 'due' | 'private'>('discussions');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showDueWorkModal, setShowDueWorkModal] = useState(false);
+  const [showAttainmentModal, setShowAttainmentModal] = useState(false);
+  const [showPrivateDiscussionModal, setShowPrivateDiscussionModal] = useState(false);
+  const [newAttainmentTarget, setNewAttainmentTarget] = useState({
+    title: '',
+    description: ''
+  });
+  const [newPrivateDiscussion, setNewPrivateDiscussion] = useState({
+    content: '',
+    recipient_id: ''
+  });
+  const [classStudents, setClassStudents] = useState<any[]>([]);
   const [newDueWork, setNewDueWork] = useState({
     title: '',
     description: '',
@@ -39,12 +89,13 @@ export function Home() {
   });
   const [subjects, setSubjects] = useState<any[]>([]);
   const user = useAuthStore((state) => state.user);
-  const { currentClass, classes } = useOutletContext<ContextType>();
+  const { currentClass, classes } = useOutletContext<HomeContextType>();
 
   useEffect(() => {
     if (currentClass || user?.role === 'ultra_admin') {
       loadData();
       loadSubjects();
+      loadClassStudents();
     }
   }, [currentClass, user?.role]);
 
@@ -59,6 +110,26 @@ export function Home() {
       setSubjects(data || []);
     } catch (error) {
       console.error('Error loading subjects:', error);
+    }
+  };
+
+  const loadClassStudents = async () => {
+    if (!currentClass?.id) return;
+    try {
+      const { data, error } = await supabase
+        .from('class_assignments')
+        .select(`
+          profiles (
+            id,
+            username
+          )
+        `)
+        .eq('class_id', currentClass.id);
+
+      if (error) throw error;
+      setClassStudents(data?.map(d => d.profiles) || []);
+    } catch (error) {
+      console.error('Error loading class students:', error);
     }
   };
 
@@ -94,29 +165,62 @@ export function Home() {
         `)
         .order('due_date', { ascending: true });
 
+      let attainmentTargetsQuery = supabase
+        .from('attainment_targets')
+        .select(`
+          *,
+          profiles!attainment_targets_created_by_fkey (username)
+        `)
+        .order('created_at', { ascending: false });
+
+      let privateDiscussionsQuery = supabase
+        .from('private_discussions')
+        .select(`
+          *,
+          profiles!private_discussions_created_by_fkey (username),
+          recipient:profiles!private_discussions_recipient_id_fkey (username)
+        `)
+        .order('created_at', { ascending: false });
+
       if (currentClass?.id) {
         announcementsQuery = announcementsQuery.or(`class_id.eq.${currentClass.id},class_id.is.null`);
         discussionsQuery = discussionsQuery.eq('class_id', currentClass.id);
         dueWorksQuery = dueWorksQuery.eq('class_id', currentClass.id);
+        attainmentTargetsQuery = attainmentTargetsQuery.eq('class_id', currentClass.id);
+        privateDiscussionsQuery = privateDiscussionsQuery.eq('class_id', currentClass.id);
       } else {
         announcementsQuery = announcementsQuery.is('class_id', null);
         discussionsQuery = discussionsQuery.is('class_id', null);
         dueWorksQuery = dueWorksQuery.is('class_id', null);
+        attainmentTargetsQuery = attainmentTargetsQuery.is('class_id', null);
+        privateDiscussionsQuery = privateDiscussionsQuery.is('class_id', null);
       }
 
-      const [announcementsData, dueWorksData, discussionsData] = await Promise.all([
+      const [
+        announcementsData,
+        dueWorksData,
+        discussionsData,
+        attainmentTargetsData,
+        privateDiscussionsData
+      ] = await Promise.all([
         announcementsQuery,
         dueWorksQuery,
-        discussionsQuery
+        discussionsQuery,
+        attainmentTargetsQuery,
+        privateDiscussionsQuery
       ]);
 
       if (announcementsData.error) throw announcementsData.error;
       if (dueWorksData.error) throw dueWorksData.error;
       if (discussionsData.error) throw discussionsData.error;
+      if (attainmentTargetsData.error) throw attainmentTargetsData.error;
+      if (privateDiscussionsData.error) throw privateDiscussionsData.error;
 
       setAnnouncements(announcementsData.data || []);
       setDueWorks(dueWorksData.data || []);
       setDiscussions(discussionsData.data || []);
+      setAttainmentTargets(attainmentTargetsData.data || []);
+      setPrivateDiscussions(privateDiscussionsData.data || []);
     } catch (error: any) {
       console.error('Error loading home data:', error);
       setError(error.message);
@@ -152,6 +256,69 @@ export function Home() {
     }
   };
 
+  const handleCreateAttainmentTarget = async () => {
+    if (!user?.id || !currentClass?.id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('attainment_targets')
+        .insert([{
+          ...newAttainmentTarget,
+          created_by: user.id,
+          class_id: currentClass.id
+        }])
+        .select(`
+          *,
+          profiles (username)
+        `)
+        .single();
+
+      if (error) throw error;
+      if (data) {
+        setAttainmentTargets([data, ...attainmentTargets]);
+        setShowAttainmentModal(false);
+        setNewAttainmentTarget({
+          title: '',
+          description: ''
+        });
+      }
+    } catch (error) {
+      console.error('Error creating attainment target:', error);
+    }
+  };
+
+  const handleCreatePrivateDiscussion = async () => {
+    if (!user?.id || !currentClass?.id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('private_discussions')
+        .insert([{
+          ...newPrivateDiscussion,
+          created_by: user.id,
+          class_id: currentClass.id
+        }])
+        .select(`
+          *,
+          profiles (username),
+          recipient:profiles!private_discussions_recipient_id_fkey (username)
+        `)
+        .single();
+
+      if (error) throw error;
+      if (data) {
+        setPrivateDiscussions([data, ...privateDiscussions]);
+        setShowPrivateDiscussionModal(false);
+        setNewPrivateDiscussion({
+          content: '',
+          recipient_id: ''
+        });
+      }
+    } catch (error) {
+      console.error('Error creating private discussion:', error);
+    }
+  };
+
   const handleCreateDueWork = async () => {
     if (!user?.id || !currentClass?.id) return;
 
@@ -184,6 +351,28 @@ export function Home() {
       }
     } catch (error) {
       console.error('Error creating due work:', error);
+    }
+  };
+
+  const loadAttainmentTargets = async () => {
+    if (!currentClass?.id) return;
+    try {
+      const { data, error } = await supabase
+        .from('attainment_targets')
+        .select(`
+          *,
+          profiles:created_by (
+            id,
+            username
+          )
+        `)
+        .eq('class_id', currentClass.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setAttainmentTargets(data || []);
+    } catch (error) {
+      console.error('Error loading attainment targets:', error);
     }
   };
 
@@ -263,6 +452,20 @@ export function Home() {
               Discussions
             </button>
             <button 
+              onClick={() => setActiveTab('attainment')}
+              className="inline-flex items-center px-6 py-3 bg-white text-red-600 rounded-2xl font-medium hover:bg-red-50 transform transition-all duration-300 hover:scale-105 active:scale-95"
+            >
+              <Target className="h-5 w-5 mr-2" />
+              Attainment Targets
+            </button>
+            <button 
+              onClick={() => setActiveTab('private')}
+              className="inline-flex items-center px-6 py-3 bg-white text-red-600 rounded-2xl font-medium hover:bg-red-50 transform transition-all duration-300 hover:scale-105 active:scale-95"
+            >
+              <Lock className="h-5 w-5 mr-2" />
+              Private Discussions
+            </button>
+            <button 
               onClick={() => setActiveTab('due')}
               className="inline-flex items-center px-6 py-3 bg-white text-red-600 rounded-2xl font-medium hover:bg-red-50 transform transition-all duration-300 hover:scale-105 active:scale-95"
             >
@@ -270,13 +473,29 @@ export function Home() {
               Due Works
             </button>
             {(user?.role === 'teacher' || user?.role === 'ultra_admin') && (
-              <button 
-                onClick={() => setShowDueWorkModal(true)}
-                className="inline-flex items-center px-6 py-3 bg-white text-red-600 rounded-2xl font-medium hover:bg-red-50 transform transition-all duration-300 hover:scale-105 active:scale-95"
-              >
-                <PlusCircle className="h-5 w-5 mr-2" />
-                Assign Work
-              </button>
+              <>
+                <button 
+                  onClick={() => setShowDueWorkModal(true)}
+                  className="inline-flex items-center px-6 py-3 bg-white text-red-600 rounded-2xl font-medium hover:bg-red-50 transform transition-all duration-300 hover:scale-105 active:scale-95"
+                >
+                  <PlusCircle className="h-5 w-5 mr-2" />
+                  Assign Work
+                </button>
+                <button 
+                  onClick={() => setShowAttainmentModal(true)}
+                  className="inline-flex items-center px-6 py-3 bg-white text-red-600 rounded-2xl font-medium hover:bg-red-50 transform transition-all duration-300 hover:scale-105 active:scale-95"
+                >
+                  <PlusCircle className="h-5 w-5 mr-2" />
+                  Add Target
+                </button>
+                <button 
+                  onClick={() => setShowPrivateDiscussionModal(true)}
+                  className="inline-flex items-center px-6 py-3 bg-white text-red-600 rounded-2xl font-medium hover:bg-red-50 transform transition-all duration-300 hover:scale-105 active:scale-95"
+                >
+                  <PlusCircle className="h-5 w-5 mr-2" />
+                  Private Message
+                </button>
+              </>
             )}
           </motion.div>
         </div>
@@ -407,50 +626,132 @@ export function Home() {
             >
               <MessageSquare className="h-5 w-5" />
             </button>
+            <button
+              onClick={() => setActiveTab('attainment')}
+              className={`px-4 py-2 rounded-2xl transition-colors ${
+                activeTab === 'attainment'
+                  ? 'bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-200'
+                  : 'text-theme-text-secondary dark:text-gray-400 hover:bg-theme-tertiary dark:hover:bg-gray-700'
+              }`}
+            >
+              <Target className="h-5 w-5" />
+            </button>
+            <button
+              onClick={() => setActiveTab('private')}
+              className={`px-4 py-2 rounded-2xl transition-colors ${
+                activeTab === 'private'
+                  ? 'bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-200'
+                  : 'text-theme-text-secondary dark:text-gray-400 hover:bg-theme-tertiary dark:hover:bg-gray-700'
+              }`}
+            >
+              <Lock className="h-5 w-5" />
+            </button>
           </div>
         </div>
         <div className="p-6">
-          <div className="mb-6">
-            <textarea
-              value={newDiscussion}
-              onChange={(e) => setNewDiscussion(e.target.value)}
-              placeholder="Start a discussion..."
-              className="input-primary resize-none"
-              rows={3}
-            />
-            <div className="mt-2 flex justify-end">
-              <button
-                onClick={handlePostDiscussion}
-                disabled={!newDiscussion.trim()}
-                className="button-primary disabled:opacity-50 disabled:cursor-not-allowed transform transition-all duration-200 hover:scale-105 active:scale-95"
-              >
-                <PlusCircle className="h-5 w-5 mr-2" />
-                Post
-              </button>
+          {activeTab === 'discussions' && (
+            <>
+              <div className="mb-6">
+                <textarea
+                  value={newDiscussion}
+                  onChange={(e) => setNewDiscussion(e.target.value)}
+                  placeholder="Start a discussion..."
+                  className="input-primary resize-none"
+                  rows={3}
+                />
+                <div className="mt-2 flex justify-end">
+                  <button
+                    onClick={handlePostDiscussion}
+                    disabled={!newDiscussion.trim()}
+                    className="button-primary disabled:opacity-50 disabled:cursor-not-allowed transform transition-all duration-200 hover:scale-105 active:scale-95"
+                  >
+                    <PlusCircle className="h-5 w-5 mr-2" />
+                    Post
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <AnimatePresence>
+                  {discussions.map((discussion) => (
+                    <motion.div 
+                      key={discussion.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      className="card"
+                    >
+                      <div className="card-content">{discussion.content}</div>
+                      <div className="card-meta">
+                        <span className="card-author">Posted by {discussion.profiles?.username}</span>
+                        <span className="card-date">
+                          {' '}
+                          • {new Date(discussion.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'attainment' && (
+            <div className="space-y-4">
+              <AnimatePresence>
+                {attainmentTargets.map((target) => (
+                  <motion.div 
+                    key={target.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    className="card"
+                  >
+                    <div className="card-header">
+                      <h3 className="card-title">{target.title}</h3>
+                    </div>
+                    <div className="card-content">{target.description}</div>
+                    <div className="card-meta">
+                      <span className="card-author">Posted by {target.profiles?.username}</span>
+                      <span className="card-date">
+                        {' '}
+                        • {new Date(target.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
-          </div>
-          <div className="space-y-4">
-            <AnimatePresence>
-              {discussions.map((discussion) => (
-                <motion.div 
-                  key={discussion.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className="card"
-                >
-                  <div className="card-content">{discussion.content}</div>
-                  <div className="card-meta">
-                    <span className="card-author">Posted by {discussion.profiles?.username}</span>
-                    <span className="card-date">
-                      {' '}
-                      • {new Date(discussion.created_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
+          )}
+
+          {activeTab === 'private' && (
+            <div className="space-y-4">
+              <AnimatePresence>
+                {privateDiscussions.map((discussion) => (
+                  <motion.div 
+                    key={discussion.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    className="card"
+                  >
+                    <div className="card-header">
+                      <h3 className="card-title">
+                        {discussion.created_by === user?.id
+                          ? `To: ${discussion.recipient?.username}`
+                          : `From: ${discussion.profiles?.username}`}
+                      </h3>
+                    </div>
+                    <div className="card-content">{discussion.content}</div>
+                    <div className="card-meta">
+                      <span className="card-date">
+                        {new Date(discussion.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
         </div>
       </motion.div>
 
@@ -531,19 +832,161 @@ export function Home() {
                     ))}
                   </select>
                 </div>
-                <div className="flex justify-end space-x-4">
+                <div className="flex justify-end space-x-3">
                   <button
                     onClick={() => setShowDueWorkModal(false)}
-                    className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                    className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleCreateDueWork}
-                    disabled={!newDueWork.title || !newDueWork.due_date || !newDueWork.subject_id}
-                    className="button-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="button-primary"
                   >
-                    Assign Work
+                    Create
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Attainment Target Modal */}
+      <AnimatePresence>
+        {showAttainmentModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full mx-4"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Add Attainment Target</h2>
+                <button
+                  onClick={() => setShowAttainmentModal(false)}
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Title
+                  </label>
+                  <input
+                    type="text"
+                    value={newAttainmentTarget.title}
+                    onChange={(e) => setNewAttainmentTarget({ ...newAttainmentTarget, title: e.target.value })}
+                    className="input-primary w-full"
+                    placeholder="Enter target title"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    value={newAttainmentTarget.description}
+                    onChange={(e) => setNewAttainmentTarget({ ...newAttainmentTarget, description: e.target.value })}
+                    className="input-primary w-full resize-none"
+                    rows={3}
+                    placeholder="Enter target description"
+                  />
+                </div>
+                <div className="flex justify-end space-x-3">
+                  <button
+                    onClick={() => setShowAttainmentModal(false)}
+                    className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCreateAttainmentTarget}
+                    className="button-primary"
+                  >
+                    Create
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Private Discussion Modal */}
+      <AnimatePresence>
+        {showPrivateDiscussionModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full mx-4"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Send Private Message</h2>
+                <button
+                  onClick={() => setShowPrivateDiscussionModal(false)}
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Recipient
+                  </label>
+                  <select
+                    value={newPrivateDiscussion.recipient_id}
+                    onChange={(e) => setNewPrivateDiscussion({ ...newPrivateDiscussion, recipient_id: e.target.value })}
+                    className="input-primary w-full"
+                  >
+                    <option value="">Select a student</option>
+                    {classStudents.map((student) => (
+                      <option key={student.id} value={student.id}>
+                        {student.username}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Message
+                  </label>
+                  <textarea
+                    value={newPrivateDiscussion.content}
+                    onChange={(e) => setNewPrivateDiscussion({ ...newPrivateDiscussion, content: e.target.value })}
+                    className="input-primary w-full resize-none"
+                    rows={3}
+                    placeholder="Enter your message"
+                  />
+                </div>
+                <div className="flex justify-end space-x-3">
+                  <button
+                    onClick={() => setShowPrivateDiscussionModal(false)}
+                    className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCreatePrivateDiscussion}
+                    className="button-primary"
+                  >
+                    Send
                   </button>
                 </div>
               </div>

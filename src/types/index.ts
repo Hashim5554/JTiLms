@@ -93,8 +93,8 @@ export interface AttainmentTarget {
   id: string;
   title: string;
   description: string;
-  class_id?: string;
   created_by: string;
+  class_id: string;
   created_at: string;
   updated_at: string;
   profiles?: {
@@ -104,6 +104,50 @@ export interface AttainmentTarget {
 
 export interface ContextType {
   currentClass: Class | null;
-  selectedClassId: string | null;
   classes: Class[];
+  setCurrentClass: (class_: Class | null) => void;
+}
+
+export interface Club {
+  id: string;
+  name: string;
+  description: string;
+  day: string;
+  time: string;
+  location: string;
+  capacity: number;
+  teacher: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SubjectMaterial {
+  id: string;
+  title: string;
+  description: string;
+  file_url: string;
+  due_date: string;
+  subject_id: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  profiles?: {
+    username: string;
+  };
+}
+
+export interface PrivateDiscussion {
+  id: string;
+  content: string;
+  created_by: string;
+  recipient_id: string;
+  class_id: string;
+  created_at: string;
+  updated_at: string;
+  profiles?: {
+    username: string;
+  };
+  recipient?: {
+    username: string;
+  };
 }
