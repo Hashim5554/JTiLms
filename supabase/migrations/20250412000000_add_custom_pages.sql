@@ -1,4 +1,4 @@
--- Create custom_pages table
+-- Create custom_pages table if it doesn't exist
 CREATE TABLE IF NOT EXISTS custom_pages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title TEXT NOT NULL,
@@ -14,10 +14,21 @@ CREATE TABLE IF NOT EXISTS custom_pages (
 ALTER TABLE custom_pages ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies if they exist
-DROP POLICY IF EXISTS "Allow read access to all users" ON custom_pages;
-DROP POLICY IF EXISTS "Allow insert for authenticated users" ON custom_pages;
-DROP POLICY IF EXISTS "Allow update for creators" ON custom_pages;
-DROP POLICY IF EXISTS "Allow delete for creators" ON custom_pages;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'custom_pages' AND policyname = 'Allow read access to all users') THEN
+        DROP POLICY "Allow read access to all users" ON custom_pages;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'custom_pages' AND policyname = 'Allow insert for authenticated users') THEN
+        DROP POLICY "Allow insert for authenticated users" ON custom_pages;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'custom_pages' AND policyname = 'Allow update for creators') THEN
+        DROP POLICY "Allow update for creators" ON custom_pages;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'custom_pages' AND policyname = 'Allow delete for creators') THEN
+        DROP POLICY "Allow delete for creators" ON custom_pages;
+    END IF;
+END $$;
 
 -- Create policies
 CREATE POLICY "Allow read access to all users" ON custom_pages

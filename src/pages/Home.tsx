@@ -273,7 +273,7 @@ export function Home() {
         ])
         .select(`
           *,
-          profiles (
+          profiles!created_by (
             id,
             username
           )
@@ -364,7 +364,7 @@ export function Home() {
         .from('attainment_targets')
         .select(`
           *,
-          profiles (
+          profiles!created_by (
             id,
             username
           )

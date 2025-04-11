@@ -11,16 +11,22 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 // Create Supabase client with error handling
 export const supabase = createClient<Database>(
-  supabaseUrl || '',
-  supabaseAnonKey || '',
+  supabaseUrl,
+  supabaseAnonKey,
   {
     auth: {
       autoRefreshToken: true,
       persistSession: true,
-      detectSessionInUrl: true
+      detectSessionInUrl: true,
+      storageKey: 'lgs-jti-auth'
     },
     db: {
       schema: 'public'
+    },
+    global: {
+      headers: {
+        'x-application-name': 'lgs-jti'
+      }
     }
   }
 );
@@ -52,13 +58,13 @@ export const signInWithEmail = async (email: string, password: string) => {
 
     if (error) {
       console.error('Authentication error:', error);
-      throw error;
+      throw new Error(error.message || 'Authentication failed');
     }
 
     return data;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Sign in error:', error);
-    throw error;
+    throw new Error(error.message || 'Failed to sign in');
   }
 };
 
@@ -66,9 +72,9 @@ export const signOut = async () => {
   try {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Sign out error:', error);
-    throw error;
+    throw new Error(error.message || 'Failed to sign out');
   }
 };
 
