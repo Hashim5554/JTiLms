@@ -314,7 +314,7 @@ export function Layout() {
       {/* Main content */}
       <div className="lg:pl-64">
         <main className="p-6">
-          <Outlet />
+          <Outlet context={{ currentClass, selectedClassId, classes }} />
         </main>
       </div>
     </div>
