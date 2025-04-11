@@ -18,7 +18,12 @@ import {
   Palette,
   Calendar,
   Sun,
-  Moon
+  Moon,
+  Clock,
+  CalendarDays,
+  GraduationCap,
+  BookMarked,
+  NotebookPen
 } from 'lucide-react';
 import { getUnreadNotificationCount, markNotificationsAsRead } from '../lib/notifications';
 import type { Class } from '../types/index';
@@ -29,16 +34,20 @@ interface NotificationCounts {
   library: number;
   recordRoom: number;
   clubs: number;
+  timetable: number;
+  dueWorks: number;
 }
 
-type NotificationType = 'announcement' | 'subject' | 'library' | 'record' | 'club';
+type NotificationType = 'announcement' | 'subject' | 'library' | 'record' | 'club' | 'timetable' | 'dueWork';
 
 const notificationTypes: Record<keyof NotificationCounts, NotificationType> = {
   announcements: 'announcement',
   subjects: 'subject',
   library: 'library',
   recordRoom: 'record',
-  clubs: 'club'
+  clubs: 'club',
+  timetable: 'timetable',
+  dueWorks: 'dueWork'
 };
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -51,7 +60,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
     subjects: 0,
     library: 0,
     recordRoom: 0,
-    clubs: 0
+    clubs: 0,
+    timetable: 0,
+    dueWorks: 0
   });
   const [notificationError, setNotificationError] = useState<string | null>(null);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
@@ -62,7 +73,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     setIsMobileMenuOpen(false);
   }, [location]);
 
-  // Load notifications
+  // Load notifications and classes
   useEffect(() => {
     if (user) {
       loadNotifications();
@@ -100,8 +111,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
       if (!classData) return;
 
       setClasses(classData);
+      const storedClassId = localStorage.getItem('selectedClassId');
+      if (storedClassId && classData.some(c => c.id === storedClassId)) {
+        setSelectedClassId(storedClassId);
+      }
     } catch (error) {
       console.error('Error loading classes:', error);
+    }
+  };
+
+  const handleClassChange = async (classId: string) => {
+    try {
+      setSelectedClassId(classId);
+      localStorage.setItem('selectedClassId', classId);
+      navigate('/');
+    } catch (error) {
+      console.error('Error changing class:', error);
     }
   };
 
@@ -164,8 +189,26 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="flex items-center justify-center h-16 px-4 border-b border-gray-200 dark:border-gray-700">
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">School Portal</h1>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">LGS JTi</h1>
           </div>
+
+          {/* Class Selector */}
+          {user?.role !== 'ultra_admin' && classes.length > 0 && (
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+              <select
+                value={selectedClassId || ''}
+                onChange={(e) => handleClassChange(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                <option value="">Select Class</option>
+                {classes.map((class_) => (
+                  <option key={class_.id} value={class_.id}>
+                    {class_.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Notification error message */}
           {notificationError && (
@@ -196,6 +239,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
               notificationCount={notifications.subjects}
             />
             <NavLink 
+              to="/timetable" 
+              icon={CalendarDays} 
+              label="Timetable" 
+              notificationCount={notifications.timetable}
+            />
+            <NavLink 
+              to="/due-works" 
+              icon={NotebookPen} 
+              label="Due Works" 
+              notificationCount={notifications.dueWorks}
+            />
+            <NavLink 
               to="/library" 
               icon={Library} 
               label="Library" 
@@ -203,13 +258,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
             />
             <NavLink 
               to="/record-room" 
-              icon={FileText} 
+              icon={BookMarked} 
               label="Record Room" 
               notificationCount={notifications.recordRoom}
             />
             <NavLink 
               to="/afternoon-clubs" 
-              icon={Users2} 
+              icon={GraduationCap} 
               label="Afternoon Clubs" 
               notificationCount={notifications.clubs}
             />
@@ -219,43 +274,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <NavLink to="/customize" icon={Palette} label="Customize" />
               </>
             )}
+            <NavLink to="/settings" icon={Settings} label="Settings" />
           </nav>
 
-          {/* Class Selection */}
-          {user?.role !== 'student' && (
-            <div className="px-4 py-4 border-t border-gray-200 dark:border-gray-700">
-              <div className="relative">
-                <select
-                  value={selectedClassId || ''}
-                  onChange={(e) => {
-                    const newClassId = e.target.value;
-                    if (newClassId) {
-                      setSelectedClassId(newClassId);
-                      navigate('/');
-                    }
-                  }}
-                  className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
-                >
-                  <option value="">Select Class</option>
-                  {classes.map((cls) => (
-                    <option key={cls.id} value={cls.id}>
-                      Class {cls.grade}-{cls.section}
-                    </option>
-                  ))}
-                </select>
-              </div>
+          {/* Theme Toggle and Logout */}
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <ThemeToggle />
+              <button
+                onClick={signOut}
+                className="flex items-center text-gray-700 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400"
+              >
+                <LogOut className="h-5 w-5 mr-2" />
+                <span>Logout</span>
+              </button>
             </div>
-          )}
-
-          {/* Footer */}
-          <div className="px-4 py-4 border-t border-gray-200 dark:border-gray-700">
-            <button
-              onClick={signOut}
-              className="flex items-center w-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 rounded-xl transition-all duration-200"
-            >
-              <LogOut className="h-5 w-5 mr-3" />
-              Sign Out
-            </button>
           </div>
         </div>
       </div>
@@ -263,7 +296,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Main content */}
       <div className="lg:pl-64">
         <main className="p-6">
-          {children}
+          <Outlet />
         </main>
       </div>
     </div>
