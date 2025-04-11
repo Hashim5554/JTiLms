@@ -2,31 +2,18 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/auth';
-import type { Discussion, Class, Announcement, DueWork } from '../types';
+import { Discussion, Announcement, DueWork, ContextType } from '../types';
 import { 
   MessageSquare,
   Calendar,
   Target,
   FileText,
   Bell,
-  PlusCircle
+  PlusCircle,
+  BookOpen,
+  Loader2
 } from 'lucide-react';
 import '../styles/cards.css';
-
-interface ContextType {
-  currentClass: Class | null;
-}
-
-interface Discussion {
-  id: string;
-  title: string;
-  content: string;
-  created_at: string;
-  created_by: string;
-  profiles?: {
-    username: string;
-  };
-}
 
 export function Home() {
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
@@ -87,9 +74,9 @@ export function Home() {
         `)
         .order('due_date', { ascending: true });
 
-      // If currentClass exists, filter by class_id
+      // If currentClass exists, filter by class_id if the column exists
       if (currentClass?.id) {
-        dueWorksQuery = dueWorksQuery.eq('class_id', currentClass.id);
+        dueWorksQuery = dueWorksQuery.or(`class_id.eq.${currentClass.id},class_id.is.null`);
       } else {
         dueWorksQuery = dueWorksQuery.is('class_id', null);
       }
@@ -217,7 +204,7 @@ export function Home() {
                     <h3 className="card-title">{announcement.title}</h3>
                     <p className="card-content">{announcement.content}</p>
                     <div className="card-meta">
-                      <span className="card-author">Posted by {announcement.creator?.username}</span>
+                      <span className="card-author">Posted by {announcement.profiles?.username || 'Unknown'}</span>
                       <span className="card-date">
                         {' '}
                         • {new Date(announcement.created_at).toLocaleDateString()}

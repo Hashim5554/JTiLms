@@ -47,13 +47,18 @@ export interface DueWork {
   };
 }
 
+export interface ContextType {
+  currentClass: Class | null;
+}
+
 export interface Discussion {
   id: string;
   content: string;
-  created_at: string;
   created_by: string;
-  class_id: string;
-  creator?: {
+  class_id: string | null;
+  created_at: string;
+  updated_at: string;
+  profiles?: {
     username: string;
   };
 }
