@@ -1,37 +1,50 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../store/auth';
 import { supabase } from '../lib/supabase';
-import { PlusCircle, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Loader2, X } from 'lucide-react';
+
+interface Message {
+  type: 'success' | 'error';
+  text: string;
+}
+
+interface CustomPage {
+  id: string;
+  title: string;
+  path: string;
+  class_id: string | null;
+  created_at: string;
+}
 
 export function Customize() {
   const { user } = useAuthStore();
-  const [customPages, setCustomPages] = useState<any[]>([]);
+  const [customPages, setCustomPages] = useState<CustomPage[]>([]);
   const [newPage, setNewPage] = useState({ title: '', path: '' });
-  const [selectedClass, setSelectedClass] = useState<string>('');
-  const [classes, setClasses] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [message, setMessage] = useState<Message | null>(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   useEffect(() => {
     loadCustomPages();
-    loadClasses();
   }, []);
 
   const loadCustomPages = async () => {
-    const { data } = await supabase
-      .from('custom_pages')
-      .select('*')
-      .order('title');
-    if (data) setCustomPages(data);
-  };
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('custom_pages')
+        .select('*')
+        .order('title');
 
-  const loadClasses = async () => {
-    const { data } = await supabase
-      .from('classes')
-      .select('*')
-      .order('grade')
-      .order('section');
-    if (data) setClasses(data);
+      if (error) throw error;
+      setCustomPages(data || []);
+    } catch (error) {
+      console.error('Error loading custom pages:', error);
+      setMessage({ type: 'error', text: 'Failed to load custom pages' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCreatePage = async (e: React.FormEvent) => {
@@ -45,126 +58,234 @@ export function Customize() {
         .insert([{
           title: newPage.title,
           path: newPage.path.toLowerCase().replace(/\s+/g, '-'),
-          class_id: selectedClass || null
         }])
-        .select();
+        .select()
+        .single();
 
-      if (error) {
-        setMessage({ type: 'error', text: error.message });
-      } else if (data) {
-        setCustomPages([...customPages, data[0]]);
-        setNewPage({ title: '', path: '' });
-        setSelectedClass('');
-        setMessage({ type: 'success', text: 'Page created successfully!' });
-      }
+      if (error) throw error;
+
+      setCustomPages([...customPages, data]);
+      setNewPage({ title: '', path: '' });
+      setIsCreateModalOpen(false);
+      setMessage({ type: 'success', text: 'Page created successfully!' });
+    } catch (error) {
+      console.error('Error creating page:', error);
+      setMessage({ type: 'error', text: 'Failed to create page' });
     } finally {
       setLoading(false);
     }
   };
 
   const handleDeletePage = async (id: string) => {
-    const { error } = await supabase
-      .from('custom_pages')
-      .delete()
-      .eq('id', id);
+    try {
+      const { error } = await supabase
+        .from('custom_pages')
+        .delete()
+        .eq('id', id);
 
-    if (error) {
-      setMessage({ type: 'error', text: error.message });
-    } else {
+      if (error) throw error;
+
       setCustomPages(customPages.filter(page => page.id !== id));
       setMessage({ type: 'success', text: 'Page deleted successfully!' });
+    } catch (error) {
+      console.error('Error deleting page:', error);
+      setMessage({ type: 'error', text: 'Failed to delete page' });
     }
   };
 
   if (user?.role !== 'ultra_admin') {
-    return <div>Access denied. Only ultra admins can customize the system.</div>;
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900"
+      >
+        <div className="text-center p-8 bg-white dark:bg-gray-800 rounded-xl shadow-lg">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+            Access Denied
+          </h2>
+          <p className="text-gray-600 dark:text-gray-300">
+            Only ultra admins can customize the system.
+          </p>
+        </div>
+      </motion.div>
+    );
   }
 
   return (
-    <div className="page-container">
-      <div className="card">
-        <div className="card-header">
-          <h2>Customize Page</h2>
+    <div className="container mx-auto px-4 py-8">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="space-y-8"
+      >
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            Custom Pages
+          </h1>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsCreateModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="h-5 w-5" />
+            New Page
+          </motion.button>
         </div>
-        <div className="card-content">
-          <form onSubmit={handleCreatePage} className="form">
-            <div className="form-group">
-              <label htmlFor="title">Title</label>
-              <input
-                type="text"
-                id="title"
-                value={newPage.title}
-                onChange={(e) => setNewPage({ ...newPage, title: e.target.value })}
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="path">Path</label>
-              <input
-                type="text"
-                id="path"
-                value={newPage.path}
-                onChange={(e) => setNewPage({ ...newPage, path: e.target.value })}
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="class">Class</label>
-              <select
-                id="class"
-                value={selectedClass}
-                onChange={(e) => setSelectedClass(e.target.value)}
-              >
-                <option value="">All Classes</option>
-                {classes.map((cls) => (
-                  <option key={cls.id} value={cls.id}>
-                    Class {cls.grade}-{cls.section}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button type="submit" className="btn btn-primary" disabled={loading}>
-              Create Page
-            </button>
-          </form>
-        </div>
-      </div>
 
-      {message && (
-        <div className={`p-4 rounded-md ${
-          message.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-        }`}>
-          {message.text}
-        </div>
-      )}
+        {message && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`p-4 rounded-lg ${
+              message.type === 'success'
+                ? 'bg-green-100 text-green-800'
+                : 'bg-red-100 text-red-800'
+            }`}
+          >
+            {message.text}
+          </motion.div>
+        )}
 
-      <div className="bg-white shadow sm:rounded-lg">
-        <div className="px-4 py-5 sm:p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Custom Pages</h3>
-          <div className="divide-y divide-gray-200">
-            {customPages.map((page) => (
-              <div key={page.id} className="py-4 flex justify-between items-center">
-                <div>
-                  <h4 className="text-lg font-medium text-gray-900">{page.title}</h4>
-                  <p className="text-sm text-gray-500">Path: /custom/{page.path}</p>
-                  {page.class_id && (
-                    <p className="text-sm text-gray-500">
-                      Class: {classes.find(c => c.id === page.class_id)?.grade}-
-                      {classes.find(c => c.id === page.class_id)?.section}
-                    </p>
-                  )}
-                </div>
-                <button
-                  onClick={() => handleDeletePage(page.id)}
-                  className="text-red-600 hover:text-red-700"
+        {loading ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500" />
+          </div>
+        ) : customPages.length === 0 ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center py-12"
+          >
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+              No custom pages found
+            </h3>
+            <p className="text-gray-500 dark:text-gray-400">
+              Create your first custom page to get started
+            </p>
+          </motion.div>
+        ) : (
+          <AnimatePresence>
+            <div className="grid gap-6">
+              {customPages.map((page) => (
+                <motion.div
+                  key={page.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.2 }}
+                  className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden"
                 >
-                  <Trash2 className="h-5 w-5" />
+                  <div className="p-6">
+                    <div className="flex justify-between items-start gap-4">
+                      <div className="flex-1">
+                        <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                          {page.title}
+                        </h3>
+                        <p className="mt-1 text-gray-500 dark:text-gray-400">
+                          Path: /custom/{page.path}
+                        </p>
+                        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                          Created on {new Date(page.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => handleDeletePage(page.id)}
+                        className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50 rounded-lg transition-colors"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </motion.button>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </AnimatePresence>
+        )}
+      </motion.div>
+
+      <AnimatePresence>
+        {isCreateModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Create New Page
+                </h3>
+                <button
+                  onClick={() => setIsCreateModalOpen(false)}
+                  className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 rounded-lg transition-colors"
+                >
+                  <X className="h-5 w-5" />
                 </button>
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
+
+              <form onSubmit={handleCreatePage} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Title
+                  </label>
+                  <input
+                    type="text"
+                    value={newPage.title}
+                    onChange={(e) => setNewPage({ ...newPage, title: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Path
+                  </label>
+                  <input
+                    type="text"
+                    value={newPage.path}
+                    onChange={(e) => setNewPage({ ...newPage, path: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsCreateModalOpen(false)}
+                    className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  >
+                    {loading ? (
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Creating...
+                      </div>
+                    ) : (
+                      'Create'
+                    )}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

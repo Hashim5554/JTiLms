@@ -16,10 +16,12 @@ import {
   FileText,
   Users2,
   Palette,
-  Calendar
+  Calendar,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { getUnreadNotificationCount, markNotificationsAsRead } from '../lib/notifications';
-import type { Class } from '../types';
+import type { Class } from '../types/index';
 
 interface NotificationCounts {
   announcements: number;
@@ -29,12 +31,21 @@ interface NotificationCounts {
   clubs: number;
 }
 
-export function Layout() {
+type NotificationType = 'announcement' | 'subject' | 'library' | 'record' | 'club';
+
+const notificationTypes: Record<keyof NotificationCounts, NotificationType> = {
+  announcements: 'announcement',
+  subjects: 'subject',
+  library: 'library',
+  recordRoom: 'record',
+  clubs: 'club'
+};
+
+export function Layout({ children }: { children: React.ReactNode }) {
   const { user, signOut } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [currentClass, setCurrentClass] = useState<Class | null>(null);
   const [notifications, setNotifications] = useState<NotificationCounts>({
     announcements: 0,
     subjects: 0,
@@ -43,115 +54,70 @@ export function Layout() {
     clubs: 0
   });
   const [notificationError, setNotificationError] = useState<string | null>(null);
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [classes, setClasses] = useState<Class[]>([]);
 
   // Close mobile menu when route changes
   useEffect(() => {
     setIsMobileMenuOpen(false);
-  }, [location.pathname]);
+  }, [location]);
 
+  // Load notifications
   useEffect(() => {
     if (user) {
-      loadCurrentClass();
       loadNotifications();
-      const interval = setInterval(loadNotifications, 30000);
-      return () => clearInterval(interval);
+      loadClasses();
     }
   }, [user]);
 
-  const loadCurrentClass = async () => {
+  const loadNotifications = async () => {
+    try {
+      const notificationPromises = Object.entries(notificationTypes).map(
+        async ([key, type]) => {
+          const count = await getUnreadNotificationCount(type);
+          return [key, count] as const;
+        }
+      );
+
+      const results = await Promise.all(notificationPromises);
+      const newNotifications = Object.fromEntries(results) as NotificationCounts;
+      setNotifications(newNotifications);
+    } catch (error) {
+      setNotificationError('Failed to load notifications');
+      console.error('Error loading notifications:', error);
+    }
+  };
+
+  const loadClasses = async () => {
     if (!user) return;
     
-    const selectedClassId = localStorage.getItem('selectedClassId');
-    if (!selectedClassId) {
-      navigate('/class-select');
-      return;
-    }
-
     try {
       const { data: classData, error } = await supabase
         .from('classes')
-        .select('*')
-        .eq('id', selectedClassId)
-        .single();
+        .select('*');
 
       if (error) throw error;
-      if (!classData) {
-        navigate('/class-select');
-        return;
-      }
+      if (!classData) return;
 
-      setCurrentClass(classData);
+      setClasses(classData);
     } catch (error) {
-      console.error('Error loading class:', error);
-      navigate('/class-select');
+      console.error('Error loading classes:', error);
     }
   };
 
-  useEffect(() => {
-    if (!user) return;
-    
-    const path = location.pathname;
-    let type = '';
-    
-    if (path === '/announcements') type = 'announcement';
-    else if (path.startsWith('/subjects')) type = 'subject';
-    else if (path === '/library') type = 'library';
-    else if (path === '/record-room') type = 'record';
-    else if (path === '/afternoon-clubs') type = 'club';
-    
-    if (type) {
-      markNotificationsAsRead(type)
-        .then(() => loadNotifications())
-        .catch(error => {
-          console.error('Error marking notifications as read:', error);
-          setNotificationError('Failed to update notifications');
-        });
-    }
-  }, [location.pathname, user]);
-
-  const loadNotifications = async () => {
-    if (!user) return;
-    
+  const handleNotificationClick = async (key: keyof NotificationCounts) => {
     try {
-      setNotificationError(null);
-      const [
-        announcementsCount,
-        subjectsCount,
-        libraryCount,
-        recordCount,
-        clubsCount
-      ] = await Promise.all([
-        getUnreadNotificationCount('announcement'),
-        getUnreadNotificationCount('subject'),
-        getUnreadNotificationCount('library'),
-        getUnreadNotificationCount('record'),
-        getUnreadNotificationCount('club')
-      ]);
-
-      setNotifications({
-        announcements: announcementsCount,
-        subjects: subjectsCount,
-        library: libraryCount,
-        recordRoom: recordCount,
-        clubs: clubsCount
-      });
+      const type = notificationTypes[key];
+      await markNotificationsAsRead(type);
+      setNotifications(prev => ({ ...prev, [key]: 0 }));
     } catch (error) {
-      console.error('Error loading notifications:', error);
-      setNotificationError('Failed to load notifications');
+      console.error('Error marking notifications as read:', error);
     }
   };
 
-  const handleSignOut = async () => {
-    localStorage.removeItem('selectedClassId');
-    await signOut();
-    navigate('/');
+  const isActive = (path: string) => {
+    return location.pathname === path;
   };
-
-  const openTimetable = () => {
-    window.open('https://lgs254f1.edupage.org/timetable/', '_blank');
-  };
-
-  const isActive = (path: string) => location.pathname === path;
 
   const NavLink = ({ to, icon: Icon, label, notificationCount = 0 }: { 
     to: string; 
@@ -180,26 +146,25 @@ export function Layout() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Mobile menu button */}
+      <div className="lg:hidden fixed top-4 right-4 z-50">
+        <button
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          className="p-2 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+        >
+          {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+        </button>
+      </div>
+
       {/* Sidebar */}
-      <div className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
-        transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-auto
-        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
-      `}>
-        <div className="h-full flex flex-col">
-          {/* Logo section */}
-          <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200 dark:border-gray-700">
-            <Link to="/" className="flex items-center">
-              <img src="/logo.png" alt="Logo" className="h-8 w-8" />
-              <span className="ml-2 text-lg font-semibold text-gray-900 dark:text-white">LGS JTi</span>
-            </Link>
-            <button
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="lg:hidden p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-            >
-              <X className="h-6 w-6" />
-            </button>
+      <div className={`fixed inset-y-0 left-0 z-40 w-64 bg-white dark:bg-gray-800 shadow-lg transform transition-transform duration-200 ease-in-out ${
+        isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+      }`}>
+        <div className="flex flex-col h-full">
+          {/* Logo */}
+          <div className="flex items-center justify-center h-16 px-4 border-b border-gray-200 dark:border-gray-700">
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">School Portal</h1>
           </div>
 
           {/* Notification error message */}
@@ -256,56 +221,51 @@ export function Layout() {
             )}
           </nav>
 
-          {/* Footer */}
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
-            <button
-              onClick={openTimetable}
-              className="w-full button-secondary"
-            >
-              <Calendar className="h-5 w-5" />
-              Timetable
-            </button>
-            <div className="flex items-center justify-between gap-2">
-              <button
-                onClick={handleSignOut}
-                className="button-outline flex-1"
-              >
-                <LogOut className="h-5 w-5" />
-                Sign Out
-              </button>
-              <ThemeToggle />
+          {/* Class Selection */}
+          {user?.role !== 'student' && (
+            <div className="px-4 py-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="relative">
+                <select
+                  value={selectedClassId || ''}
+                  onChange={(e) => {
+                    const newClassId = e.target.value;
+                    if (newClassId) {
+                      setSelectedClassId(newClassId);
+                      navigate('/');
+                    }
+                  }}
+                  className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                >
+                  <option value="">Select Class</option>
+                  {classes.map((cls) => (
+                    <option key={cls.id} value={cls.id}>
+                      Class {cls.grade}-{cls.section}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
+          )}
+
+          {/* Footer */}
+          <div className="px-4 py-4 border-t border-gray-200 dark:border-gray-700">
+            <button
+              onClick={signOut}
+              className="flex items-center w-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 rounded-xl transition-all duration-200"
+            >
+              <LogOut className="h-5 w-5 mr-3" />
+              Sign Out
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Mobile menu button */}
-      <button
-        onClick={() => setIsMobileMenuOpen(true)}
-        className={`
-          fixed top-4 left-4 z-40 lg:hidden p-2 rounded-xl bg-white dark:bg-gray-800 
-          shadow-lg border border-gray-200 dark:border-gray-700
-          text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300
-          transition-all duration-200
-        `}
-      >
-        <Menu className="h-6 w-6" />
-      </button>
-
       {/* Main content */}
-      <div className="flex-1 min-w-0 overflow-hidden">
-        <main className="relative">
-          <Outlet context={{ currentClass }} />
+      <div className="lg:pl-64">
+        <main className="p-6">
+          {children}
         </main>
       </div>
-
-      {/* Mobile menu backdrop */}
-      {isMobileMenuOpen && (
-        <div 
-          className="fixed inset-0 z-40 bg-gray-600 bg-opacity-75 lg:hidden"
-          onClick={() => setIsMobileMenuOpen(false)}
-        />
-      )}
     </div>
   );
 }
