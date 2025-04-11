@@ -1,0 +1,5 @@
+[33mcommit 3990bcbbc943d094762cf12c2bfb5e9112423c3d[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m, [m[1;31morigin/master[m[33m)[m
+Author: Hashim5554 <hashim.55545554@gmail.com>
+Date:   Fri Apr 11 16:52:56 2025 +0500
+
+    fix: restore menu layout and fix Users page - Restore old menu layout with timetable at bottom - Add external timetable link - Fix Users page loading and error handling - Update logout button style

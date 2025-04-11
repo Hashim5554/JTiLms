@@ -102,7 +102,7 @@ export function Layout() {
       );
 
       const results = await Promise.all(notificationPromises);
-      const newNotifications = Object.fromEntries(results) as NotificationCounts;
+      const newNotifications = Object.fromEntries(results) as unknown as NotificationCounts;
       setNotifications(newNotifications);
     } catch (error) {
       setNotificationError('Failed to load notifications');
@@ -198,41 +198,14 @@ export function Layout() {
         isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       }`}>
         <div className="flex flex-col h-full">
-          {/* Logo */}
-          <div className="flex items-center justify-center h-16 px-4 border-b border-gray-200 dark:border-gray-700">
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">LGS JTi</h1>
+          {/* Logo and Title */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center">
+              <img src="/logo.png" alt="Logo" className="h-8 w-8 mr-2" />
+              <span className="text-xl font-bold text-gray-800 dark:text-white">LGS JTi</span>
+            </div>
+            <ThemeToggle />
           </div>
-
-          {/* Class Selector */}
-          {user?.role !== 'ultra_admin' && classes.length > 0 && (
-            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-              <select
-                value={selectedClassId || ''}
-                onChange={(e) => handleClassChange(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500"
-              >
-                <option value="">Select Class</option>
-                {classes.map((class_) => (
-                  <option key={class_.id} value={class_.id}>
-                    {class_.grade} {class_.section}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Notification error message */}
-          {notificationError && (
-            <div className="px-4 py-2 bg-red-100 text-red-600 text-sm">
-              {notificationError}
-              <button
-                onClick={loadNotifications}
-                className="ml-2 underline hover:no-underline"
-              >
-                Retry
-              </button>
-            </div>
-          )}
 
           {/* Navigation */}
           <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
@@ -241,68 +214,99 @@ export function Layout() {
               to="/announcements" 
               icon={Bell} 
               label="Announcements" 
-              notificationCount={notifications.announcements}
+              notificationCount={notifications.announcements} 
             />
             <NavLink 
               to="/subjects" 
               icon={BookOpen} 
               label="Subjects" 
-              notificationCount={notifications.subjects}
-            />
-            <NavLink 
-              to="/due-works" 
-              icon={NotebookPen} 
-              label="Due Works" 
-              notificationCount={notifications.dueWorks}
+              notificationCount={notifications.subjects} 
             />
             <NavLink 
               to="/library" 
               icon={Library} 
               label="Library" 
-              notificationCount={notifications.library}
+              notificationCount={notifications.library} 
             />
             <NavLink 
               to="/record-room" 
-              icon={BookMarked} 
+              icon={FileText} 
               label="Record Room" 
-              notificationCount={notifications.recordRoom}
+              notificationCount={notifications.recordRoom} 
             />
             <NavLink 
-              to="/afternoon-clubs" 
-              icon={GraduationCap} 
-              label="Afternoon Clubs" 
-              notificationCount={notifications.clubs}
+              to="/clubs" 
+              icon={Users2} 
+              label="Clubs" 
+              notificationCount={notifications.clubs} 
+            />
+            <NavLink 
+              to="/timetable" 
+              icon={Clock} 
+              label="Timetable" 
+              notificationCount={notifications.timetable} 
+            />
+            <NavLink 
+              to="/due-works" 
+              icon={NotebookPen} 
+              label="Due Works" 
+              notificationCount={notifications.dueWorks} 
             />
             {user?.role === 'ultra_admin' && (
               <>
-                <NavLink to="/users" icon={Users2} label="Users" />
+                <NavLink to="/users" icon={Users} label="Users" />
                 <NavLink to="/customize" icon={Palette} label="Customize" />
               </>
             )}
-            <NavLink to="/settings" icon={Settings} label="Settings" />
           </nav>
 
-          {/* Footer */}
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
-            <div className="flex items-center justify-between">
-              <ThemeToggle />
+          {/* Class Selector */}
+          {user?.role !== 'ultra_admin' && (
+            <div className="px-4 py-4 border-t border-gray-200 dark:border-gray-700">
+              <label htmlFor="class-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Select Class
+              </label>
+              <select
+                id="class-select"
+                value={selectedClassId || ''}
+                onChange={(e) => handleClassChange(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
+              >
+                <option value="">Select a class</option>
+                {classes.map((classItem) => (
+                  <option key={classItem.id} value={classItem.id}>
+                    {classItem.grade} {classItem.section}
+                  </option>
+                ))}
+              </select>
             </div>
-            <a
-              href="https://lgs254f1.edupage.org/timetable/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
-            >
-              <CalendarDays className="h-5 w-5 mr-2" />
-              <span>Timetable</span>
-            </a>
-            <button
-              onClick={signOut}
-              className="flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
-            >
-              <LogOut className="h-5 w-5 mr-2" />
-              <span>Logout</span>
-            </button>
+          )}
+
+          {/* User Info and Logout */}
+          <div className="px-4 py-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className="h-8 w-8 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center">
+                  <span className="text-sm font-medium text-red-600 dark:text-red-400">
+                    {user?.username?.[0]?.toUpperCase() || 'U'}
+                  </span>
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                    {user?.username}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {user?.role}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={signOut}
+                className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-red-600 dark:hover:text-red-400 transition-colors duration-200"
+              >
+                <LogOut className="h-5 w-5" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -310,7 +314,7 @@ export function Layout() {
       {/* Main content */}
       <div className="lg:pl-64">
         <main className="p-6">
-          <Outlet context={{ currentClass, selectedClassId, classes }} />
+          <Outlet />
         </main>
       </div>
     </div>
