@@ -16,12 +16,14 @@ interface Announcement {
   title: string;
   content: string;
   created_at: string;
+  user_id: string;
+  class_id: string | null;
   profiles: {
     username: string;
   };
   classes: {
     name: string;
-  };
+  } | null;
 }
 
 export function Announcements() {
@@ -52,8 +54,12 @@ export function Announcements() {
         .from('announcements')
         .select(`
           *,
-          profiles (username),
-          classes (name)
+          profiles:user_id (
+            username
+          ),
+          classes:class_id (
+            name
+          )
         `)
         .order('created_at', { ascending: false });
 
@@ -92,8 +98,8 @@ export function Announcements() {
       setIsSubmitting(true);
       const { error } = await supabase.from('announcements').insert([
         {
-          title: newAnnouncement.title,
-          content: newAnnouncement.content,
+          title: newAnnouncement.title.trim(),
+          content: newAnnouncement.content.trim(),
           class_id: newAnnouncement.class_id || null,
           user_id: user?.id,
         },
@@ -104,7 +110,7 @@ export function Announcements() {
       setNewAnnouncement({ title: '', content: '', class_id: '' });
       setMessage({ type: 'success', text: 'Announcement created successfully' });
       setIsCreateModalOpen(false);
-      loadAnnouncements();
+      await loadAnnouncements();
     } catch (error) {
       console.error('Error creating announcement:', error);
       setMessage({ type: 'error', text: 'Failed to create announcement' });
@@ -257,11 +263,11 @@ export function Announcements() {
                     ))}
                   </select>
                 </div>
-                <div className="flex justify-end space-x-3 mt-6">
+                <div className="flex justify-end gap-3">
                   <button
                     type="button"
                     onClick={() => setIsCreateModalOpen(false)}
-                    className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
                   >
                     Cancel
                   </button>

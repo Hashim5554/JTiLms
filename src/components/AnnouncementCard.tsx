@@ -9,12 +9,14 @@ interface Announcement {
   title: string;
   content: string;
   created_at: string;
+  user_id: string;
+  class_id: string | null;
   profiles: {
     username: string;
   };
   classes: {
     name: string;
-  };
+  } | null;
 }
 
 interface AnnouncementCardProps {
