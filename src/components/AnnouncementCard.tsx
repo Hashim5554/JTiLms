@@ -9,7 +9,7 @@ interface Announcement {
   title: string;
   content: string;
   created_at: string;
-  user_id: string;
+  created_by: string;
   class_id: string | null;
   profiles: {
     username: string;
