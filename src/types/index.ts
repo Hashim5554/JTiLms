@@ -1,8 +1,7 @@
 // Add to existing types.ts
 export interface Class {
   id: string;
-  grade: number;
-  section: string;
+  name: string;
   created_at: string;
   updated_at: string;
 }
@@ -10,19 +9,18 @@ export interface Class {
 export interface ClassAssignment {
   id: string;
   class_id: string;
-  user_id: string;
+  profile_id: string;
   created_at: string;
   updated_at: string;
 }
 
-export type UserRole = 'ultra_admin' | 'admin' | 'student';
+export type UserRole = 'student' | 'teacher' | 'admin' | 'ultra_admin';
 
 export interface Profile {
   id: string;
   username: string;
   email: string;
   role: UserRole;
-  photo_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -30,8 +28,6 @@ export interface Profile {
 export interface Subject {
   id: string;
   name: string;
-  description: string;
-  image_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -41,7 +37,7 @@ export interface Announcement {
   title: string;
   content: string;
   created_by: string;
-  class_id?: string;
+  class_id: string | null;
   created_at: string;
   updated_at: string;
   profiles?: {
@@ -55,8 +51,8 @@ export interface DueWork {
   description: string;
   due_date: string;
   subject_id: string;
-  class_id?: string;
   created_by: string;
+  class_id: string;
   created_at: string;
   updated_at: string;
   subjects?: {
@@ -71,7 +67,7 @@ export interface Discussion {
   id: string;
   content: string;
   created_by: string;
-  class_id?: string;
+  class_id: string;
   created_at: string;
   updated_at: string;
   profiles?: {
@@ -82,21 +78,15 @@ export interface Discussion {
 export interface LibraryResource {
   id: string;
   title: string;
-  type: 'gallery' | 'counselling' | 'resource' | 'other';
-  content: string;
-  created_by: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface AttainmentTarget {
-  id: string;
-  title: string;
   description: string;
+  file_url: string;
+  subject_id: string;
   created_by: string;
-  class_id: string;
   created_at: string;
   updated_at: string;
+  subjects?: {
+    name: string;
+  };
   profiles?: {
     username: string;
   };
