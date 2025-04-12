@@ -16,7 +16,7 @@ interface Announcement {
   title: string;
   content: string;
   created_at: string;
-  created_by: string;
+  user_id: string;
   class_id: string | null;
   profiles: {
     username: string;
@@ -54,7 +54,7 @@ export function Announcements() {
         .from('announcements')
         .select(`
           *,
-          profiles:created_by (
+          profiles:user_id (
             username
           ),
           classes:class_id (
@@ -101,7 +101,7 @@ export function Announcements() {
           title: newAnnouncement.title.trim(),
           content: newAnnouncement.content.trim(),
           class_id: newAnnouncement.class_id || null,
-          created_by: user?.id,
+          user_id: user?.id,
         },
       ]);
 
