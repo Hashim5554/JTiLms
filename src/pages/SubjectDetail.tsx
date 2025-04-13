@@ -283,7 +283,7 @@ export function SubjectDetail() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-8">
-        <div>
+            <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{subject.name}</h1>
           <p className="mt-2 text-gray-600 dark:text-gray-300">{subject.description}</p>
         </div>
@@ -365,7 +365,7 @@ export function SubjectDetail() {
             </div>
           </motion.div>
         ))}
-      </div>
+            </div>
 
       {/* Create/Edit Modal */}
       <AnimatePresence>
@@ -423,32 +423,32 @@ export function SubjectDetail() {
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
                     rows={3}
-                  />
-                </div>
-                <div>
+          />
+        </div>
+            <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     File URL
-                  </label>
-                  <input
-                    type="text"
+              </label>
+              <input
+                type="text"
                     value={formData.file_url}
                     onChange={(e) => setFormData({ ...formData, file_url: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
-                  />
-                </div>
-                <div>
+              />
+            </div>
+            <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Due Date
-                  </label>
-                  <input
+              </label>
+              <input
                     type="date"
                     value={formData.due_date}
                     onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
-                  />
-                </div>
+              />
+            </div>
                 <div className="flex justify-end space-x-3">
-                  <button
+              <button
                     onClick={() => {
                       setIsCreating(false);
                       setIsEditing(null);
@@ -462,7 +462,7 @@ export function SubjectDetail() {
                     className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                   >
                     Cancel
-                  </button>
+              </button>
                   <button
                     onClick={() => isEditing ? handleUpdateMaterial(isEditing) : handleCreate()}
                     className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"

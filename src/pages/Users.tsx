@@ -42,7 +42,7 @@ interface ExtendedClass extends Class {
   section: string;
 }
 
-export default function Users() {
+export function Users() {
   // State management
   const [users, setUsers] = useState<ExtendedProfile[]>([]);
   const [classes, setClasses] = useState<ExtendedClass[]>([]);
@@ -242,34 +242,32 @@ export default function Users() {
   }
 
   return (
-    <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-4 mb-4 sm:mb-6">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
-          Users
-        </h1>
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Users</h1>
         <button
           onClick={() => setIsCreateModalOpen(true)}
-          className="btn btn-primary btn-sm sm:btn-md"
+          className="btn btn-primary"
         >
-          <Plus className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
-          <span className="text-xs sm:text-sm">Create User</span>
+          <Plus className="w-5 h-5 mr-2" />
+          Create User
         </button>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-4 sm:mb-6">
+      <div className="flex gap-4 mb-6">
         <div className="flex-1">
           <input
             type="text"
             placeholder="Search users..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="input input-bordered w-full text-sm sm:text-base"
+            className="input input-bordered w-full"
           />
         </div>
         <select
           value={roleFilter}
           onChange={(e) => setRoleFilter(e.target.value as UserRole | 'all')}
-          className="select select-bordered w-full sm:w-auto text-sm sm:text-base"
+          className="select select-bordered"
         >
           <option value="all">All Roles</option>
           <option value="admin">Admin</option>
@@ -285,39 +283,39 @@ export default function Users() {
       ) : filteredUsers.length === 0 ? (
         <div className="text-center py-8 text-gray-500 dark:text-gray-400">
           <User className="w-12 h-12 mx-auto mb-2" />
-          <p className="text-sm sm:text-base">No users found</p>
+          <p>No users found</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredUsers.map((user) => (
             <div
               key={user.id}
               className="card bg-white dark:bg-gray-800 shadow-lg hover:shadow-xl transition-shadow duration-300"
             >
-              <div className="card-body p-4 sm:p-6">
-                <div className="flex justify-between items-start gap-2">
+              <div className="card-body p-6">
+                <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="card-title text-base sm:text-lg font-semibold text-gray-900 dark:text-white break-words">
+                    <h3 className="card-title text-lg font-semibold text-gray-900 dark:text-white">
                       {user.username}
                     </h3>
-                    <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300 break-words">
+                    <p className="text-gray-600 dark:text-gray-300">
                       {user.email}
                     </p>
                   </div>
                   {user.role !== 'ultra_admin' && (
                     <button
                       onClick={() => handleDeleteUser(user.id)}
-                      className="btn btn-ghost btn-sm text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 p-1 sm:p-2"
+                      className="btn btn-ghost btn-sm text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   )}
                 </div>
-                <div className="mt-3 sm:mt-4">
+                <div className="mt-4">
                   <select
                     value={user.role}
                     onChange={(e) => handleRoleChange(user.id, e.target.value as UserRole)}
-                    className="select select-bordered w-full text-xs sm:text-sm"
+                    className="select select-bordered w-full"
                     disabled={user.role === 'ultra_admin'}
                   >
                     <option value="admin">Admin</option>
@@ -329,10 +327,10 @@ export default function Users() {
                   <div className="mt-2 flex flex-wrap gap-1">
                     {user.class_assignments.map((assignment) => (
                       <span
-                        key={assignment.id}
-                        className="badge badge-primary text-xs sm:text-sm"
+                        key={assignment.class_id}
+                        className="badge badge-primary"
                       >
-                        {assignment.classes.name}
+                        {assignment.classes?.grade} {assignment.classes?.section}
                       </span>
                     ))}
                   </div>
@@ -350,62 +348,62 @@ export default function Users() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50"
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-4 sm:p-6"
+              className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6"
             >
-              <h2 className="text-lg sm:text-xl font-semibold mb-4 text-gray-900 dark:text-white">
+              <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
                 Create New User
               </h2>
-              <form onSubmit={handleCreateUser} className="space-y-3 sm:space-y-4">
+              <form onSubmit={handleCreateUser} className="space-y-4">
                 <div>
-                  <label className="label text-xs sm:text-sm">
+                  <label className="label">
                     <span className="label-text">Email</span>
                   </label>
                   <input
                     type="email"
                     value={newUser.email}
                     onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                    className="input input-bordered w-full text-sm sm:text-base"
+                    className="input input-bordered w-full"
                     required
                   />
                 </div>
                 <div>
-                  <label className="label text-xs sm:text-sm">
+                  <label className="label">
                     <span className="label-text">Username</span>
                   </label>
                   <input
                     type="text"
                     value={newUser.username}
                     onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
-                    className="input input-bordered w-full text-sm sm:text-base"
+                    className="input input-bordered w-full"
                     required
                   />
                 </div>
                 <div>
-                  <label className="label text-xs sm:text-sm">
+                  <label className="label">
                     <span className="label-text">Password</span>
                   </label>
                   <input
                     type="password"
                     value={newUser.password}
                     onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                    className="input input-bordered w-full text-sm sm:text-base"
+                    className="input input-bordered w-full"
                     required
                   />
                 </div>
                 <div>
-                  <label className="label text-xs sm:text-sm">
+                  <label className="label">
                     <span className="label-text">Role</span>
                   </label>
                   <select
                     value={newUser.role}
                     onChange={(e) => setNewUser({ ...newUser, role: e.target.value as UserRole })}
-                    className="select select-bordered w-full text-sm sm:text-base"
+                    className="select select-bordered w-full"
                     required
                   >
                     <option value="admin">Admin</option>
@@ -417,17 +415,17 @@ export default function Users() {
                   <button
                     type="button"
                     onClick={() => setIsCreateModalOpen(false)}
-                    className="btn btn-ghost text-sm sm:text-base"
+                    className="btn btn-ghost"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="btn btn-primary text-sm sm:text-base"
+                    className="btn btn-primary"
                     disabled={loading}
                   >
                     {loading ? (
-                      <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                      <Loader2 className="w-5 h-5 animate-spin" />
                     ) : (
                       'Create'
                     )}

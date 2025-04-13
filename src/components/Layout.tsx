@@ -23,13 +23,10 @@ import {
   GraduationCap,
   BookMarked,
   NotebookPen,
-  Users2,
-  Loader2
+  Users2
 } from 'lucide-react';
 import { getUnreadNotificationCount, markNotificationsAsRead } from '../lib/notifications';
 import type { Class } from '../types/index';
-import { useClassStore } from '../store/classStore';
-import { AnimatePresence, motion } from 'framer-motion';
 
 interface NotificationCounts {
   announcements: number;
@@ -68,9 +65,6 @@ export function Layout() {
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [classes, setClasses] = useState<Class[]>([]);
   const [currentClass, setCurrentClass] = useState<Class | null>(null);
-  const { selectedClass, setSelectedClass } = useClassStore();
-  const [isClassSelectOpen, setIsClassSelectOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
 
   // Close mobile menu when route changes
   useEffect(() => {
@@ -95,14 +89,6 @@ export function Layout() {
     }
   }, [selectedClassId, classes]);
 
-  const isAdmin = user?.role === 'ultra_admin' || user?.role === 'teacher';
-
-  useEffect(() => {
-    if (isAdmin) {
-      loadClasses();
-    }
-  }, [isAdmin]);
-
   const loadNotifications = async () => {
     try {
       const notificationPromises = Object.entries(notificationTypes).map(
@@ -122,32 +108,33 @@ export function Layout() {
   };
 
   const loadClasses = async () => {
+    if (!user) return;
+    
     try {
-      setLoading(true);
-      const { data, error } = await supabase
+      const { data: classData, error } = await supabase
         .from('classes')
-        .select('*')
-        .order('name');
+        .select('*');
 
       if (error) throw error;
-      setClasses(data || []);
+      if (!classData) return;
+
+      setClasses(classData);
       const storedClassId = localStorage.getItem('selectedClassId');
-      if (storedClassId && data.some(c => c.id === storedClassId)) {
+      if (storedClassId && classData.some(c => c.id === storedClassId)) {
         setSelectedClassId(storedClassId);
       }
     } catch (error) {
       console.error('Error loading classes:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
-  const handleClassChange = (classId: string) => {
-    const selected = classes.find(c => c.id === classId);
-    if (selected) {
-      setSelectedClass(selected);
+  const handleClassChange = async (classId: string) => {
+    try {
+      setSelectedClassId(classId);
       localStorage.setItem('selectedClassId', classId);
-      setIsClassSelectOpen(false);
+      navigate('/');
+    } catch (error) {
+      console.error('Error changing class:', error);
     }
   };
 
@@ -313,52 +300,6 @@ export function Layout() {
           <Outlet context={{ currentClass, selectedClassId, classes }} />
         </main>
       </div>
-
-      {/* Class Select Modal */}
-      <AnimatePresence>
-        {isClassSelectOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md"
-            >
-              <h3 className="text-lg font-bold mb-4">Select Class</h3>
-              {loading ? (
-                <div className="flex justify-center">
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {classes.map((class_) => (
-                    <button
-                      key={class_.id}
-                      onClick={() => handleClassChange(class_.id)}
-                      className={`w-full btn ${selectedClass?.id === class_.id ? 'btn-primary' : 'btn-ghost'}`}
-                    >
-                      {class_.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <div className="mt-4 flex justify-end">
-                <button
-                  onClick={() => setIsClassSelectOpen(false)}
-                  className="btn btn-ghost"
-                >
-                  Cancel
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { Announcements } from './pages/Announcements';
 import { Subjects } from './pages/Subjects';
 import { Library } from './pages/Library';
 import { SubjectDetail } from './pages/SubjectDetail';
-import Users from './pages/Users';
+import { Users } from './pages/Users';
 import { Settings } from './pages/Settings';
 import { Login } from './pages/Login';
 import { ClassSelect } from './pages/ClassSelect';

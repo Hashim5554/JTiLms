@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { 
   Users, 
   Search, 
-  Plus,
+  Plus, 
   Check, 
   X, 
   Calendar,
@@ -63,7 +63,7 @@ interface Message {
 
 interface SearchResult {
   id: string;
-  username: string;
+    username: string;
   email: string;
   photo_url: string | null;
 }
@@ -181,7 +181,7 @@ export function AfternoonClubs() {
       setSearchResults([]);
       return;
     }
-
+    
     setIsSearching(true);
     try {
       const { data, error } = await supabase
@@ -189,7 +189,7 @@ export function AfternoonClubs() {
         .select('id, username, email, photo_url')
         .ilike('username', `%${searchQuery}%`)
         .limit(5);
-
+      
       if (error) throw error;
       setSearchResults(data || []);
     } catch (error) {
@@ -201,7 +201,7 @@ export function AfternoonClubs() {
 
   const handleAddMember = async (userId: string) => {
     if (!selectedClub) return;
-
+    
     try {
       const { error } = await supabase
         .from('club_members')
@@ -209,11 +209,11 @@ export function AfternoonClubs() {
           club_id: selectedClub.id,
           user_id: userId
         }]);
-
+      
       if (error) throw error;
-
+      
       await loadClubMembers();
-      setMessage({ type: 'success', text: 'Member added successfully' });
+        setMessage({ type: 'success', text: 'Member added successfully' });
     } catch (error) {
       if (error instanceof Error) {
         setMessage({ type: 'error', text: error.message });
@@ -229,14 +229,14 @@ export function AfternoonClubs() {
         .from('club_members')
         .delete()
         .eq('id', memberId);
-
+      
       if (error) throw error;
-
+      
       await loadClubMembers();
       setMessage({ type: 'success', text: 'Member removed successfully' });
     } catch (error) {
       if (error instanceof Error) {
-        setMessage({ type: 'error', text: error.message });
+      setMessage({ type: 'error', text: error.message });
       } else {
         setMessage({ type: 'error', text: 'Failed to remove member' });
       }
@@ -247,9 +247,9 @@ export function AfternoonClubs() {
     try {
       if (!formData.name || !formData.description) {
         setMessage({ type: 'error', text: 'Name and description are required' });
-        return;
-      }
-
+      return;
+    }
+    
       const { data, error } = await supabase
         .from('clubs')
         .insert([{
@@ -258,7 +258,7 @@ export function AfternoonClubs() {
         }])
         .select()
         .single();
-
+      
       if (error) throw error;
       if (data) {
         setClubs([data, ...clubs]);
@@ -342,7 +342,7 @@ export function AfternoonClubs() {
       setMessage({ type: 'success', text: 'Successfully left the club' });
     } catch (error) {
       if (error instanceof Error) {
-        setMessage({ type: 'error', text: error.message });
+      setMessage({ type: 'error', text: error.message });
       } else {
         setMessage({ type: 'error', text: 'Failed to leave club' });
       }
@@ -459,10 +459,10 @@ export function AfternoonClubs() {
               <div className="mt-4 flex items-center text-sm text-gray-500 dark:text-gray-400">
                 <Users className="h-4 w-4 mr-2" />
                 <span>{club.members_count} members</span>
-              </div>
+            </div>
             </motion.div>
           ))}
-      </div>
+        </div>
     </div>
   );
 
@@ -477,7 +477,7 @@ export function AfternoonClubs() {
           <Plus className="h-5 w-5 mr-2" />
           Create Club
         </button>
-      </div>
+        </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {clubs.map((club) => (
@@ -513,7 +513,7 @@ export function AfternoonClubs() {
                   <Trash2 className="h-5 w-5" />
                 </button>
               </div>
-            </div>
+          </div>
             <div className="mt-4 flex items-center text-sm text-gray-500 dark:text-gray-400">
               <Users className="h-4 w-4 mr-2" />
               <span>{club.members_count} members</span>
@@ -539,7 +539,7 @@ export function AfternoonClubs() {
             Create Club
           </motion.button>
         )}
-      </div>
+          </div>
 
       <AnimatePresence>
         {message && (
@@ -583,13 +583,13 @@ export function AfternoonClubs() {
                       >
                         <Edit2 className="h-5 w-5" />
                       </button>
-                      <button
+                        <button
                         onClick={() => handleDelete(club.id)}
                         className="p-2 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 transition-colors"
-                      >
+                        >
                         <Trash2 className="h-5 w-5" />
-                      </button>
-                    </div>
+                        </button>
+                      </div>
                   )}
                 </div>
                 <p className="text-gray-600 dark:text-gray-300 mb-4">{club.description}</p>
@@ -622,15 +622,15 @@ export function AfternoonClubs() {
                     <div className="flex items-center text-gray-600 dark:text-gray-300">
                       <Users className="h-4 w-4 mr-2" />
                       <span>Teacher: {club.teacher}</span>
-                    </div>
+                  </div>
                   )}
                 </div>
-              </div>
+                            </div>
             </motion.div>
           ))}
-        </div>
-      )}
-
+                  </div>
+                )}
+                
       {/* Create/Edit Modal */}
       <AnimatePresence>
         {(isCreating || isEditing) && (
@@ -650,7 +650,7 @@ export function AfternoonClubs() {
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                   {isEditing ? 'Edit Club' : 'Create Club'}
                 </h2>
-                <button
+                              <button
                   onClick={() => {
                     setIsCreating(false);
                     setIsEditing(null);
@@ -667,7 +667,7 @@ export function AfternoonClubs() {
                   className="p-2 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 transition-colors"
                 >
                   <X className="h-5 w-5" />
-                </button>
+                              </button>
               </div>
               <div className="space-y-4">
                 <div>
@@ -691,18 +691,18 @@ export function AfternoonClubs() {
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
                     rows={3}
                   />
-                </div>
+              </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Day
                   </label>
-                  <input
+                    <input
                     type="text"
                     value={formData.day}
                     onChange={(e) => setFormData({ ...formData, day: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
-                  />
-                </div>
+                    />
+                  </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Time
@@ -724,7 +724,7 @@ export function AfternoonClubs() {
                     onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
                   />
-                </div>
+                                  </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Capacity
@@ -735,7 +735,7 @@ export function AfternoonClubs() {
                     onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
                   />
-                </div>
+                                    </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Teacher
@@ -746,9 +746,9 @@ export function AfternoonClubs() {
                     onChange={(e) => setFormData({ ...formData, teacher: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
                   />
-                </div>
+                                  </div>
                 <div className="flex justify-end space-x-3">
-                  <button
+                                  <button
                     onClick={() => {
                       setIsCreating(false);
                       setIsEditing(null);
@@ -765,18 +765,18 @@ export function AfternoonClubs() {
                     className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                   >
                     Cancel
-                  </button>
-                  <button
+                                  </button>
+                                  <button
                     onClick={() => isEditing ? handleUpdate(isEditing) : handleCreate()}
                     className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                   >
                     {isEditing ? 'Update' : 'Create'}
-                  </button>
+                                  </button>
                 </div>
               </div>
             </motion.div>
           </motion.div>
-        )}
+          )}
       </AnimatePresence>
     </div>
   );
