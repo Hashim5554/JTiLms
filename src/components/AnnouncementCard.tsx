@@ -44,24 +44,24 @@ export function AnnouncementCard({ announcement, onDelete }: AnnouncementCardPro
 
   return (
     <div className="card bg-white dark:bg-gray-800 shadow-lg hover:shadow-xl transition-shadow duration-300 fade-in">
-      <div className="card-body">
-        <div className="flex justify-between items-start">
-          <h3 className="card-title text-lg font-semibold text-gray-900 dark:text-white">
+      <div className="card-body p-4 sm:p-6">
+        <div className="flex justify-between items-start gap-2">
+          <h3 className="card-title text-base sm:text-lg font-semibold text-gray-900 dark:text-white break-words">
             {announcement.title}
           </h3>
           {isAdmin && (
             <button
               onClick={handleDelete}
-              className="btn btn-ghost btn-sm text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+              className="btn btn-ghost btn-sm text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 p-1 sm:p-2"
             >
               <Trash2 className="w-4 h-4" />
             </button>
           )}
         </div>
-        <p className="text-gray-600 dark:text-gray-300 mt-2">
+        <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300 mt-2 break-words">
           {announcement.content}
         </p>
-        <div className="mt-4 flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
+        <div className="mt-3 sm:mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 text-xs sm:text-sm text-gray-500 dark:text-gray-400">
           <span>By {announcement.profiles.username}</span>
           <span>
             {new Date(announcement.created_at).toLocaleDateString()}
@@ -69,7 +69,7 @@ export function AnnouncementCard({ announcement, onDelete }: AnnouncementCardPro
         </div>
         {announcement.classes?.name && (
           <div className="mt-2">
-            <span className="badge badge-primary">
+            <span className="badge badge-primary text-xs sm:text-sm">
               {announcement.classes.name}
             </span>
           </div>

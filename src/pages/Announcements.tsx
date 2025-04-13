@@ -125,31 +125,31 @@ export function Announcements() {
   );
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Announcements</h1>
+    <div className="container mx-auto px-4 py-4 sm:py-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Announcements</h1>
         {isAdmin && (
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setIsCreateModalOpen(true)}
-            className="button-primary flex items-center gap-2"
+            className="button-primary flex items-center gap-2 w-full sm:w-auto justify-center"
           >
-            <Plus className="w-5 h-5" />
+            <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
             New Announcement
           </motion.button>
         )}
       </div>
 
-      <div className="mb-6">
+      <div className="mb-4 sm:mb-6">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
           <input
             type="text"
             placeholder="Search announcements..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+            className="w-full pl-9 sm:pl-10 pr-4 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
           />
         </div>
       </div>
@@ -160,7 +160,7 @@ export function Announcements() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className={`p-4 rounded-lg mb-6 ${
+            className={`p-3 sm:p-4 rounded-lg mb-4 sm:mb-6 text-sm sm:text-base ${
               message.type === 'success' 
                 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
                 : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
@@ -172,20 +172,20 @@ export function Announcements() {
       </AnimatePresence>
 
       {loading ? (
-        <div className="flex justify-center items-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
+        <div className="flex justify-center items-center h-48 sm:h-64">
+          <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin text-primary-500" />
         </div>
       ) : filteredAnnouncements.length === 0 ? (
         <motion.div 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="text-center py-12"
+          className="text-center py-8 sm:py-12"
         >
-          <Bell className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-          <p className="text-gray-500 dark:text-gray-400">No announcements found</p>
+          <Bell className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-gray-400 mb-3 sm:mb-4" />
+          <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">No announcements found</p>
         </motion.div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {filteredAnnouncements.map((announcement) => (
             <motion.div
               key={announcement.id}
@@ -211,10 +211,10 @@ export function Announcements() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md"
+              className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto"
             >
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white">Create New Announcement</h3>
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Create New Announcement</h3>
                 <button
                   onClick={() => setIsCreateModalOpen(false)}
                   className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
@@ -222,7 +222,7 @@ export function Announcements() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <form onSubmit={handleCreateAnnouncement} className="space-y-4">
+              <form onSubmit={handleCreateAnnouncement} className="space-y-3 sm:space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Title
@@ -231,7 +231,7 @@ export function Announcements() {
                     type="text"
                     value={newAnnouncement.title}
                     onChange={(e) => setNewAnnouncement({ ...newAnnouncement, title: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    className="w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                     required
                   />
                 </div>
@@ -242,7 +242,7 @@ export function Announcements() {
                   <textarea
                     value={newAnnouncement.content}
                     onChange={(e) => setNewAnnouncement({ ...newAnnouncement, content: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white h-32"
+                    className="w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white h-24 sm:h-32"
                     required
                   />
                 </div>
@@ -253,7 +253,7 @@ export function Announcements() {
                   <select
                     value={newAnnouncement.class_id}
                     onChange={(e) => setNewAnnouncement({ ...newAnnouncement, class_id: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    className="w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                   >
                     <option value="">All Classes</option>
                     {classes.map((class_) => (
@@ -263,18 +263,18 @@ export function Announcements() {
                     ))}
                   </select>
                 </div>
-                <div className="flex justify-end gap-3">
+                <div className="flex justify-end gap-3 pt-2">
                   <button
                     type="button"
                     onClick={() => setIsCreateModalOpen(false)}
-                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                    className="px-3 sm:px-4 py-2 text-sm sm:text-base text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="button-primary flex items-center gap-2"
+                    className="button-primary flex items-center gap-2 text-sm sm:text-base"
                   >
                     {isSubmitting ? (
                       <>
