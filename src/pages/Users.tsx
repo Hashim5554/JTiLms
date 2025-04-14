@@ -17,7 +17,10 @@ import {
   Check,
   Loader2,
   Plus,
-  User
+  User,
+  Mail,
+  Shield,
+  GraduationCap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -234,8 +237,8 @@ export function Users() {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
-          <p className="text-gray-600">Only ultra admins can view this page.</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Access Denied</h2>
+          <p className="text-gray-600 dark:text-gray-300">Only ultra admins can view this page.</p>
         </div>
       </div>
     );
@@ -243,53 +246,89 @@ export function Users() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex justify-between items-center mb-8"
+      >
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Users</h1>
-        <button
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
           onClick={() => setIsCreateModalOpen(true)}
-          className="btn btn-primary"
+          className="btn btn-primary flex items-center gap-2"
         >
-          <Plus className="w-5 h-5 mr-2" />
+          <Plus className="w-5 h-5" />
           Create User
-        </button>
-      </div>
+        </motion.button>
+      </motion.div>
 
-      <div className="flex gap-4 mb-6">
-        <div className="flex-1">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex gap-4 mb-8"
+      >
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             placeholder="Search users..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="input input-bordered w-full"
+            className="input input-bordered w-full pl-10"
           />
         </div>
-        <select
-          value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value as UserRole | 'all')}
-          className="select select-bordered"
+        <div className="relative">
+          <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+          <select
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value as UserRole | 'all')}
+            className="select select-bordered pl-10"
+          >
+            <option value="all">All Roles</option>
+            <option value="admin">Admin</option>
+            <option value="teacher">Teacher</option>
+            <option value="student">Student</option>
+          </select>
+        </div>
+      </motion.div>
+
+      {message && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`alert ${message.type === 'success' ? 'alert-success' : 'alert-error'} mb-8`}
         >
-          <option value="all">All Roles</option>
-          <option value="admin">Admin</option>
-          <option value="teacher">Teacher</option>
-          <option value="student">Student</option>
-        </select>
-      </div>
+          {message.type === 'success' ? <Check className="w-5 h-5" /> : <X className="w-5 h-5" />}
+          <span>{message.text}</span>
+        </motion.div>
+      )}
 
       {loading ? (
         <div className="flex justify-center items-center h-32">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       ) : filteredUsers.length === 0 ? (
-        <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-          <User className="w-12 h-12 mx-auto mb-2" />
-          <p>No users found</p>
-        </div>
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center py-12"
+        >
+          <User className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+          <p className="text-gray-600 dark:text-gray-300">No users found</p>
+        </motion.div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+        >
           {filteredUsers.map((user) => (
-            <div
+            <motion.div
               key={user.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              whileHover={{ scale: 1.02 }}
               className="card bg-white dark:bg-gray-800 shadow-lg hover:shadow-xl transition-shadow duration-300"
             >
               <div className="card-body p-6">
@@ -298,47 +337,54 @@ export function Users() {
                     <h3 className="card-title text-lg font-semibold text-gray-900 dark:text-white">
                       {user.username}
                     </h3>
-                    <p className="text-gray-600 dark:text-gray-300">
-                      {user.email}
-                    </p>
+                    <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
+                      <Mail className="w-4 h-4" />
+                      <span>{user.email}</span>
+                    </div>
                   </div>
                   {user.role !== 'ultra_admin' && (
-                    <button
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
                       onClick={() => handleDeleteUser(user.id)}
                       className="btn btn-ghost btn-sm text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
                     >
                       <Trash2 className="w-4 h-4" />
-                    </button>
+                    </motion.button>
                   )}
                 </div>
                 <div className="mt-4">
-                  <select
-                    value={user.role}
-                    onChange={(e) => handleRoleChange(user.id, e.target.value as UserRole)}
-                    className="select select-bordered w-full"
-                    disabled={user.role === 'ultra_admin'}
-                  >
-                    <option value="admin">Admin</option>
-                    <option value="teacher">Teacher</option>
-                    <option value="student">Student</option>
-                  </select>
-                </div>
-                {user.class_assignments && user.class_assignments.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {user.class_assignments.map((assignment) => (
-                      <span
-                        key={assignment.class_id}
-                        className="badge badge-primary"
-                      >
-                        {assignment.classes?.grade} {assignment.classes?.section}
-                      </span>
-                    ))}
+                  <div className="flex items-center gap-2 mb-2">
+                    <Shield className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                    <select
+                      value={user.role}
+                      onChange={(e) => handleRoleChange(user.id, e.target.value as UserRole)}
+                      className="select select-bordered w-full"
+                      disabled={user.role === 'ultra_admin'}
+                    >
+                      <option value="admin">Admin</option>
+                      <option value="teacher">Teacher</option>
+                      <option value="student">Student</option>
+                    </select>
                   </div>
-                )}
+                  {user.class_assignments && user.class_assignments.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {user.class_assignments.map((assignment) => (
+                        <span
+                          key={assignment.class_id}
+                          className="badge badge-primary flex items-center gap-1"
+                        >
+                          <GraduationCap className="w-3 h-3" />
+                          {assignment.classes?.grade} {assignment.classes?.section}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       )}
 
       {/* Create User Modal */}
@@ -362,64 +408,80 @@ export function Users() {
               <form onSubmit={handleCreateUser} className="space-y-4">
                 <div>
                   <label className="label">
-                    <span className="label-text">Email</span>
+                    <span className="label-text text-gray-900 dark:text-white">Email</span>
                   </label>
-                  <input
-                    type="email"
-                    value={newUser.email}
-                    onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                    className="input input-bordered w-full"
-                    required
-                  />
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="email"
+                      value={newUser.email}
+                      onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                      className="input input-bordered w-full pl-10"
+                      required
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="label">
-                    <span className="label-text">Username</span>
+                    <span className="label-text text-gray-900 dark:text-white">Username</span>
                   </label>
-                  <input
-                    type="text"
-                    value={newUser.username}
-                    onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
-                    className="input input-bordered w-full"
-                    required
-                  />
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      value={newUser.username}
+                      onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+                      className="input input-bordered w-full pl-10"
+                      required
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="label">
-                    <span className="label-text">Password</span>
+                    <span className="label-text text-gray-900 dark:text-white">Password</span>
                   </label>
-                  <input
-                    type="password"
-                    value={newUser.password}
-                    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                    className="input input-bordered w-full"
-                    required
-                  />
+                  <div className="relative">
+                    <Shield className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="password"
+                      value={newUser.password}
+                      onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                      className="input input-bordered w-full pl-10"
+                      required
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="label">
-                    <span className="label-text">Role</span>
+                    <span className="label-text text-gray-900 dark:text-white">Role</span>
                   </label>
-                  <select
-                    value={newUser.role}
-                    onChange={(e) => setNewUser({ ...newUser, role: e.target.value as UserRole })}
-                    className="select select-bordered w-full"
-                    required
-                  >
-                    <option value="admin">Admin</option>
-                    <option value="teacher">Teacher</option>
-                    <option value="student">Student</option>
-                  </select>
+                  <div className="relative">
+                    <Shield className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <select
+                      value={newUser.role}
+                      onChange={(e) => setNewUser({ ...newUser, role: e.target.value as UserRole })}
+                      className="select select-bordered w-full pl-10"
+                      required
+                    >
+                      <option value="admin">Admin</option>
+                      <option value="teacher">Teacher</option>
+                      <option value="student">Student</option>
+                    </select>
+                  </div>
                 </div>
-                <div className="flex justify-end gap-2 mt-4">
-                  <button
+                <div className="flex justify-end gap-2 mt-6">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     type="button"
                     onClick={() => setIsCreateModalOpen(false)}
                     className="btn btn-ghost"
                   >
                     Cancel
-                  </button>
-                  <button
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     type="submit"
                     className="btn btn-primary"
                     disabled={loading}
@@ -429,7 +491,7 @@ export function Users() {
                     ) : (
                       'Create'
                     )}
-                  </button>
+                  </motion.button>
                 </div>
               </form>
             </motion.div>
