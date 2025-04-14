@@ -244,7 +244,7 @@ export function Users() {
         animate={{ opacity: 1, y: 0 }}
         className="flex items-center justify-center h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800"
       >
-        <div className="text-center p-8 rounded-xl bg-white dark:bg-gray-800 shadow-xl">
+        <div className="text-center p-8 rounded-2xl bg-white dark:bg-gray-800 shadow-xl">
           <Shield className="w-16 h-16 mx-auto mb-4 text-red-500" />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Access Denied</h2>
           <p className="text-gray-600 dark:text-gray-300">Only ultra admins can view this page.</p>
@@ -262,7 +262,7 @@ export function Users() {
           className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8"
         >
           <div className="flex items-center gap-3">
-            <div className="p-3 rounded-xl bg-primary/10 dark:bg-primary/20">
+            <div className="p-3 rounded-2xl bg-primary/10 dark:bg-primary/20">
               <UsersIcon className="w-6 h-6 text-primary" />
             </div>
             <div>
@@ -274,7 +274,7 @@ export function Users() {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => setIsCreateModalOpen(true)}
-            className="btn btn-primary gap-2 shadow-lg hover:shadow-xl transition-all duration-300"
+            className="btn btn-primary gap-2 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
           >
             <Plus className="w-5 h-5" />
             Create New User
@@ -284,25 +284,29 @@ export function Users() {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8"
+          className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 mb-8"
         >
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <div className="absolute left-3 top-1/2 transform -translate-y-1/2 p-1 rounded-xl bg-gray-100 dark:bg-gray-700">
+                <Search className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+              </div>
               <input
                 type="text"
                 placeholder="Search users by name or email..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="input input-bordered w-full pl-10 bg-gray-50 dark:bg-gray-700"
+                className="input input-bordered w-full pl-12 bg-gray-50 dark:bg-gray-700 rounded-xl"
               />
             </div>
             <div className="relative">
-              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <div className="absolute left-3 top-1/2 transform -translate-y-1/2 p-1 rounded-xl bg-gray-100 dark:bg-gray-700">
+                <Filter className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+              </div>
               <select
                 value={roleFilter}
                 onChange={(e) => setRoleFilter(e.target.value as UserRole | 'all')}
-                className="select select-bordered pl-10 bg-gray-50 dark:bg-gray-700"
+                className="select select-bordered pl-12 bg-gray-50 dark:bg-gray-700 rounded-xl"
               >
                 <option value="all">All Roles</option>
                 <option value="admin">Admin</option>
@@ -317,7 +321,7 @@ export function Users() {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className={`alert ${message.type === 'success' ? 'alert-success' : 'alert-error'} mb-8 shadow-lg`}
+            className={`alert ${message.type === 'success' ? 'alert-success' : 'alert-error'} mb-8 shadow-lg rounded-xl`}
           >
             {message.type === 'success' ? <Check className="w-5 h-5" /> : <X className="w-5 h-5" />}
             <span>{message.text}</span>
@@ -332,7 +336,7 @@ export function Users() {
           <motion.div 
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="text-center py-12 bg-white dark:bg-gray-800 rounded-xl shadow-lg"
+            className="text-center py-12 bg-white dark:bg-gray-800 rounded-2xl shadow-lg"
           >
             <User className="w-16 h-16 mx-auto mb-4 text-gray-400" />
             <p className="text-gray-600 dark:text-gray-300">No users found matching your criteria</p>
@@ -349,12 +353,12 @@ export function Users() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 whileHover={{ scale: 1.02 }}
-                className="card bg-white dark:bg-gray-800 shadow-lg hover:shadow-xl transition-all duration-300"
+                className="card bg-white dark:bg-gray-800 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl overflow-hidden"
               >
                 <div className="card-body p-6">
                   <div className="flex justify-between items-start">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-primary/10 dark:bg-primary/20">
+                      <div className="p-2 rounded-xl bg-primary/10 dark:bg-primary/20">
                         <User className="w-5 h-5 text-primary" />
                       </div>
                       <div>
@@ -362,7 +366,9 @@ export function Users() {
                           {user.username}
                         </h3>
                         <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
-                          <Mail className="w-4 h-4" />
+                          <div className="p-1 rounded-lg bg-gray-100 dark:bg-gray-700">
+                            <Mail className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                          </div>
                           <span>{user.email}</span>
                         </div>
                       </div>
@@ -372,7 +378,7 @@ export function Users() {
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
                         onClick={() => handleDeleteUser(user.id)}
-                        className="btn btn-ghost btn-sm text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                        className="btn btn-ghost btn-sm text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl"
                       >
                         <Trash2 className="w-4 h-4" />
                       </motion.button>
@@ -380,13 +386,13 @@ export function Users() {
                   </div>
                   <div className="mt-4 space-y-3">
                     <div className="flex items-center gap-2">
-                      <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700">
+                      <div className="p-2 rounded-xl bg-gray-100 dark:bg-gray-700">
                         <Shield className="w-4 h-4 text-gray-600 dark:text-gray-300" />
                       </div>
                       <select
                         value={user.role}
                         onChange={(e) => handleRoleChange(user.id, e.target.value as UserRole)}
-                        className="select select-bordered w-full bg-gray-50 dark:bg-gray-700"
+                        className="select select-bordered w-full bg-gray-50 dark:bg-gray-700 rounded-xl"
                         disabled={user.role === 'ultra_admin'}
                       >
                         <option value="admin">Admin</option>
@@ -399,9 +405,11 @@ export function Users() {
                         {user.class_assignments.map((assignment) => (
                           <span
                             key={assignment.class_id}
-                            className="badge badge-primary gap-1 bg-primary/10 text-primary border-0"
+                            className="badge badge-primary gap-1 bg-primary/10 text-primary border-0 rounded-xl"
                           >
-                            <GraduationCap className="w-3 h-3" />
+                            <div className="p-1 rounded-lg bg-primary/20">
+                              <GraduationCap className="w-3 h-3 text-primary" />
+                            </div>
                             {assignment.classes?.grade} {assignment.classes?.section}
                           </span>
                         ))}
@@ -427,10 +435,10 @@ export function Users() {
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md p-6"
+                className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-6"
               >
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 rounded-lg bg-primary/10 dark:bg-primary/20">
+                  <div className="p-2 rounded-xl bg-primary/10 dark:bg-primary/20">
                     <UserPlus className="w-5 h-5 text-primary" />
                   </div>
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
@@ -443,14 +451,14 @@ export function Users() {
                       <span className="label-text text-gray-900 dark:text-white">Email</span>
                     </label>
                     <div className="relative">
-                      <div className="absolute left-3 top-1/2 transform -translate-y-1/2 p-1 rounded-lg bg-gray-100 dark:bg-gray-700">
+                      <div className="absolute left-3 top-1/2 transform -translate-y-1/2 p-1 rounded-xl bg-gray-100 dark:bg-gray-700">
                         <Mail className="w-4 h-4 text-gray-600 dark:text-gray-300" />
                       </div>
                       <input
                         type="email"
                         value={newUser.email}
                         onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                        className="input input-bordered w-full pl-12 bg-gray-50 dark:bg-gray-700"
+                        className="input input-bordered w-full pl-12 bg-gray-50 dark:bg-gray-700 rounded-xl"
                         required
                       />
                     </div>
@@ -460,14 +468,14 @@ export function Users() {
                       <span className="label-text text-gray-900 dark:text-white">Username</span>
                     </label>
                     <div className="relative">
-                      <div className="absolute left-3 top-1/2 transform -translate-y-1/2 p-1 rounded-lg bg-gray-100 dark:bg-gray-700">
+                      <div className="absolute left-3 top-1/2 transform -translate-y-1/2 p-1 rounded-xl bg-gray-100 dark:bg-gray-700">
                         <User className="w-4 h-4 text-gray-600 dark:text-gray-300" />
                       </div>
                       <input
                         type="text"
                         value={newUser.username}
                         onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
-                        className="input input-bordered w-full pl-12 bg-gray-50 dark:bg-gray-700"
+                        className="input input-bordered w-full pl-12 bg-gray-50 dark:bg-gray-700 rounded-xl"
                         required
                       />
                     </div>
@@ -477,14 +485,14 @@ export function Users() {
                       <span className="label-text text-gray-900 dark:text-white">Password</span>
                     </label>
                     <div className="relative">
-                      <div className="absolute left-3 top-1/2 transform -translate-y-1/2 p-1 rounded-lg bg-gray-100 dark:bg-gray-700">
+                      <div className="absolute left-3 top-1/2 transform -translate-y-1/2 p-1 rounded-xl bg-gray-100 dark:bg-gray-700">
                         <KeyRound className="w-4 h-4 text-gray-600 dark:text-gray-300" />
                       </div>
                       <input
                         type="password"
                         value={newUser.password}
                         onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                        className="input input-bordered w-full pl-12 bg-gray-50 dark:bg-gray-700"
+                        className="input input-bordered w-full pl-12 bg-gray-50 dark:bg-gray-700 rounded-xl"
                         required
                       />
                     </div>
@@ -494,13 +502,13 @@ export function Users() {
                       <span className="label-text text-gray-900 dark:text-white">Role</span>
                     </label>
                     <div className="relative">
-                      <div className="absolute left-3 top-1/2 transform -translate-y-1/2 p-1 rounded-lg bg-gray-100 dark:bg-gray-700">
+                      <div className="absolute left-3 top-1/2 transform -translate-y-1/2 p-1 rounded-xl bg-gray-100 dark:bg-gray-700">
                         <Shield className="w-4 h-4 text-gray-600 dark:text-gray-300" />
                       </div>
                       <select
                         value={newUser.role}
                         onChange={(e) => setNewUser({ ...newUser, role: e.target.value as UserRole })}
-                        className="select select-bordered w-full pl-12 bg-gray-50 dark:bg-gray-700"
+                        className="select select-bordered w-full pl-12 bg-gray-50 dark:bg-gray-700 rounded-xl"
                         required
                       >
                         <option value="admin">Admin</option>
@@ -515,7 +523,7 @@ export function Users() {
                       whileTap={{ scale: 0.98 }}
                       type="button"
                       onClick={() => setIsCreateModalOpen(false)}
-                      className="btn btn-ghost"
+                      className="btn btn-ghost rounded-xl"
                     >
                       Cancel
                     </motion.button>
@@ -523,7 +531,7 @@ export function Users() {
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       type="submit"
-                      className="btn btn-primary"
+                      className="btn btn-primary rounded-xl"
                       disabled={loading}
                     >
                       {loading ? (
