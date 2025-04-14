@@ -190,13 +190,25 @@ export function Home() {
   };
 
   const handleCreateDueWork = async () => {
-    if (!user?.id || !currentClass?.id) return;
+    if (!user?.id || !currentClass?.id) {
+      console.error('User or class not found');
+      return;
+    }
+
+    // Validate required fields
+    if (!newDueWork.title.trim() || !newDueWork.description.trim() || !newDueWork.due_date || !newDueWork.subject_id) {
+      console.error('Please fill in all required fields');
+      return;
+    }
 
     try {
       const { data, error } = await supabase
         .from('due_works')
         .insert([{
-          ...newDueWork,
+          title: newDueWork.title.trim(),
+          description: newDueWork.description.trim(),
+          due_date: newDueWork.due_date,
+          subject_id: newDueWork.subject_id,
           created_by: user.id,
           class_id: currentClass.id
         }])
@@ -209,7 +221,7 @@ export function Home() {
 
       if (error) throw error;
       if (data) {
-        setDueWorks([...dueWorks, data]);
+        setDueWorks([data, ...dueWorks]);
         setShowDueWorkModal(false);
         setNewDueWork({
           title: '',
