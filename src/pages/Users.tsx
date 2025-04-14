@@ -27,7 +27,9 @@ import {
   School,
   Calendar,
   Clock,
-  Info
+  Info,
+  AlertCircle,
+  CheckCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -58,12 +60,13 @@ export function Users() {
   const [classes, setClasses] = useState<ExtendedClass[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all');
   const [sortField, setSortField] = useState<SortField>('username');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   
   // New user form state
   const [newUser, setNewUser] = useState({
@@ -104,38 +107,63 @@ export function Users() {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('profiles')
-        .select(`
-          *,
-          class_assignments(
-            class_id,
-            classes(
-              grade,
-              section
-            )
+      .from('profiles')
+      .select(`
+        *,
+        class_assignments(
+          class_id,
+          classes(
+            grade,
+            section
           )
+        )
         `)
         .order('username');
       
       if (error) throw error;
       if (data) {
         setUsers(data);
-        setMessage(null);
+        setSuccess(null);
       }
     } catch (error: any) {
       console.error('Error loading users:', error);
-      setMessage({ type: 'error', text: 'Failed to load users. Please try again.' });
+      setError('Failed to load users. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Filtered and sorted users
+  // Add validation for role changes
+  const canChangeRole = (currentRole: UserRole, newRole: UserRole) => {
+    const roleHierarchy = {
+      'ultra_admin': ['admin', 'teacher', 'student'] as UserRole[],
+      'admin': ['teacher', 'student'] as UserRole[],
+      'teacher': ['student'] as UserRole[],
+      'student': [] as UserRole[]
+    } as Record<UserRole, UserRole[]>;
+    return roleHierarchy[currentRole]?.includes(newRole) || false;
+  };
+
+  // Add validation for class assignments
+  const validateClassAssignment = (classId: string) => {
+    const classItem = classes.find(c => c.id === classId);
+    if (!classItem) return false;
+    
+    // Check if class is full (assuming max 30 students per class)
+    const studentsInClass = users.filter(u => 
+      u.role === 'student' && 
+      u.class_assignments?.some(a => a.class_id === classId)
+    ).length;
+    
+    return studentsInClass < 30;
+  };
+
+  // Add filter functionality
   const filteredUsers = useMemo(() => {
     return users
       .filter(user => {
-        const matchesSearch = user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            user.email?.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesSearch = user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            user.email?.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesRole = roleFilter === 'all' || user.role === roleFilter;
         return matchesSearch && matchesRole;
       })
@@ -145,23 +173,23 @@ export function Users() {
         const modifier = sortOrder === 'asc' ? 1 : -1;
         return aValue > bValue ? modifier : -modifier;
       });
-  }, [users, searchQuery, roleFilter, sortField, sortOrder]);
+  }, [users, searchTerm, roleFilter, sortField, sortOrder]);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUser.email || !newUser.username || !newUser.password) {
-      setMessage({ type: 'error', text: 'Please fill in all required fields' });
+      setError('Please fill in all required fields');
       return;
     }
 
     // Add validation for student class selection
     if (newUser.role === 'student' && selectedClasses.length === 0) {
-      setMessage({ type: 'error', text: 'Please select at least one class for the student' });
+      setError('Please select at least one class for the student');
       return;
     }
 
     setLoading(true);
-    setMessage(null);
+    setError(null);
 
     try {
       if (newUser.password.length < 6) {
@@ -192,7 +220,7 @@ export function Users() {
         if (assignmentError) throw assignmentError;
       }
 
-      setMessage({ type: 'success', text: 'User created successfully!' });
+      setSuccess('User created successfully!');
       await loadUsers();
       setIsCreateModalOpen(false);
       setNewUser({
@@ -205,38 +233,46 @@ export function Users() {
       setSelectedClasses([]);
     } catch (error: any) {
       console.error('Error creating user:', error);
-      setMessage({ type: 'error', text: error.message || 'Failed to create user' });
+      setError(error.message || 'Failed to create user');
     } finally {
       setLoading(false);
     }
   };
 
   const handleDeleteUser = async (userId: string) => {
-    if (!confirm('Are you sure you want to delete this user?')) return;
+    if (!window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+      return;
+    }
     
     setLoading(true);
     try {
-      const { error } = await supabase
+        const { error } = await supabase
         .from('profiles')
-        .delete()
+          .delete()
         .eq('id', userId);
-      
-      if (error) throw error;
+        
+        if (error) throw error;
       
       setUsers(users.filter(user => user.id !== userId));
-      setMessage({ type: 'success', text: 'User deleted successfully' });
+      setSuccess('User deleted successfully');
     } catch (error: any) {
       console.error('Error deleting user:', error);
-      setMessage({ type: 'error', text: error.message || 'Failed to delete user' });
+      setError(error.message || 'Failed to delete user');
     } finally {
       setLoading(false);
     }
   };
 
   const handleRoleChange = async (userId: string, newRole: UserRole) => {
+    if (!canChangeRole(users.find(u => u.id === userId)?.role as UserRole, newRole)) {
+      setError('You do not have permission to assign this role');
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+
     setLoading(true);
     try {
-      const { error } = await supabase
+        const { error } = await supabase
         .from('profiles')
         .update({ role: newRole })
         .eq('id', userId);
@@ -246,10 +282,10 @@ export function Users() {
       setUsers(users.map(user => 
         user.id === userId ? { ...user, role: newRole as 'ultra_admin' | 'student' | 'teacher' } : user
       ));
-      setMessage({ type: 'success', text: 'User role updated successfully' });
+      setSuccess('User role updated successfully');
     } catch (error: any) {
       console.error('Error updating user role:', error);
-      setMessage({ type: 'error', text: error.message || 'Failed to update user role' });
+      setError(error.message || 'Failed to update user role');
     } finally {
       setLoading(false);
     }
@@ -273,22 +309,22 @@ export function Users() {
           .from('class_assignments')
           .insert(
             newClasses.map(classId => ({
-              user_id: userId,
-              class_id: classId
+            user_id: userId,
+            class_id: classId
             }))
           );
 
         if (insertError) throw insertError;
       }
 
-      setMessage({ type: 'success', text: 'User classes updated successfully' });
+      setSuccess('User classes updated successfully');
       await loadUsers();
       setIsEditModalOpen(false);
       setEditingUser(null);
       setEditingUserClasses([]);
     } catch (error: any) {
       console.error('Error updating user classes:', error);
-      setMessage({ type: 'error', text: error.message || 'Failed to update user classes' });
+      setError(error.message || 'Failed to update user classes');
     } finally {
       setLoading(false);
     }
@@ -317,6 +353,7 @@ export function Users() {
       className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 py-8"
     >
       <div className="container mx-auto px-4">
+        {/* Header Section */}
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -348,6 +385,7 @@ export function Users() {
           </motion.button>
         </motion.div>
 
+        {/* Search and Filter Section */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -355,58 +393,76 @@ export function Users() {
           className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 mb-8"
         >
           <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
-              <motion.div 
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ delay: 0.4 }}
-                className="absolute left-3 top-1/2 transform -translate-y-1/2 p-1 rounded-xl bg-gray-100 dark:bg-gray-700"
-              >
-                <Search className="w-4 h-4 text-gray-600 dark:text-gray-300" />
-              </motion.div>
-              <input
-                type="text"
-                placeholder="Search users by name or email..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="input input-bordered w-full pl-12 bg-gray-50 dark:bg-gray-700 rounded-xl"
-              />
+            <div className="flex-1">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search className="w-5 h-5 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search users by name or email..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="input input-bordered w-full pl-10 bg-gray-50 dark:bg-gray-700 rounded-xl"
+                />
+              </div>
             </div>
-            <div className="relative">
-              <motion.div 
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ delay: 0.5 }}
-                className="absolute left-3 top-1/2 transform -translate-y-1/2 p-1 rounded-xl bg-gray-100 dark:bg-gray-700"
+            <div className="w-full md:w-48">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center gap-2 pointer-events-none">
+                  <Filter className="w-5 h-5 text-gray-400" />
+                </div>
+                <select
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value as UserRole | 'all')}
+                  className="select select-bordered w-full pl-10 bg-gray-50 dark:bg-gray-700 rounded-xl"
+                >
+                  <option value="all">All Roles</option>
+                  <option value="admin">Admin</option>
+                  <option value="teacher">Teacher</option>
+                  <option value="student">Student</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setRoleFilter('all');
+                }}
+                className="btn btn-ghost rounded-xl"
               >
-                <Filter className="w-4 h-4 text-gray-600 dark:text-gray-300" />
-              </motion.div>
-              <select
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value as UserRole | 'all')}
-                className="select select-bordered pl-12 bg-gray-50 dark:bg-gray-700 rounded-xl"
-              >
-                <option value="all">All Roles</option>
-                <option value="admin">Admin</option>
-                <option value="teacher">Teacher</option>
-                <option value="student">Student</option>
-              </select>
+                Reset Filters
+              </button>
             </div>
           </div>
         </motion.div>
 
-        {message && (
+        {/* Message Alert */}
+        {error && (
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
+            initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className={`alert ${message.type === 'success' ? 'alert-success' : 'alert-error'} mb-8 shadow-lg rounded-xl`}
+            exit={{ opacity: 0, y: -20 }}
+            className="alert alert-error rounded-xl"
           >
-            {message.type === 'success' ? <Check className="w-5 h-5" /> : <X className="w-5 h-5" />}
-            <span>{message.text}</span>
+            <AlertCircle className="w-5 h-5" />
+            <span>{error}</span>
+          </motion.div>
+        )}
+        {success && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="alert alert-success rounded-xl"
+          >
+            <CheckCircle className="w-5 h-5" />
+            <span>{success}</span>
           </motion.div>
         )}
 
+        {/* Users Grid */}
         {loading ? (
           <motion.div 
             initial={{ opacity: 0 }}
@@ -442,21 +498,15 @@ export function Users() {
                 <div className="card-body p-6">
                   <div className="flex justify-between items-start">
                     <div className="flex items-center gap-3">
-                      <motion.div 
-                        whileHover={{ rotate: 360 }}
-                        transition={{ duration: 0.5 }}
-                        className="p-2 rounded-xl bg-primary/10 dark:bg-primary/20"
-                      >
+                      <div className="p-2 rounded-xl bg-primary/10 dark:bg-primary/20">
                         <User className="w-5 h-5 text-primary" />
-                      </motion.div>
+                      </div>
                       <div>
                         <h3 className="card-title text-lg font-semibold text-gray-900 dark:text-white">
                           {user.username}
                         </h3>
                         <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
-                          <div className="p-1 rounded-lg bg-gray-100 dark:bg-gray-700">
-                            <Mail className="w-4 h-4 text-gray-600 dark:text-gray-300" />
-                          </div>
+                          <Mail className="w-4 h-4" />
                           <span>{user.email}</span>
                         </div>
                       </div>
@@ -488,12 +538,9 @@ export function Users() {
                   </div>
                   <div className="mt-4 space-y-3">
                     <div className="flex items-center gap-2">
-                      <motion.div 
-                        whileHover={{ scale: 1.1 }}
-                        className="p-2 rounded-xl bg-gray-100 dark:bg-gray-700"
-                      >
+                      <div className="p-2 rounded-xl bg-gray-100 dark:bg-gray-700">
                         <Shield className="w-4 h-4 text-gray-600 dark:text-gray-300" />
-                      </motion.div>
+                      </div>
                       <select
                         value={user.role}
                         onChange={(e) => handleRoleChange(user.id, e.target.value as UserRole)}
@@ -513,15 +560,13 @@ export function Users() {
                             whileHover={{ scale: 1.05 }}
                             className="badge badge-primary gap-1 bg-primary/10 text-primary border-0 rounded-xl"
                           >
-                            <div className="p-1 rounded-lg bg-primary/20">
-                              <GraduationCap className="w-3 h-3 text-primary" />
-                            </div>
+                            <GraduationCap className="w-3 h-3 text-primary" />
                             {assignment.classes?.grade} {assignment.classes?.section}
                           </motion.span>
                         ))}
-                      </div>
+        </div>
                     )}
-                    <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                    <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
                       <div className="flex items-center gap-1">
                         <Calendar className="w-4 h-4" />
                         <span>Joined: {new Date(user.created_at).toLocaleDateString()}</span>
@@ -554,144 +599,140 @@ export function Users() {
                 className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-6"
               >
                 <div className="flex items-center gap-3 mb-6">
-                  <motion.div 
-                    whileHover={{ rotate: 360 }}
-                    transition={{ duration: 0.5 }}
-                    className="p-2 rounded-xl bg-primary/10 dark:bg-primary/20"
-                  >
+                  <div className="p-2 rounded-xl bg-primary/10 dark:bg-primary/20">
                     <UserPlus className="w-5 h-5 text-primary" />
-                  </motion.div>
+                  </div>
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                     Create New User
                   </h2>
                 </div>
                 <form onSubmit={handleCreateUser} className="space-y-4">
-                  <div>
+          <div>
                     <label className="label">
                       <span className="label-text text-gray-900 dark:text-white">Email</span>
-                    </label>
+            </label>
                     <div className="relative">
-                      <motion.div 
-                        whileHover={{ scale: 1.1 }}
-                        className="absolute left-3 top-1/2 transform -translate-y-1/2 p-1 rounded-xl bg-gray-100 dark:bg-gray-700"
-                      >
-                        <Mail className="w-4 h-4 text-gray-600 dark:text-gray-300" />
-                      </motion.div>
-                      <input
-                        type="email"
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Mail className="w-5 h-5 text-gray-400" />
+                      </div>
+            <input
+              type="email"
                         value={newUser.email}
                         onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                        className="input input-bordered w-full pl-12 bg-gray-50 dark:bg-gray-700 rounded-xl"
-                        required
-                      />
-                    </div>
+                        className="input input-bordered w-full pl-10 bg-gray-50 dark:bg-gray-700 rounded-xl"
+              required
+            />
+          </div>
                   </div>
-                  <div>
+          <div>
                     <label className="label">
                       <span className="label-text text-gray-900 dark:text-white">Username</span>
-                    </label>
+            </label>
                     <div className="relative">
-                      <motion.div 
-                        whileHover={{ scale: 1.1 }}
-                        className="absolute left-3 top-1/2 transform -translate-y-1/2 p-1 rounded-xl bg-gray-100 dark:bg-gray-700"
-                      >
-                        <User className="w-4 h-4 text-gray-600 dark:text-gray-300" />
-                      </motion.div>
-                      <input
-                        type="text"
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <User className="w-5 h-5 text-gray-400" />
+                      </div>
+            <input
+              type="text"
                         value={newUser.username}
                         onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
-                        className="input input-bordered w-full pl-12 bg-gray-50 dark:bg-gray-700 rounded-xl"
-                        required
-                      />
-                    </div>
+                        className="input input-bordered w-full pl-10 bg-gray-50 dark:bg-gray-700 rounded-xl"
+              required
+            />
+          </div>
                   </div>
-                  <div>
+          <div>
                     <label className="label">
                       <span className="label-text text-gray-900 dark:text-white">Password</span>
-                    </label>
+            </label>
                     <div className="relative">
-                      <motion.div 
-                        whileHover={{ scale: 1.1 }}
-                        className="absolute left-3 top-1/2 transform -translate-y-1/2 p-1 rounded-xl bg-gray-100 dark:bg-gray-700"
-                      >
-                        <KeyRound className="w-4 h-4 text-gray-600 dark:text-gray-300" />
-                      </motion.div>
-                      <input
-                        type="password"
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <KeyRound className="w-5 h-5 text-gray-400" />
+                      </div>
+            <input
+              type="password"
                         value={newUser.password}
                         onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                        className="input input-bordered w-full pl-12 bg-gray-50 dark:bg-gray-700 rounded-xl"
-                        required
-                      />
-                    </div>
+                        className="input input-bordered w-full pl-10 bg-gray-50 dark:bg-gray-700 rounded-xl"
+              required
+            />
+          </div>
                   </div>
-                  <div>
+          <div>
                     <label className="label">
                       <span className="label-text text-gray-900 dark:text-white">Role</span>
-                    </label>
+            </label>
                     <div className="relative">
-                      <motion.div 
-                        whileHover={{ scale: 1.1 }}
-                        className="absolute left-3 top-1/2 transform -translate-y-1/2 p-1 rounded-xl bg-gray-100 dark:bg-gray-700"
-                      >
-                        <Shield className="w-4 h-4 text-gray-600 dark:text-gray-300" />
-                      </motion.div>
-                      <select
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Shield className="w-5 h-5 text-gray-400" />
+                      </div>
+            <select
                         value={newUser.role}
                         onChange={(e) => setNewUser({ ...newUser, role: e.target.value as UserRole })}
-                        className="select select-bordered w-full pl-12 bg-gray-50 dark:bg-gray-700 rounded-xl"
+                        className="select select-bordered w-full pl-10 bg-gray-50 dark:bg-gray-700 rounded-xl"
                         required
                       >
                         <option value="admin">Admin</option>
                         <option value="teacher">Teacher</option>
-                        <option value="student">Student</option>
-                      </select>
-                    </div>
+              <option value="student">Student</option>
+            </select>
+          </div>
                   </div>
-                  {/* Add Class Selection for Students */}
                   {newUser.role === 'student' && (
-                    <div>
+          <div>
                       <label className="label">
                         <span className="label-text text-gray-900 dark:text-white">Assigned Classes</span>
-                      </label>
+            </label>
                       <div className="space-y-2">
                         {classes.map((classItem) => (
                           <motion.div
                             key={classItem.id}
                             whileHover={{ scale: 1.02 }}
-                            className="flex items-center gap-2 p-2 rounded-xl bg-gray-50 dark:bg-gray-700"
+                            className={`flex items-center gap-2 p-2 rounded-xl ${
+                              validateClassAssignment(classItem.id) 
+                                ? 'bg-gray-50 dark:bg-gray-700' 
+                                : 'bg-gray-100 dark:bg-gray-600 opacity-50'
+                            }`}
                           >
-                            <input
-                              type="checkbox"
+                  <input
+                    type="checkbox"
                               id={`class-${classItem.id}`}
                               checked={selectedClasses.includes(classItem.id)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
+                    onChange={(e) => {
+                                if (e.target.checked && !validateClassAssignment(classItem.id)) {
+                                  setError('This class is full');
+                                  setTimeout(() => setError(null), 3000);
+                                  return;
+                                }
+                      if (e.target.checked) {
                                   setSelectedClasses([...selectedClasses, classItem.id]);
-                                } else {
+                      } else {
                                   setSelectedClasses(selectedClasses.filter(id => id !== classItem.id));
                                 }
                               }}
+                              disabled={!validateClassAssignment(classItem.id)}
                               className="checkbox checkbox-primary"
                             />
                             <label
                               htmlFor={`class-${classItem.id}`}
-                              className="flex-1 cursor-pointer"
+                              className={`flex-1 cursor-pointer ${
+                                !validateClassAssignment(classItem.id) ? 'cursor-not-allowed' : ''
+                              }`}
                             >
                               <div className="flex items-center gap-2">
-                                <div className="p-1 rounded-lg bg-primary/10">
-                                  <School className="w-4 h-4 text-primary" />
-                                </div>
+                                <School className="w-4 h-4 text-primary" />
                                 <span className="text-gray-900 dark:text-white">
                                   {classItem.grade} {classItem.section}
                                 </span>
+                                {!validateClassAssignment(classItem.id) && (
+                                  <span className="text-xs text-error">(Class Full)</span>
+                                )}
                               </div>
-                            </label>
+                </label>
                           </motion.div>
-                        ))}
-                      </div>
-                    </div>
+              ))}
+            </div>
+          </div>
                   )}
                   <div className="flex justify-end gap-2 mt-6">
                     <motion.button
@@ -706,9 +747,9 @@ export function Users() {
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      type="submit"
+              type="submit"
                       className="btn btn-primary rounded-xl"
-                      disabled={loading}
+              disabled={loading}
                     >
                       {loading ? (
                         <Loader2 className="w-5 h-5 animate-spin" />
@@ -723,7 +764,7 @@ export function Users() {
           )}
         </AnimatePresence>
 
-        {/* Add Edit Modal */}
+        {/* Edit User Classes Modal */}
         <AnimatePresence>
           {isEditModalOpen && editingUser && (
             <motion.div
@@ -739,13 +780,9 @@ export function Users() {
                 className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-6"
               >
                 <div className="flex items-center gap-3 mb-6">
-                  <motion.div 
-                    whileHover={{ rotate: 360 }}
-                    transition={{ duration: 0.5 }}
-                    className="p-2 rounded-xl bg-primary/10 dark:bg-primary/20"
-                  >
+                  <div className="p-2 rounded-xl bg-primary/10 dark:bg-primary/20">
                     <Edit2 className="w-5 h-5 text-primary" />
-                  </motion.div>
+                  </div>
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                     Edit User Classes
                   </h2>
@@ -760,7 +797,7 @@ export function Users() {
                       >
                         <input
                           type="checkbox"
-                          id={`edit-class-${classItem.id}`}
+                          id={`class-${classItem.id}`}
                           checked={editingUserClasses.includes(classItem.id)}
                           onChange={(e) => {
                             if (e.target.checked) {
@@ -772,13 +809,11 @@ export function Users() {
                           className="checkbox checkbox-primary"
                         />
                         <label
-                          htmlFor={`edit-class-${classItem.id}`}
+                          htmlFor={`class-${classItem.id}`}
                           className="flex-1 cursor-pointer"
                         >
                           <div className="flex items-center gap-2">
-                            <div className="p-1 rounded-lg bg-primary/10">
-                              <School className="w-4 h-4 text-primary" />
-                            </div>
+                            <School className="w-4 h-4 text-primary" />
                             <span className="text-gray-900 dark:text-white">
                               {classItem.grade} {classItem.section}
                             </span>
@@ -792,11 +827,7 @@ export function Users() {
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       type="button"
-                      onClick={() => {
-                        setIsEditModalOpen(false);
-                        setEditingUser(null);
-                        setEditingUserClasses([]);
-                      }}
+                      onClick={() => setIsEditModalOpen(false)}
                       className="btn btn-ghost rounded-xl"
                     >
                       Cancel
@@ -804,6 +835,7 @@ export function Users() {
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
+                      type="submit"
                       onClick={() => handleEditUserClasses(editingUser.id, editingUserClasses)}
                       className="btn btn-primary rounded-xl"
                       disabled={loading}
@@ -811,7 +843,7 @@ export function Users() {
                       {loading ? (
                         <Loader2 className="w-5 h-5 animate-spin" />
                       ) : (
-                        'Save Changes'
+                        'Update Classes'
                       )}
                     </motion.button>
                   </div>

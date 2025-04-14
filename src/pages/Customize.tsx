@@ -2,7 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../store/auth';
 import { supabase } from '../lib/supabase';
-import { Plus, Trash2, Loader2, X } from 'lucide-react';
+import { 
+  Plus, 
+  Trash2, 
+  X, 
+  Loader2, 
+  Settings, 
+  FileText, 
+  Link2, 
+  AlertCircle, 
+  CheckCircle,
+  Shield
+} from 'lucide-react';
 
 interface Message {
   type: 'success' | 'error';
@@ -33,9 +44,9 @@ export function Customize() {
     try {
       setLoading(true);
       const { data, error } = await supabase
-        .from('custom_pages')
-        .select('*')
-        .order('title');
+      .from('custom_pages')
+      .select('*')
+      .order('title');
 
       if (error) throw error;
       setCustomPages(data || []);
@@ -50,15 +61,15 @@ export function Customize() {
   const handleCreatePage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPage.title || !newPage.path) return;
-    
+
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('custom_pages')
-        .insert([{
-          title: newPage.title,
-          path: newPage.path.toLowerCase().replace(/\s+/g, '-'),
-        }])
+    const { data, error } = await supabase
+      .from('custom_pages')
+      .insert([{
+        title: newPage.title,
+        path: newPage.path.toLowerCase().replace(/\s+/g, '-'),
+      }])
         .select()
         .single();
 
@@ -68,28 +79,39 @@ export function Customize() {
       setNewPage({ title: '', path: '' });
       setIsCreateModalOpen(false);
       setMessage({ type: 'success', text: 'Page created successfully!' });
-    } catch (error) {
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error: any) {
       console.error('Error creating page:', error);
-      setMessage({ type: 'error', text: 'Failed to create page' });
+      setMessage({ type: 'error', text: error.message || 'Failed to create page' });
+      setTimeout(() => setMessage(null), 3000);
     } finally {
       setLoading(false);
     }
   };
 
   const handleDeletePage = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this page? This action cannot be undone.')) {
+      return;
+    }
+
+    setLoading(true);
     try {
-      const { error } = await supabase
-        .from('custom_pages')
-        .delete()
-        .eq('id', id);
+    const { error } = await supabase
+      .from('custom_pages')
+      .delete()
+      .eq('id', id);
 
       if (error) throw error;
 
       setCustomPages(customPages.filter(page => page.id !== id));
       setMessage({ type: 'success', text: 'Page deleted successfully!' });
-    } catch (error) {
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error: any) {
       console.error('Error deleting page:', error);
-      setMessage({ type: 'error', text: 'Failed to delete page' });
+      setMessage({ type: 'error', text: error.message || 'Failed to delete page' });
+      setTimeout(() => setMessage(null), 3000);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -98,10 +120,11 @@ export function Customize() {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900"
+        className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center"
       >
-        <div className="text-center p-8 bg-white dark:bg-gray-800 rounded-xl shadow-lg">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+        <div className="text-center bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
+          <Shield className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
             Access Denied
           </h2>
           <p className="text-gray-600 dark:text-gray-300">
@@ -113,99 +136,130 @@ export function Customize() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="space-y-8"
-      >
-        <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Custom Pages
-          </h1>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsCreateModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="h-5 w-5" />
-            New Page
-          </motion.button>
-        </div>
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 py-8 px-4 sm:px-6 lg:px-8"
+    >
+      <div className="max-w-4xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden mb-8"
+        >
+          <div className="p-6 sm:p-8">
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-primary/10 dark:bg-primary/20">
+                  <Settings className="w-6 h-6 text-primary" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    Custom Pages
+                  </h1>
+                  <p className="text-gray-600 dark:text-gray-300">
+                    Manage and customize your pages
+                  </p>
+                </div>
+              </div>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setIsCreateModalOpen(true)}
+                className="btn btn-primary gap-2 rounded-xl"
+              >
+                <Plus className="w-5 h-5" />
+                New Page
+              </motion.button>
+            </div>
 
-        {message && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={`p-4 rounded-lg ${
-              message.type === 'success'
-                ? 'bg-green-100 text-green-800'
-                : 'bg-red-100 text-red-800'
-            }`}
-          >
-            {message.text}
-          </motion.div>
-        )}
-
-        {loading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500" />
-          </div>
-        ) : customPages.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center py-12"
-          >
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-              No custom pages found
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400">
-              Create your first custom page to get started
-            </p>
-          </motion.div>
-        ) : (
-          <AnimatePresence>
-            <div className="grid gap-6">
-              {customPages.map((page) => (
+            <AnimatePresence mode="wait">
+      {message && (
                 <motion.div
-                  key={page.id}
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={{ opacity: 0, y: -20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.2 }}
-                  className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden"
+                  className={`alert ${
+                    message.type === 'success' ? 'alert-success' : 'alert-error'
+                  } rounded-xl mb-6`}
                 >
-                  <div className="p-6">
-                    <div className="flex justify-between items-start gap-4">
-                      <div className="flex-1">
-                        <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                          {page.title}
-                        </h3>
-                        <p className="mt-1 text-gray-500 dark:text-gray-400">
-                          Path: /custom/{page.path}
-                        </p>
+                  {message.type === 'success' ? (
+                    <CheckCircle className="w-5 h-5" />
+                  ) : (
+                    <AlertCircle className="w-5 h-5" />
+                  )}
+                  <span>{message.text}</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {loading && customPages.length === 0 ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex justify-center items-center py-12"
+              >
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              </motion.div>
+            ) : customPages.length === 0 ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-center py-12"
+              >
+                <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                  No custom pages found
+                </h3>
+                <p className="text-gray-500 dark:text-gray-400">
+                  Create your first custom page to get started
+                </p>
+              </motion.div>
+            ) : (
+              <motion.div layout className="grid gap-4">
+                {customPages.map((page, index) => (
+                  <motion.div
+                    key={page.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 sm:p-6"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="p-2 rounded-lg bg-primary/10 dark:bg-primary/20">
+                            <FileText className="w-4 h-4 text-primary" />
+                          </div>
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
+                            {page.title}
+                          </h3>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                          <Link2 className="w-4 h-4" />
+                          <span className="truncate">/custom/{page.path}</span>
+                        </div>
                         <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                          Created on {new Date(page.created_at).toLocaleString()}
+                          Created on {new Date(page.created_at).toLocaleDateString()}
                         </p>
                       </div>
                       <motion.button
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
                         onClick={() => handleDeletePage(page.id)}
-                        className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/50 rounded-lg transition-colors"
+                        className="p-2 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                       >
-                        <Trash2 className="h-5 w-5" />
+                        <Trash2 className="w-5 h-5" />
                       </motion.button>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </AnimatePresence>
-        )}
-      </motion.div>
+        </div>
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
+          </div>
+        </motion.div>
+      </div>
 
       <AnimatePresence>
         {isCreateModalOpen && (
@@ -213,79 +267,94 @@ export function Customize() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full p-6"
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-md w-full p-6"
             >
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Create New Page
-                </h3>
-                <button
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-primary/10 dark:bg-primary/20">
+                    <Plus className="w-5 h-5 text-primary" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Create New Page
+                  </h3>
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
                   onClick={() => setIsCreateModalOpen(false)}
                   className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 rounded-lg transition-colors"
                 >
-                  <X className="h-5 w-5" />
-                </button>
+                  <X className="w-5 h-5" />
+                </motion.button>
               </div>
 
-              <form onSubmit={handleCreatePage} className="space-y-4">
-                <div>
+        <form onSubmit={handleCreatePage} className="space-y-4">
+          <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Title
-                  </label>
-                  <input
-                    type="text"
-                    value={newPage.title}
-                    onChange={(e) => setNewPage({ ...newPage, title: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            </label>
+            <input
+              type="text"
+              value={newPage.title}
+              onChange={(e) => setNewPage({ ...newPage, title: e.target.value })}
+                    className="input input-bordered w-full bg-gray-50 dark:bg-gray-700 rounded-xl"
+                    placeholder="Enter page title"
                     required
-                  />
-                </div>
-                <div>
+            />
+          </div>
+          <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Path
-                  </label>
-                  <input
-                    type="text"
-                    value={newPage.path}
-                    onChange={(e) => setNewPage({ ...newPage, path: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
+            </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <span className="text-gray-500 dark:text-gray-400">/custom/</span>
+                    </div>
+            <input
+              type="text"
+              value={newPage.path}
+              onChange={(e) => setNewPage({ ...newPage, path: e.target.value })}
+                      className="input input-bordered w-full pl-16 bg-gray-50 dark:bg-gray-700 rounded-xl"
+                      placeholder="page-url"
+                      required
+            />
+          </div>
                 </div>
-                <div className="flex justify-end gap-2">
-                  <button
+                <div className="flex justify-end gap-2 mt-6">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                     type="button"
                     onClick={() => setIsCreateModalOpen(false)}
-                    className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    className="btn btn-ghost rounded-xl"
                   >
                     Cancel
-                  </button>
-                  <button
-                    type="submit"
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+              type="submit"
+                    className="btn btn-primary rounded-xl"
                     disabled={loading}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
                   >
                     {loading ? (
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Creating...
-                      </div>
+                      <Loader2 className="w-5 h-5 animate-spin" />
                     ) : (
-                      'Create'
+                      'Create Page'
                     )}
-                  </button>
+                  </motion.button>
                 </div>
               </form>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 }

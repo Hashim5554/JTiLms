@@ -128,7 +128,7 @@ export function Announcements() {
     <div className="container mx-auto px-4 py-4 sm:py-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Announcements</h1>
-        {isAdmin && (
+      {isAdmin && (
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -223,29 +223,29 @@ export function Announcements() {
                 </button>
               </div>
               <form onSubmit={handleCreateAnnouncement} className="space-y-3 sm:space-y-4">
-                <div>
+            <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Title
-                  </label>
-                  <input
-                    type="text"
+                Title
+              </label>
+              <input
+                type="text"
                     value={newAnnouncement.title}
                     onChange={(e) => setNewAnnouncement({ ...newAnnouncement, title: e.target.value })}
                     className="w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                     required
-                  />
-                </div>
-                <div>
+              />
+            </div>
+            <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Content
-                  </label>
-                  <textarea
+                Content
+              </label>
+              <textarea
                     value={newAnnouncement.content}
                     onChange={(e) => setNewAnnouncement({ ...newAnnouncement, content: e.target.value })}
                     className="w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white h-24 sm:h-32"
                     required
-                  />
-                </div>
+              />
+            </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Class (Optional)
@@ -288,7 +288,7 @@ export function Announcements() {
                       </>
                     )}
                   </button>
-                </div>
+              </div>
               </form>
             </motion.div>
           </motion.div>
