@@ -196,18 +196,33 @@ export function Home() {
     }
 
     // Validate required fields
-    if (!newDueWork.title.trim() || !newDueWork.description.trim() || !newDueWork.due_date || !newDueWork.subject_id) {
-      console.error('Please fill in all required fields');
+    if (!newDueWork.title.trim()) {
+      console.error('Title is required');
+      return;
+    }
+    if (!newDueWork.description.trim()) {
+      console.error('Description is required');
+      return;
+    }
+    if (!newDueWork.due_date) {
+      console.error('Due date is required');
+      return;
+    }
+    if (!newDueWork.subject_id) {
+      console.error('Subject is required');
       return;
     }
 
     try {
+      // Format the due date to ISO string
+      const formattedDueDate = new Date(newDueWork.due_date).toISOString();
+
       const { data, error } = await supabase
         .from('due_works')
         .insert([{
           title: newDueWork.title.trim(),
           description: newDueWork.description.trim(),
-          due_date: newDueWork.due_date,
+          due_date: formattedDueDate,
           subject_id: newDueWork.subject_id,
           created_by: user.id,
           class_id: currentClass.id
@@ -219,9 +234,16 @@ export function Home() {
         `)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error creating due work:', error);
+        return;
+      }
+
       if (data) {
-        setDueWorks([data, ...dueWorks]);
+        // Add the new due work to the beginning of the list
+        setDueWorks(prevWorks => [data, ...prevWorks]);
+        
+        // Close the modal and reset the form
         setShowDueWorkModal(false);
         setNewDueWork({
           title: '',
@@ -603,6 +625,7 @@ export function Home() {
                     value={newDueWork.due_date}
                     onChange={(e) => setNewDueWork({ ...newDueWork, due_date: e.target.value })}
                     className="input-primary w-full"
+                    min={new Date().toISOString().slice(0, 16)}
                   />
                 </div>
                 <div>
@@ -632,6 +655,7 @@ export function Home() {
                   <button
                     onClick={handleCreateDueWork}
                     className="button-primary"
+                    disabled={!newDueWork.title.trim() || !newDueWork.description.trim() || !newDueWork.due_date || !newDueWork.subject_id}
                   >
                     Create
                   </button>
