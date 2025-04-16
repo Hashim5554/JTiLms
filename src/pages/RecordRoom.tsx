@@ -11,16 +11,25 @@ import {
   Check, 
   X, 
   Calendar,
-  GraduationCap
+  GraduationCap,
+  BookOpen,
+  Users,
+  ChevronDown,
+  ChevronUp,
+  Filter,
+  Edit2,
+  Trash2,
+  Loader2
 } from 'lucide-react';
 import '../styles/cards.css';
+import type { UserRole } from '../types';
 
 type RecordType = 'results' | 'schoolAttendance' | 'onlineAttendance' | 'discipline';
 
 interface Profile {
   id: string;
   username: string;
-  role: 'student' | 'teacher' | 'ultra_admin';
+  role: UserRole;
   photo_url?: string;
   created_at: string;
   updated_at: string;
@@ -126,7 +135,9 @@ interface StudentProfile {
 }
 
 interface ClassAssignment {
-  profiles: StudentProfile;
+  id: string;
+  class_id: string;
+  profiles: StudentProfile[];
 }
 
 export function RecordRoom() {
@@ -134,7 +145,7 @@ export function RecordRoom() {
   const [activeTab, setActiveTab] = useState<RecordType>('results');
   const [classes, setClasses] = useState<Class[]>([]);
   const [selectedClass, setSelectedClass] = useState<string>('');
-  const [students, setStudents] = useState<Student[]>([]);
+  const [students, setStudents] = useState<StudentProfile[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Result[]>([]);
@@ -216,10 +227,12 @@ export function RecordRoom() {
     
     setLoading(true);
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('class_assignments')
         .select(`
-          profiles:user_id (
+          id,
+          class_id,
+          profiles (
             id,
             username,
             email,
@@ -228,20 +241,24 @@ export function RecordRoom() {
         `)
         .eq('class_id', selectedClass);
       
+      if (error) throw error;
+      
       if (data) {
-        const studentsList = (data as ClassAssignment[])
-          .map(item => item.profiles)
-          .filter(Boolean)
-          .map(profile => ({
+        const assignments = data.map((assignment: any) => ({
+          id: assignment.id,
+          class_id: assignment.class_id,
+          profiles: assignment.profiles.map((profile: any) => ({
             id: profile.id,
             username: profile.username,
             email: profile.email,
             photo_url: profile.photo_url
-          }));
-        setStudents(studentsList);
+          }))
+        })) as ClassAssignment[];
+        setStudents(assignments.map(assignment => assignment.profiles).flat());
       }
     } catch (error) {
       console.error('Error loading students:', error);
+      setMessage({ type: 'error', text: 'Failed to load students' });
     } finally {
       setLoading(false);
     }
@@ -283,6 +300,7 @@ export function RecordRoom() {
       if (disciplineData) setDisciplines(disciplineData);
     } catch (error) {
       console.error('Error loading student data:', error);
+      setMessage({ type: 'error', text: 'Failed to load student data' });
     } finally {
       setLoading(false);
     }
@@ -335,6 +353,7 @@ export function RecordRoom() {
       }
     } catch (error) {
       console.error('Error loading records:', error);
+      setMessage({ type: 'error', text: 'Failed to load records' });
     } finally {
       setLoading(false);
     }
