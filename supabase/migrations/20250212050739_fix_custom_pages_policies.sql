@@ -1,18 +1,18 @@
 -- Drop existing policies if they exist
-DROP POLICY IF EXISTS "Allow read access to all users" ON custom_pages;
-DROP POLICY IF EXISTS "Allow insert for authenticated users" ON custom_pages;
-DROP POLICY IF EXISTS "Allow update for authenticated users" ON custom_pages;
-DROP POLICY IF EXISTS "Allow delete for authenticated users" ON custom_pages;
+DROP POLICY IF EXISTS "custom_pages_read_policy" ON custom_pages;
+DROP POLICY IF EXISTS "custom_pages_insert_policy" ON custom_pages;
+DROP POLICY IF EXISTS "custom_pages_update_policy" ON custom_pages;
+DROP POLICY IF EXISTS "custom_pages_delete_policy" ON custom_pages;
 
--- Create new policies
-CREATE POLICY "Allow read access to all users" ON custom_pages
+-- Create new policies with unique names
+CREATE POLICY "custom_pages_read_policy" ON custom_pages
   FOR SELECT USING (true);
 
-CREATE POLICY "Allow insert for authenticated users" ON custom_pages
+CREATE POLICY "custom_pages_insert_policy" ON custom_pages
   FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
-CREATE POLICY "Allow update for authenticated users" ON custom_pages
+CREATE POLICY "custom_pages_update_policy" ON custom_pages
   FOR UPDATE USING (auth.role() = 'authenticated');
 
-CREATE POLICY "Allow delete for authenticated users" ON custom_pages
+CREATE POLICY "custom_pages_delete_policy" ON custom_pages
   FOR DELETE USING (auth.role() = 'authenticated'); 

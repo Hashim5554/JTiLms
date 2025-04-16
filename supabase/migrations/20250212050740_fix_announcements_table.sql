@@ -7,8 +7,9 @@ CREATE TABLE announcements (
     title TEXT NOT NULL,
     content TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-    created_by UUID REFERENCES profiles(id) ON DELETE CASCADE,
-    class_id UUID REFERENCES classes(id) ON DELETE CASCADE
+    created_by UUID,
+    class_id UUID REFERENCES classes(id) ON DELETE CASCADE,
+    CONSTRAINT announcements_created_by_fkey FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE CASCADE
 );
 
 -- Enable Row Level Security
