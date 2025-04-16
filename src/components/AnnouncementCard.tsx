@@ -9,7 +9,7 @@ interface Announcement {
   title: string;
   content: string;
   created_at: string;
-  user_id: string;
+  created_by: string;
   class_id: string | null;
   profiles: {
     username: string;
@@ -26,7 +26,7 @@ interface AnnouncementCardProps {
 
 export function AnnouncementCard({ announcement, onDelete }: AnnouncementCardProps) {
   const user = useAuthStore((state) => state.user);
-  const isAdmin = user?.role === 'ultra_admin' || user?.role === 'teacher';
+  const canDelete = user?.role === 'admin' || user?.role === 'ultra_admin';
 
   const handleDelete = async () => {
     try {
@@ -49,7 +49,7 @@ export function AnnouncementCard({ announcement, onDelete }: AnnouncementCardPro
           <h3 className="card-title text-base sm:text-lg font-semibold text-gray-900 dark:text-white break-words">
             {announcement.title}
           </h3>
-          {isAdmin && (
+          {canDelete && (
             <button
               onClick={handleDelete}
               className="btn btn-ghost btn-sm text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 p-1 sm:p-2"
