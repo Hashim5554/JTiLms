@@ -136,9 +136,8 @@ export function Users() {
   // Add validation for role changes
   const canChangeRole = (currentRole: UserRole, newRole: UserRole) => {
     const roleHierarchy = {
-      'ultra_admin': ['admin', 'teacher', 'student'] as UserRole[],
-      'admin': ['teacher', 'student'] as UserRole[],
-      'teacher': ['student'] as UserRole[],
+      'ultra_admin': ['admin', 'student'] as UserRole[],
+      'admin': ['student'] as UserRole[],
       'student': [] as UserRole[]
     } as Record<UserRole, UserRole[]>;
     return roleHierarchy[currentRole]?.includes(newRole) || false;
@@ -419,7 +418,6 @@ export function Users() {
                 >
                   <option value="all">All Roles</option>
                   <option value="admin">Admin</option>
-                  <option value="teacher">Teacher</option>
                   <option value="student">Student</option>
                 </select>
               </div>
@@ -548,7 +546,6 @@ export function Users() {
                         disabled={user.role === 'ultra_admin'}
                       >
                         <option value="admin">Admin</option>
-                        <option value="teacher">Teacher</option>
                         <option value="student">Student</option>
                       </select>
                     </div>
@@ -564,7 +561,7 @@ export function Users() {
                             {assignment.classes?.grade} {assignment.classes?.section}
                           </motion.span>
                         ))}
-        </div>
+                      </div>
                     )}
                     <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
                       <div className="flex items-center gap-1">
@@ -673,10 +670,9 @@ export function Users() {
                         required
                       >
                         <option value="admin">Admin</option>
-                        <option value="teacher">Teacher</option>
-              <option value="student">Student</option>
-            </select>
-          </div>
+                        <option value="student">Student</option>
+                      </select>
+                    </div>
                   </div>
                   {newUser.role === 'student' && (
           <div>

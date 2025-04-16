@@ -3,7 +3,7 @@ export type UserRole = 'ultra_admin' | 'admin' | 'student';
 export interface Profile {
   id: string;
   username: string;
-  role: 'student' | 'teacher' | 'ultra_admin';
+  role: UserRole;
   photo_url?: string;
   created_at: string;
   updated_at: string;

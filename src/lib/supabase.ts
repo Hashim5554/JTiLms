@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../types/supabase';
+import type { UserRole } from '../types';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -87,7 +88,7 @@ export async function createUser({
   email: string;
   password: string;
   username: string;
-  role?: 'ultra_admin' | 'admin' | 'student';
+  role?: UserRole;
 }) {
   try {
     // First check if username is taken
@@ -149,7 +150,7 @@ export async function updateUserProfile(
   updates: {
     username?: string;
     photo_url?: string | null;
-    role?: 'ultra_admin' | 'admin' | 'student';
+    role?: UserRole;
   }
 ) {
   const { data, error } = await supabase

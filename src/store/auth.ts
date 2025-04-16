@@ -4,11 +4,13 @@ import type { Profile } from '../types';
 
 interface AuthState {
   user: Profile | null;
+  profile: Profile | null;
   loading: boolean;
   error: string | null;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   setUser: (user: Profile | null) => void;
+  setProfile: (profile: Profile | null) => void;
   clearError: () => void;
 }
 
@@ -20,6 +22,14 @@ export const useAuthStore = create<AuthState>((set) => ({
     email: 'ultraadmin@lgs.edu.pk',
     role: 'ultra_admin' as const,
     photo_url: undefined,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  profile: {
+    id: '00000000-0000-0000-0000-000000000000',
+    username: 'ultraadmin',
+    email: 'ultraadmin@lgs.edu.pk',
+    role: 'ultra_admin' as const,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   },
@@ -45,7 +55,12 @@ export const useAuthStore = create<AuthState>((set) => ({
         throw new Error('Error fetching user profile');
       }
 
-      set({ user: profile, loading: false, error: null });
+      set({ 
+        user: profile, 
+        profile: profile,
+        loading: false, 
+        error: null 
+      });
     } catch (error: any) {
       console.error('Sign in store error:', error);
       set({ error: error.message, loading: false });
@@ -55,12 +70,13 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ loading: true });
     try {
       await supabase.auth.signOut();
-      set({ user: null, loading: false, error: null });
+      set({ user: null, profile: null, loading: false, error: null });
       localStorage.removeItem('selectedClassId');
     } catch (error: any) {
       set({ error: error.message, loading: false });
     }
   },
   setUser: (user) => set({ user }),
+  setProfile: (profile) => set({ profile }),
   clearError: () => set({ error: null }),
 }));

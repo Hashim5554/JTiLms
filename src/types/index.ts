@@ -14,7 +14,7 @@ export interface ClassAssignment {
   updated_at: string;
 }
 
-export type UserRole = 'student' | 'teacher' | 'admin' | 'ultra_admin';
+export type UserRole = 'ultra_admin' | 'admin' | 'student';
 
 export interface Profile {
   id: string;
@@ -23,6 +23,7 @@ export interface Profile {
   role: UserRole;
   created_at: string;
   updated_at: string;
+  class_id?: string;
 }
 
 export interface Subject {
