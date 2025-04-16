@@ -15,7 +15,6 @@ CREATE TABLE IF NOT EXISTS custom_pages (
   slug TEXT UNIQUE NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-  created_by UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   is_published BOOLEAN DEFAULT false,
   metadata JSONB DEFAULT '{}'::jsonb
 );
