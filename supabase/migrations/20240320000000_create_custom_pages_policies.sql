@@ -20,6 +20,19 @@ CREATE TABLE IF NOT EXISTS custom_pages (
   metadata JSONB DEFAULT '{}'::jsonb
 );
 
+-- Add created_by column if it doesn't exist
+DO $$ 
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 
+    FROM information_schema.columns 
+    WHERE table_name = 'custom_pages' 
+    AND column_name = 'created_by'
+  ) THEN
+    ALTER TABLE custom_pages ADD COLUMN created_by UUID REFERENCES auth.users(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+
 -- Enable RLS for custom_pages
 ALTER TABLE custom_pages ENABLE ROW LEVEL SECURITY;
 
