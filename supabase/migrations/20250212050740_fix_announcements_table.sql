@@ -7,7 +7,7 @@ CREATE TABLE announcements (
     title TEXT NOT NULL,
     content TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-    created_by UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    created_by UUID REFERENCES profiles(id) ON DELETE CASCADE,
     class_id UUID REFERENCES classes(id) ON DELETE CASCADE
 );
 
