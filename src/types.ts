@@ -84,7 +84,8 @@ export interface AttainmentTarget {
 
 export interface Class {
   id: string;
-  name: string;
+  grade: number;
   section: string;
   created_at: string;
+  updated_at: string;
 }

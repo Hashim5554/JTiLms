@@ -275,6 +275,22 @@ export function Home() {
     }
   };
 
+  const loadClasses = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('classes')
+        .select('*')
+        .order('grade')
+        .order('section');
+
+      if (error) throw error;
+      setClasses(data || []);
+    } catch (error) {
+      console.error('Error loading classes:', error);
+      setError('Failed to load classes. Please try again.');
+    }
+  };
+
   if (loading) {
     return (
       <motion.div 
@@ -662,6 +678,23 @@ export function Home() {
                     ))}
                   </select>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Class
+                  </label>
+                  <select
+                    value={newDueWork.class_id}
+                    onChange={(e) => setNewDueWork({ ...newDueWork, class_id: e.target.value })}
+                    className="w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  >
+                    <option value="">All Classes</option>
+                    {classes.map((class_) => (
+                      <option key={class_.id} value={class_.id}>
+                        Grade {class_.grade} - Section {class_.section}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div className="flex justify-end space-x-3">
                   <button
                     onClick={() => setShowDueWorkModal(false)}
@@ -672,7 +705,7 @@ export function Home() {
                   <button
                     onClick={handleCreateDueWork}
                     className="button-primary"
-                    disabled={!newDueWork.title.trim() || !newDueWork.description.trim() || !newDueWork.due_date || !newDueWork.subject_id}
+                    disabled={!newDueWork.title.trim() || !newDueWork.description.trim() || !newDueWork.due_date || !newDueWork.subject_id || !newDueWork.class_id}
                   >
                     Create
                   </button>

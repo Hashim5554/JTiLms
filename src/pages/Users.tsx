@@ -718,7 +718,7 @@ export function Users() {
                               <div className="flex items-center gap-2">
                                 <School className="w-4 h-4 text-primary" />
                                 <span className="text-gray-900 dark:text-white">
-                                  {classItem.grade} {classItem.section}
+                                  Grade {classItem.grade} - Section {classItem.section}
                                 </span>
                                 {!validateClassAssignment(classItem.id) && (
                                   <span className="text-xs text-error">(Class Full)</span>
@@ -811,7 +811,7 @@ export function Users() {
                           <div className="flex items-center gap-2">
                             <School className="w-4 h-4 text-primary" />
                             <span className="text-gray-900 dark:text-white">
-                              {classItem.grade} {classItem.section}
+                              Grade {classItem.grade} - Section {classItem.section}
                             </span>
                           </div>
                         </label>

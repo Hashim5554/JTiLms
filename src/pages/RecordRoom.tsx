@@ -173,7 +173,7 @@ export function RecordRoom() {
     date: new Date().toISOString().split('T')[0]
   });
 
-  const isAdmin = user?.role === 'ultra_admin' || user?.role === 'teacher';
+  const isAdmin = user?.role === 'ultra_admin' || user?.role === 'admin';
 
   useEffect(() => {
     if (isAdmin) {
@@ -204,6 +204,7 @@ export function RecordRoom() {
       if (data) setClasses(data);
     } catch (error) {
       console.error('Error loading classes:', error);
+      setMessage({ type: 'error', text: 'Failed to load classes' });
     } finally {
       setLoading(false);
     }
@@ -1205,7 +1206,7 @@ export function RecordRoom() {
                   <option value="">Select a class</option>
                   {classes.map(cls => (
                     <option key={cls.id} value={cls.id}>
-                      Class {cls.grade}-{cls.section}
+                      Grade {cls.grade} - Section {cls.section}
                     </option>
                   ))}
                 </select>
