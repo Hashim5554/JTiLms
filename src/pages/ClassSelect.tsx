@@ -48,8 +48,8 @@ export function ClassSelect() {
 
   const handleClassSelect = (grade: number, section: string) => {
     const classObj = classes.find(c => 
-      parseInt(c.name) === grade && 
-      c.section.toUpperCase() === section.toUpperCase()
+      c.name === grade.toString() && 
+      c.section === section
     );
     if (classObj) {
       setSelectedClass(classObj);
