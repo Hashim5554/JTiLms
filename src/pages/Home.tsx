@@ -189,31 +189,47 @@ export function Home() {
     }
   };
 
-  const handleCreateDueWork = async () => {
-    if (!user?.id || !currentClass?.id) {
-      console.error('User or class not found');
+  const handleCreateDueWork = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Check if user is logged in
+    if (!user) {
+      setError('You must be logged in to create due work');
+      return;
+    }
+
+    // Check if user has permission
+    if (user.role !== 'teacher' && user.role !== 'ultra_admin') {
+      setError('You do not have permission to create due work');
+      return;
+    }
+
+    // Check if class is selected
+    if (!currentClass?.id) {
+      setError('Please select a class first');
       return;
     }
 
     // Validate required fields
     if (!newDueWork.title.trim()) {
-      console.error('Title is required');
+      setError('Title is required');
       return;
     }
     if (!newDueWork.description.trim()) {
-      console.error('Description is required');
+      setError('Description is required');
       return;
     }
     if (!newDueWork.due_date) {
-      console.error('Due date is required');
+      setError('Due date is required');
       return;
     }
     if (!newDueWork.subject_id) {
-      console.error('Subject is required');
+      setError('Subject is required');
       return;
     }
 
     try {
+      setLoading(true);
       // Format the due date to ISO string
       const formattedDueDate = new Date(newDueWork.due_date).toISOString();
 
@@ -234,10 +250,7 @@ export function Home() {
         `)
         .single();
 
-      if (error) {
-        console.error('Error creating due work:', error);
-        return;
-      }
+      if (error) throw error;
 
       if (data) {
         // Add the new due work to the beginning of the list
@@ -252,9 +265,13 @@ export function Home() {
           subject_id: '',
           class_id: ''
         });
+        setError(null);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating due work:', error);
+      setError(error.message || 'Failed to create due work');
+    } finally {
+      setLoading(false);
     }
   };
 

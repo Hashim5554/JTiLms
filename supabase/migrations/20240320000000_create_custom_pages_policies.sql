@@ -8,6 +8,11 @@ BEGIN
   -- Enable RLS
   ALTER TABLE public.custom_pages ENABLE ROW LEVEL SECURITY;
 
+  -- Drop existing policies if they exist
+  DROP POLICY IF EXISTS "Allow read access to all users" ON public.custom_pages;
+  DROP POLICY IF EXISTS "Allow all operations for ultra_admin" ON public.custom_pages;
+  DROP POLICY IF EXISTS "Allow all operations for admin" ON public.custom_pages;
+
   -- Create policies
   -- Allow all users to read custom pages
   CREATE POLICY "Allow read access to all users" ON public.custom_pages
