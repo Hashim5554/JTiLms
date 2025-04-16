@@ -51,10 +51,9 @@ export interface DueWork {
   description: string;
   due_date: string;
   subject_id: string;
-  created_by: string;
   class_id: string;
+  created_by: string;
   created_at: string;
-  updated_at: string;
   subjects?: {
     name: string;
   };
