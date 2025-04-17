@@ -29,7 +29,10 @@ import {
   Clock,
   Info,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  AlertTriangle,
+  UserMinus,
+  ChevronUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -67,6 +70,8 @@ export function Users() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [expandedUser, setExpandedUser] = useState<string | null>(null);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   
   // New user form state
   const [newUser, setNewUser] = useState({
@@ -349,336 +354,320 @@ export function Users() {
     <motion.div 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 py-8"
+      className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-6"
     >
-      <div className="container mx-auto px-4">
-        {/* Header Section */}
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8"
-        >
-          <div className="flex items-center gap-3">
-            <motion.div 
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: "spring", stiffness: 200, damping: 20 }}
-              className="p-3 rounded-2xl bg-primary/10 dark:bg-primary/20"
-            >
-              <UsersIcon className="w-6 h-6 text-primary" />
-            </motion.div>
+      {/* Header Section */}
+      <motion.div 
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="mb-8"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="p-3 rounded-2xl bg-primary/10 dark:bg-primary/20">
+              <UsersIcon className="w-8 h-8 text-primary" />
+            </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">User Management</h1>
-              <p className="text-gray-600 dark:text-gray-300">Manage and monitor user accounts</p>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">User Management</h1>
+              <p className="text-gray-600 dark:text-gray-400">Manage user accounts and permissions</p>
             </div>
           </div>
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => setIsCreateModalOpen(true)}
-            className="btn btn-primary gap-2 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
+            className="button-primary flex items-center gap-2"
           >
-            <Plus className="w-5 h-5" />
-            Create New User
+            <UserPlus className="w-5 h-5" />
+            Add User
           </motion.button>
-        </motion.div>
+        </div>
+      </motion.div>
 
-        {/* Search and Filter Section */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 mb-8"
-        >
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Search className="w-5 h-5 text-gray-400" />
-                </div>
-                <input
-                  type="text"
-                  placeholder="Search users by name or email..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="input input-bordered w-full pl-10 bg-gray-50 dark:bg-gray-700 rounded-xl"
-                />
-              </div>
-            </div>
-            <div className="w-full md:w-48">
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center gap-2 pointer-events-none">
-                  <Filter className="w-5 h-5 text-gray-400" />
-                </div>
-                <select
-                  value={roleFilter}
-                  onChange={(e) => setRoleFilter(e.target.value as UserRole | 'all')}
-                  className="select select-bordered w-full pl-10 bg-gray-50 dark:bg-gray-700 rounded-xl"
-                >
-                  <option value="all">All Roles</option>
-                  <option value="admin">Admin</option>
-                  <option value="student">Student</option>
-                </select>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => {
-                  setSearchTerm('');
-                  setRoleFilter('all');
-                }}
-                className="btn btn-ghost rounded-xl"
-              >
-                Reset Filters
-              </button>
-            </div>
+      {/* Search and Filter Section */}
+      <motion.div 
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.1 }}
+        className="mb-6 bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-4"
+      >
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search users..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+            />
           </div>
-        </motion.div>
-
-        {/* Message Alert */}
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="alert alert-error rounded-xl"
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setIsFilterOpen(!isFilterOpen)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
           >
-            <AlertCircle className="w-5 h-5" />
-            <span>{error}</span>
-          </motion.div>
-        )}
-        {success && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="alert alert-success rounded-xl"
-          >
-            <CheckCircle className="w-5 h-5" />
-            <span>{success}</span>
-          </motion.div>
-        )}
+            <Filter className="w-5 h-5" />
+            Filters
+            {isFilterOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+          </motion.button>
+        </div>
 
-        {/* Users Grid */}
+        <AnimatePresence>
+          {isFilterOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="mt-4 space-y-4"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Role Filter
+                  </label>
+                  <select
+                    value={roleFilter}
+                    onChange={(e) => setRoleFilter(e.target.value as UserRole | 'all')}
+                    className="w-full px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="all">All Roles</option>
+                    <option value="admin">Admin</option>
+                    <option value="student">Student</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Sort By
+                  </label>
+                  <select
+                    value={sortField}
+                    onChange={(e) => setSortField(e.target.value as SortField)}
+                    className="w-full px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="username">Username</option>
+                    <option value="email">Email</option>
+                    <option value="role">Role</option>
+                  </select>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+
+      {/* Users List */}
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2 }}
+        className="space-y-4"
+      >
         {loading ? (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex justify-center items-center h-64"
-          >
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          </motion.div>
-        ) : filteredUsers.length === 0 ? (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="text-center py-12 bg-white dark:bg-gray-800 rounded-2xl shadow-lg"
-          >
-            <User className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-            <p className="text-gray-600 dark:text-gray-300">No users found matching your criteria</p>
-          </motion.div>
+          <div className="flex justify-center items-center h-64">
+            <Loader2 className="w-8 h-8 text-primary animate-spin" />
+          </div>
         ) : (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-          >
+          <AnimatePresence>
             {filteredUsers.map((user, index) => (
               <motion.div
                 key={user.id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                whileHover={{ scale: 1.02 }}
-                className="card bg-white dark:bg-gray-800 shadow-lg hover:shadow-xl transition-all duration-300 rounded-2xl overflow-hidden"
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ delay: index * 0.05 }}
+                className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden"
               >
-                <div className="card-body p-6">
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-xl bg-primary/10 dark:bg-primary/20">
-                        <User className="w-5 h-5 text-primary" />
+                <div className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 rounded-xl bg-primary/10 dark:bg-primary/20">
+                        <UsersIcon className="w-6 h-6 text-primary" />
                       </div>
                       <div>
-                        <h3 className="card-title text-lg font-semibold text-gray-900 dark:text-white">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                           {user.username}
                         </h3>
-                        <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
-                          <Mail className="w-4 h-4" />
-                          <span>{user.email}</span>
-                        </div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">{user.email}</p>
                       </div>
                     </div>
-                    {user.role !== 'ultra_admin' && (
-                      <div className="flex gap-2">
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => {
-                            setEditingUser(user);
-                            setEditingUserClasses(user.class_assignments?.map(a => a.class_id) || []);
-                            setIsEditModalOpen(true);
-                          }}
-                          className="btn btn-ghost btn-sm text-primary hover:text-primary/80 hover:bg-primary/10 dark:hover:bg-primary/20 rounded-xl"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </motion.button>
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => handleDeleteUser(user.id)}
-                          className="btn btn-ghost btn-sm text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </motion.button>
-                      </div>
-                    )}
-                  </div>
-                  <div className="mt-4 space-y-3">
                     <div className="flex items-center gap-2">
-                      <div className="p-2 rounded-xl bg-gray-100 dark:bg-gray-700">
-                        <Shield className="w-4 h-4 text-gray-600 dark:text-gray-300" />
-                      </div>
-                      <select
-                        value={user.role}
-                        onChange={(e) => handleRoleChange(user.id, e.target.value as UserRole)}
-                        className="select select-bordered w-full bg-gray-50 dark:bg-gray-700 rounded-xl"
-                        disabled={user.role === 'ultra_admin'}
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setExpandedUser(expandedUser === user.id ? null : user.id)}
+                        className="p-2 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
                       >
-                        <option value="admin">Admin</option>
-                        <option value="student">Student</option>
-                      </select>
-                    </div>
-                    {user.class_assignments && user.class_assignments.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {user.class_assignments.map((assignment) => (
-                          <motion.span
-                            key={assignment.class_id}
-                            whileHover={{ scale: 1.05 }}
-                            className="badge badge-primary gap-1 bg-primary/10 text-primary border-0 rounded-xl"
-                          >
-                            <GraduationCap className="w-3 h-3 text-primary" />
-                            {assignment.classes?.grade} {assignment.classes?.section}
-                          </motion.span>
-                        ))}
-                      </div>
-                    )}
-                    <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="w-4 h-4" />
-                        <span>Joined: {new Date(user.created_at).toLocaleDateString()}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Clock className="w-4 h-4" />
-                        <span>Last Active: {new Date(user.updated_at).toLocaleDateString()}</span>
-                      </div>
+                        {expandedUser === user.id ? (
+                          <ChevronUp className="w-5 h-5" />
+                        ) : (
+                          <ChevronDown className="w-5 h-5" />
+                        )}
+                      </motion.button>
                     </div>
                   </div>
+
+                  <AnimatePresence>
+                    {expandedUser === user.id && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="mt-4 space-y-4"
+                      >
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                              Role
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <div className="p-2 rounded-xl bg-gray-100 dark:bg-gray-700">
+                                <Shield className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                              </div>
+                              <select
+                                value={user.role}
+                                onChange={(e) => handleRoleChange(user.id, e.target.value as UserRole)}
+                                className="flex-1 px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                disabled={user.role === 'ultra_admin'}
+                              >
+                                <option value="admin">Admin</option>
+                                <option value="student">Student</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                              Assigned Classes
+                            </label>
+                            <div className="flex flex-wrap gap-2">
+                              {user.class_assignments?.map((assignment) => (
+                                <motion.span
+                                  key={assignment.class_id}
+                                  whileHover={{ scale: 1.05 }}
+                                  className="px-3 py-1 rounded-xl bg-primary/10 text-primary text-sm flex items-center gap-1"
+                                >
+                                  <GraduationCap className="w-4 h-4" />
+                                  Grade {assignment.classes?.grade} - Section {assignment.classes?.section}
+                                </motion.span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => {
+                              setEditingUser(user);
+                              setEditingUserClasses(user.class_assignments?.map(a => a.class_id) || []);
+                              setIsEditModalOpen(true);
+                            }}
+                            className="px-4 py-2 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 flex items-center gap-2"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                            Edit Classes
+                          </motion.button>
+                          <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => handleDeleteUser(user.id)}
+                            className="px-4 py-2 rounded-xl bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-200 flex items-center gap-2"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Delete User
+                          </motion.button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </motion.div>
             ))}
-          </motion.div>
+          </AnimatePresence>
         )}
+      </motion.div>
 
-        {/* Create User Modal */}
-        <AnimatePresence>
-          {isCreateModalOpen && (
+      {/* Create User Modal */}
+      <AnimatePresence>
+        {isCreateModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+          >
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md"
             >
-              <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-6"
-              >
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 rounded-xl bg-primary/10 dark:bg-primary/20">
-                    <UserPlus className="w-5 h-5 text-primary" />
-                  </div>
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Create New User
-                  </h2>
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Create New User</h2>
+                  <button
+                    onClick={() => setIsCreateModalOpen(false)}
+                    className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                  </button>
                 </div>
                 <form onSubmit={handleCreateUser} className="space-y-4">
-          <div>
-                    <label className="label">
-                      <span className="label-text text-gray-900 dark:text-white">Email</span>
-            </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Mail className="w-5 h-5 text-gray-400" />
-                      </div>
-            <input
-              type="email"
-                        value={newUser.email}
-                        onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                        className="input input-bordered w-full pl-10 bg-gray-50 dark:bg-gray-700 rounded-xl"
-              required
-            />
-          </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={newUser.email}
+                      onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                      className="w-full px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      required
+                    />
                   </div>
-          <div>
-                    <label className="label">
-                      <span className="label-text text-gray-900 dark:text-white">Username</span>
-            </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <User className="w-5 h-5 text-gray-400" />
-                      </div>
-            <input
-              type="text"
-                        value={newUser.username}
-                        onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
-                        className="input input-bordered w-full pl-10 bg-gray-50 dark:bg-gray-700 rounded-xl"
-              required
-            />
-          </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Username
+                    </label>
+                    <input
+                      type="text"
+                      value={newUser.username}
+                      onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+                      className="w-full px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      required
+                    />
                   </div>
-          <div>
-                    <label className="label">
-                      <span className="label-text text-gray-900 dark:text-white">Password</span>
-            </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <KeyRound className="w-5 h-5 text-gray-400" />
-                      </div>
-            <input
-              type="password"
-                        value={newUser.password}
-                        onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                        className="input input-bordered w-full pl-10 bg-gray-50 dark:bg-gray-700 rounded-xl"
-              required
-            />
-          </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      value={newUser.password}
+                      onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                      className="w-full px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      required
+                    />
                   </div>
-          <div>
-                    <label className="label">
-                      <span className="label-text text-gray-900 dark:text-white">Role</span>
-            </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Shield className="w-5 h-5 text-gray-400" />
-                      </div>
-            <select
-                        value={newUser.role}
-                        onChange={(e) => setNewUser({ ...newUser, role: e.target.value as UserRole })}
-                        className="select select-bordered w-full pl-10 bg-gray-50 dark:bg-gray-700 rounded-xl"
-                        required
-                      >
-                        <option value="admin">Admin</option>
-                        <option value="student">Student</option>
-                      </select>
-                    </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Role
+                    </label>
+                    <select
+                      value={newUser.role}
+                      onChange={(e) => setNewUser({ ...newUser, role: e.target.value as UserRole })}
+                      className="w-full px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    >
+                      <option value="admin">Admin</option>
+                      <option value="student">Student</option>
+                    </select>
                   </div>
                   {newUser.role === 'student' && (
-          <div>
-                      <label className="label">
-                        <span className="label-text text-gray-900 dark:text-white">Assigned Classes</span>
-            </label>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Assign Classes
+                      </label>
                       <div className="space-y-2">
                         {classes.map((classItem) => (
                           <motion.div
@@ -690,20 +679,26 @@ export function Users() {
                                 : 'bg-gray-100 dark:bg-gray-600 opacity-50'
                             }`}
                           >
-                  <input
-                    type="checkbox"
+                            <input
+                              type="checkbox"
                               id={`class-${classItem.id}`}
-                              checked={selectedClasses.includes(classItem.id)}
-                    onChange={(e) => {
+                              checked={newUser.selectedClasses.includes(classItem.id)}
+                              onChange={(e) => {
                                 if (e.target.checked && !validateClassAssignment(classItem.id)) {
                                   setError('This class is full');
                                   setTimeout(() => setError(null), 3000);
                                   return;
                                 }
-                      if (e.target.checked) {
-                                  setSelectedClasses([...selectedClasses, classItem.id]);
-                      } else {
-                                  setSelectedClasses(selectedClasses.filter(id => id !== classItem.id));
+                                if (e.target.checked) {
+                                  setNewUser({
+                                    ...newUser,
+                                    selectedClasses: [...newUser.selectedClasses, classItem.id]
+                                  });
+                                } else {
+                                  setNewUser({
+                                    ...newUser,
+                                    selectedClasses: newUser.selectedClasses.filter(id => id !== classItem.id)
+                                  });
                                 }
                               }}
                               disabled={!validateClassAssignment(classItem.id)}
@@ -716,7 +711,7 @@ export function Users() {
                               }`}
                             >
                               <div className="flex items-center gap-2">
-                                <School className="w-4 h-4 text-primary" />
+                                <GraduationCap className="w-4 h-4 text-primary" />
                                 <span className="text-gray-900 dark:text-white">
                                   Grade {classItem.grade} - Section {classItem.section}
                                 </span>
@@ -724,64 +719,68 @@ export function Users() {
                                   <span className="text-xs text-error">(Class Full)</span>
                                 )}
                               </div>
-                </label>
+                            </label>
                           </motion.div>
-              ))}
-            </div>
-          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
-                  <div className="flex justify-end gap-2 mt-6">
+                  <div className="flex justify-end gap-3 pt-4">
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       type="button"
                       onClick={() => setIsCreateModalOpen(false)}
-                      className="btn btn-ghost rounded-xl"
+                      className="px-4 py-2 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
                     >
                       Cancel
                     </motion.button>
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-              type="submit"
-                      className="btn btn-primary rounded-xl"
-              disabled={loading}
+                      type="submit"
+                      className="button-primary"
                     >
-                      {loading ? (
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                      ) : (
-                        'Create User'
-                      )}
+                      Create User
                     </motion.button>
                   </div>
                 </form>
-              </motion.div>
+              </div>
             </motion.div>
-          )}
-        </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-        {/* Edit User Classes Modal */}
-        <AnimatePresence>
-          {isEditModalOpen && editingUser && (
+      {/* Edit Classes Modal */}
+      <AnimatePresence>
+        {isEditModalOpen && editingUser && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+          >
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md"
             >
-              <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-6"
-              >
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 rounded-xl bg-primary/10 dark:bg-primary/20">
-                    <Edit2 className="w-5 h-5 text-primary" />
-                  </div>
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Edit User Classes
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    Edit Classes for {editingUser.username}
                   </h2>
+                  <button
+                    onClick={() => {
+                      setIsEditModalOpen(false);
+                      setEditingUser(null);
+                      setEditingUserClasses([]);
+                    }}
+                    className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                  </button>
                 </div>
                 <div className="space-y-4">
                   <div className="space-y-2">
@@ -793,7 +792,7 @@ export function Users() {
                       >
                         <input
                           type="checkbox"
-                          id={`class-${classItem.id}`}
+                          id={`edit-class-${classItem.id}`}
                           checked={editingUserClasses.includes(classItem.id)}
                           onChange={(e) => {
                             if (e.target.checked) {
@@ -805,11 +804,11 @@ export function Users() {
                           className="checkbox checkbox-primary"
                         />
                         <label
-                          htmlFor={`class-${classItem.id}`}
+                          htmlFor={`edit-class-${classItem.id}`}
                           className="flex-1 cursor-pointer"
                         >
                           <div className="flex items-center gap-2">
-                            <School className="w-4 h-4 text-primary" />
+                            <GraduationCap className="w-4 h-4 text-primary" />
                             <span className="text-gray-900 dark:text-white">
                               Grade {classItem.grade} - Section {classItem.section}
                             </span>
@@ -818,37 +817,60 @@ export function Users() {
                       </motion.div>
                     ))}
                   </div>
-                  <div className="flex justify-end gap-2 mt-6">
+                  <div className="flex justify-end gap-3 pt-4">
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      type="button"
-                      onClick={() => setIsEditModalOpen(false)}
-                      className="btn btn-ghost rounded-xl"
+                      onClick={() => {
+                        setIsEditModalOpen(false);
+                        setEditingUser(null);
+                        setEditingUserClasses([]);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
                     >
                       Cancel
                     </motion.button>
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      type="submit"
                       onClick={() => handleEditUserClasses(editingUser.id, editingUserClasses)}
-                      className="btn btn-primary rounded-xl"
-                      disabled={loading}
+                      className="button-primary"
                     >
-                      {loading ? (
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                      ) : (
-                        'Update Classes'
-                      )}
+                      Save Changes
                     </motion.button>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Error and Success Messages */}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-4 right-4 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 p-4 rounded-2xl shadow-lg flex items-center gap-2"
+          >
+            <AlertTriangle className="w-5 h-5" />
+            <p>{error}</p>
+          </motion.div>
+        )}
+        {success && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-4 right-4 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200 p-4 rounded-2xl shadow-lg flex items-center gap-2"
+          >
+            <Check className="w-5 h-5" />
+            <p>{success}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
