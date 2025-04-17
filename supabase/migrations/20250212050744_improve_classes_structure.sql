@@ -1,6 +1,21 @@
 -- Drop existing classes table if it exists
 DROP TABLE IF EXISTS classes CASCADE;
 
+-- Create is_admin function
+CREATE OR REPLACE FUNCTION is_admin(user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM profiles
+    WHERE id = user_id
+    AND role IN ('admin', 'ultra_admin')
+  );
+END;
+$$;
+
 -- Create classes table with improved structure
 CREATE TABLE classes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
