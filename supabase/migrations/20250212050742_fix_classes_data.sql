@@ -48,17 +48,17 @@ CREATE POLICY "Only ultra admins can modify classes"
 -- Insert missing class combinations
 DO $$
 DECLARE
-  grade INTEGER;
-  section TEXT;
+  g INTEGER;
+  s TEXT;
   existing_class RECORD;
 BEGIN
-  FOR grade IN 3..8 LOOP
-    FOR section IN SELECT unnest(ARRAY['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']) LOOP
+  FOR g IN 3..8 LOOP
+    FOR s IN SELECT unnest(ARRAY['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']) LOOP
       -- Check if class already exists
-      SELECT INTO existing_class * FROM classes WHERE grade = $1 AND section = $2;
+      SELECT INTO existing_class * FROM classes WHERE classes.grade = g AND classes.section = s;
       IF NOT FOUND THEN
         INSERT INTO classes (grade, section)
-        VALUES (grade, section);
+        VALUES (g, s);
       END IF;
     END LOOP;
   END LOOP;
