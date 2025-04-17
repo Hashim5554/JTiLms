@@ -45,22 +45,14 @@ CREATE TABLE class_assignments (
 ALTER TABLE classes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE class_assignments ENABLE ROW LEVEL SECURITY;
 
--- Policies for classes table
-CREATE POLICY "Classes are viewable by assigned users and ultra admins"
+-- Drop existing policies
+DROP POLICY IF EXISTS "Classes are viewable by assigned users and ultra admins" ON classes;
+DROP POLICY IF EXISTS "Only ultra admins can modify classes" ON classes;
+
+-- Create new policies
+CREATE POLICY "Classes are viewable by all authenticated users"
   ON classes FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM class_assignments ca
-      WHERE ca.class_id = classes.id
-      AND ca.user_id = auth.uid()
-    )
-    OR
-    EXISTS (
-      SELECT 1 FROM profiles
-      WHERE id = auth.uid()
-      AND role = 'ultra_admin'
-    )
-  );
+  USING (auth.role() = 'authenticated');
 
 CREATE POLICY "Only ultra admins can modify classes"
   ON classes FOR ALL
