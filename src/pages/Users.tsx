@@ -420,19 +420,24 @@ export function Users() {
 
         {newUser.role === 'student' && (
           <div className="space-y-4">
-            <label className="block text-sm font-medium text-theme-text-secondary">
-              Assign Classes
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium text-theme-text-secondary">
+                Assign Classes
+              </label>
+              <div className="text-xs text-theme-text-secondary">
+                {newUser.selectedClasses.length} classes selected
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto p-2">
               {classes.map((classItem) => (
                 <motion.div
                   key={classItem.id}
                   whileHover={{ scale: 1.02 }}
-                  className={`flex items-center gap-2 p-3 rounded-lg ${
+                  className={`flex items-center gap-3 p-4 rounded-xl border ${
                     validateClassAssignment(classItem.id) 
-                      ? 'bg-theme-primary' 
-                      : 'bg-theme-tertiary opacity-50'
-                  }`}
+                      ? 'border-theme-border-primary hover:border-red-500' 
+                      : 'border-theme-tertiary opacity-50'
+                  } transition-colors`}
                 >
                   <input
                     type="checkbox"
@@ -457,7 +462,7 @@ export function Users() {
                       }
                     }}
                     disabled={!validateClassAssignment(classItem.id)}
-                    className="checkbox checkbox-primary"
+                    className="checkbox checkbox-primary w-5 h-5"
                   />
                   <label
                     htmlFor={`class-${classItem.id}`}
@@ -466,13 +471,17 @@ export function Users() {
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      <GraduationCap className="w-4 h-4 text-primary" />
-                      <span className="text-theme-text-primary">
-                        Grade {classItem.grade} - Section {classItem.section}
-                      </span>
-                      {!validateClassAssignment(classItem.id) && (
-                        <span className="text-xs text-error">(Class Full)</span>
-                      )}
+                      <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/20">
+                        <GraduationCap className="w-5 h-5 text-red-500" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-theme-text-primary">
+                          Grade {classItem.grade} - Section {classItem.section}
+                        </div>
+                        <div className="text-xs text-theme-text-secondary">
+                          {validateClassAssignment(classItem.id) ? 'Available' : 'Class Full'}
+                        </div>
+                      </div>
                     </div>
                   </label>
                 </motion.div>

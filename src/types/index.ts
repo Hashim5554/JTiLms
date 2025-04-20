@@ -1,7 +1,13 @@
 // Add to existing types.ts
 export interface Class {
   id: string;
-  name: string;
+  grade: number;
+  section: string;
+  subject_id?: string;
+  teacher_id?: string;
+  academic_year?: string;
+  semester?: string;
+  max_students?: number;
   created_at: string;
   updated_at: string;
 }
@@ -9,7 +15,7 @@ export interface Class {
 export interface ClassAssignment {
   id: string;
   class_id: string;
-  profile_id: string;
+  user_id: string;
   created_at: string;
   updated_at: string;
 }
@@ -19,11 +25,10 @@ export type UserRole = 'ultra_admin' | 'admin' | 'student';
 export interface Profile {
   id: string;
   username: string;
-  email: string;
   role: UserRole;
+  photo_url?: string;
   created_at: string;
   updated_at: string;
-  class_id?: string;
 }
 
 export interface Subject {
@@ -140,4 +145,14 @@ export interface PrivateDiscussion {
   recipient?: {
     username: string;
   };
+}
+
+export interface ExtendedProfile extends Profile {
+  email?: string;
+  class_assignments?: ClassAssignment[];
+}
+
+export interface ExtendedClass extends Class {
+  grade: number;
+  section: string;
 }
