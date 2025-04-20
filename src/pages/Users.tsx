@@ -112,27 +112,33 @@ export function Users() {
     setLoading(true);
     try {
       const { data, error } = await supabase
-      .from('profiles')
-      .select(`
-        *,
-        class_assignments(
-          class_id,
-          classes(
-            grade,
-            section
+        .from('profiles')
+        .select(`
+          *,
+          class_assignments(
+            class_id,
+            classes(
+              grade,
+              section
+            )
           )
-        )
         `)
         .order('username');
-      
-      if (error) throw error;
-      if (data) {
-        setUsers(data);
-        setSuccess(null);
+
+      if (error) {
+        console.error('Supabase error:', error);
+        throw new Error(`Database error: ${error.message}`);
       }
+
+      if (!data) {
+        throw new Error('No data returned from the database');
+      }
+
+      setUsers(data);
+      setSuccess(null);
     } catch (error: any) {
       console.error('Error loading users:', error);
-      setError('Failed to load users. Please try again.');
+      setError(error.message || 'Failed to load users. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -333,6 +339,114 @@ export function Users() {
       setLoading(false);
     }
   };
+
+  const AddUserForm = () => (
+    <div className="bg-theme-secondary shadow-lg rounded-xl p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-medium text-theme-text-primary">Add New User</h3>
+        <button
+          onClick={() => setIsCreateModalOpen(false)}
+          className="p-2 rounded-full hover:bg-theme-tertiary transition-colors"
+        >
+          <X className="h-5 w-5 text-theme-text-secondary" />
+        </button>
+      </div>
+
+      <form onSubmit={handleCreateUser} className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label htmlFor="username" className="block text-sm font-medium text-theme-text-secondary">
+              Username
+            </label>
+            <input
+              type="text"
+              id="username"
+              value={newUser.username}
+              onChange={(e) => setNewUser({...newUser, username: e.target.value})}
+              className="w-full px-4 py-2 rounded-lg border border-theme-border-primary bg-theme-primary text-theme-text-primary focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+              placeholder="Enter username"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="email" className="block text-sm font-medium text-theme-text-secondary">
+              Email
+            </label>
+            <input
+              type="email"
+              id="email"
+              value={newUser.email}
+              onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+              className="w-full px-4 py-2 rounded-lg border border-theme-border-primary bg-theme-primary text-theme-text-primary focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+              placeholder="Enter email"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="password" className="block text-sm font-medium text-theme-text-secondary">
+              Password
+            </label>
+            <input
+              type="password"
+              id="password"
+              value={newUser.password}
+              onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+              className="w-full px-4 py-2 rounded-lg border border-theme-border-primary bg-theme-primary text-theme-text-primary focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+              placeholder="Enter password"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="role" className="block text-sm font-medium text-theme-text-secondary">
+              Role
+            </label>
+            <select
+              id="role"
+              value={newUser.role}
+              onChange={(e) => setNewUser({...newUser, role: e.target.value as UserRole})}
+              className="w-full px-4 py-2 rounded-lg border border-theme-border-primary bg-theme-primary text-theme-text-primary focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+              required
+            >
+              <option value="">Select a role</option>
+              <option value="student">Student</option>
+              <option value="admin">Admin</option>
+              <option value="ultra_admin">Ultra Admin</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="flex justify-end space-x-4">
+          <button
+            type="button"
+            onClick={() => setIsCreateModalOpen(false)}
+            className="px-4 py-2 rounded-lg border border-theme-border-primary text-theme-text-secondary hover:bg-theme-tertiary transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={loading}
+            className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <div className="flex items-center space-x-2">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span>Adding User...</span>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-2">
+                <Plus className="h-5 w-5" />
+                <span>Add User</span>
+              </div>
+            )}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
 
   if (user?.role !== 'ultra_admin') {
     return (
@@ -603,149 +717,7 @@ export function Users() {
               exit={{ scale: 0.9, opacity: 0 }}
               className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md"
             >
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Create New User</h2>
-                  <button
-                    onClick={() => setIsCreateModalOpen(false)}
-                    className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700"
-                  >
-                    <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-                  </button>
-                </div>
-                <form onSubmit={handleCreateUser} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      value={newUser.email}
-                      onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                      className="w-full px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Username
-                    </label>
-                    <input
-                      type="text"
-                      value={newUser.username}
-                      onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
-                      className="w-full px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Password
-                    </label>
-                    <input
-                      type="password"
-                      value={newUser.password}
-                      onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                      className="w-full px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Role
-                    </label>
-                    <select
-                      value={newUser.role}
-                      onChange={(e) => setNewUser({ ...newUser, role: e.target.value as UserRole })}
-                      className="w-full px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    >
-                      <option value="admin">Admin</option>
-                      <option value="student">Student</option>
-                    </select>
-                  </div>
-                  {newUser.role === 'student' && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Assign Classes
-                      </label>
-                      <div className="space-y-2">
-                        {classes.map((classItem) => (
-                          <motion.div
-                            key={classItem.id}
-                            whileHover={{ scale: 1.02 }}
-                            className={`flex items-center gap-2 p-2 rounded-xl ${
-                              validateClassAssignment(classItem.id) 
-                                ? 'bg-gray-50 dark:bg-gray-700' 
-                                : 'bg-gray-100 dark:bg-gray-600 opacity-50'
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              id={`class-${classItem.id}`}
-                              checked={newUser.selectedClasses.includes(classItem.id)}
-                              onChange={(e) => {
-                                if (e.target.checked && !validateClassAssignment(classItem.id)) {
-                                  setError('This class is full');
-                                  setTimeout(() => setError(null), 3000);
-                                  return;
-                                }
-                                if (e.target.checked) {
-                                  setNewUser({
-                                    ...newUser,
-                                    selectedClasses: [...newUser.selectedClasses, classItem.id]
-                                  });
-                                } else {
-                                  setNewUser({
-                                    ...newUser,
-                                    selectedClasses: newUser.selectedClasses.filter(id => id !== classItem.id)
-                                  });
-                                }
-                              }}
-                              disabled={!validateClassAssignment(classItem.id)}
-                              className="checkbox checkbox-primary"
-                            />
-                            <label
-                              htmlFor={`class-${classItem.id}`}
-                              className={`flex-1 cursor-pointer ${
-                                !validateClassAssignment(classItem.id) ? 'cursor-not-allowed' : ''
-                              }`}
-                            >
-                              <div className="flex items-center gap-2">
-                                <GraduationCap className="w-4 h-4 text-primary" />
-                                <span className="text-gray-900 dark:text-white">
-                                  Grade {classItem.grade} - Section {classItem.section}
-                                </span>
-                                {!validateClassAssignment(classItem.id) && (
-                                  <span className="text-xs text-error">(Class Full)</span>
-                                )}
-                              </div>
-                            </label>
-                          </motion.div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  <div className="flex justify-end gap-3 pt-4">
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      type="button"
-                      onClick={() => setIsCreateModalOpen(false)}
-                      className="px-4 py-2 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
-                    >
-                      Cancel
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      type="submit"
-                      className="button-primary"
-                    >
-                      Create User
-                    </motion.button>
-                  </div>
-                </form>
-              </div>
+              <AddUserForm />
             </motion.div>
           </motion.div>
         )}
