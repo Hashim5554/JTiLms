@@ -418,6 +418,69 @@ export function Users() {
           </div>
         </div>
 
+        {newUser.role === 'student' && (
+          <div className="space-y-4">
+            <label className="block text-sm font-medium text-theme-text-secondary">
+              Assign Classes
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {classes.map((classItem) => (
+                <motion.div
+                  key={classItem.id}
+                  whileHover={{ scale: 1.02 }}
+                  className={`flex items-center gap-2 p-3 rounded-lg ${
+                    validateClassAssignment(classItem.id) 
+                      ? 'bg-theme-primary' 
+                      : 'bg-theme-tertiary opacity-50'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    id={`class-${classItem.id}`}
+                    checked={newUser.selectedClasses.includes(classItem.id)}
+                    onChange={(e) => {
+                      if (e.target.checked && !validateClassAssignment(classItem.id)) {
+                        setError('This class is full');
+                        setTimeout(() => setError(null), 3000);
+                        return;
+                      }
+                      if (e.target.checked) {
+                        setNewUser({
+                          ...newUser,
+                          selectedClasses: [...newUser.selectedClasses, classItem.id]
+                        });
+                      } else {
+                        setNewUser({
+                          ...newUser,
+                          selectedClasses: newUser.selectedClasses.filter(id => id !== classItem.id)
+                        });
+                      }
+                    }}
+                    disabled={!validateClassAssignment(classItem.id)}
+                    className="checkbox checkbox-primary"
+                  />
+                  <label
+                    htmlFor={`class-${classItem.id}`}
+                    className={`flex-1 cursor-pointer ${
+                      !validateClassAssignment(classItem.id) ? 'cursor-not-allowed' : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <GraduationCap className="w-4 h-4 text-primary" />
+                      <span className="text-theme-text-primary">
+                        Grade {classItem.grade} - Section {classItem.section}
+                      </span>
+                      {!validateClassAssignment(classItem.id) && (
+                        <span className="text-xs text-error">(Class Full)</span>
+                      )}
+                    </div>
+                  </label>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="flex justify-end space-x-4">
           <button
             type="button"
