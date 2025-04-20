@@ -204,7 +204,7 @@ export function Home() {
     }
 
     // Check if user has permission
-    if (user.role !== 'teacher' && user.role !== 'ultra_admin') {
+    if (user.role !== 'admin' && user.role !== 'ultra_admin') {
       setError('You do not have permission to create due work');
       return;
     }
@@ -289,7 +289,11 @@ export function Home() {
         .order('section');
 
       if (error) throw error;
-      setClasses(data || []);
+      if (data) {
+        // Update the classes state through the context
+        const context = useOutletContext<HomeContextType>();
+        context.classes = data;
+      }
     } catch (error) {
       console.error('Error loading classes:', error);
       setError('Failed to load classes. Please try again.');
@@ -415,7 +419,7 @@ export function Home() {
               <Calendar className="h-5 w-5 mr-2" />
               Due Works
             </button>
-            {(user?.role === 'teacher' || user?.role === 'ultra_admin') && (
+            {(user?.role === 'admin' || user?.role === 'ultra_admin') && (
               <button 
                 onClick={() => setShowDueWorkModal(true)}
                 className="inline-flex items-center px-6 py-3 bg-white text-red-600 rounded-2xl font-medium hover:bg-red-50 transform transition-all duration-300 hover:scale-105 active:scale-95"

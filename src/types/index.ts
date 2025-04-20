@@ -43,11 +43,11 @@ export interface Announcement {
   title: string;
   content: string;
   created_by: string;
-  class_id: string | null;
   created_at: string;
   updated_at: string;
   profiles?: {
     username: string;
+    photo_url?: string;
   };
 }
 
@@ -60,11 +60,12 @@ export interface DueWork {
   class_id: string;
   created_by: string;
   created_at: string;
-  subjects?: {
-    name: string;
-  };
+  updated_at: string;
   profiles?: {
     username: string;
+  };
+  subjects?: {
+    name: string;
   };
 }
 
