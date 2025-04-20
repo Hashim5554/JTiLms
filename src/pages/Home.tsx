@@ -16,7 +16,8 @@ import {
   PlusCircle,
   Clock,
   AlertCircle,
-  X
+  X,
+  Megaphone
 } from 'lucide-react';
 import { 
   Class, 
@@ -52,6 +53,7 @@ export function Home() {
   const [subjects, setSubjects] = useState<any[]>([]);
   const user = useAuthStore((state) => state.user);
   const { currentClass, classes } = useOutletContext<HomeContextType>();
+  const [isAnnouncementModalOpen, setIsAnnouncementModalOpen] = useState(false);
 
   useEffect(() => {
     if (currentClass || user?.role === 'ultra_admin') {
@@ -103,7 +105,10 @@ export function Home() {
         .from('announcements')
         .select(`
           *,
-          creator:profiles!announcements_created_by_fkey (username)
+          profiles!announcements_created_by_fkey (
+            username,
+            photo_url
+          )
         `)
         .order('created_at', { ascending: false })
         .limit(5);
@@ -291,6 +296,43 @@ export function Home() {
     }
   };
 
+  const fetchAnnouncements = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('announcements')
+        .select(`
+          *,
+          profiles!announcements_created_by_fkey (
+            username,
+            photo_url
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (error) throw error;
+      setAnnouncements(data || []);
+    } catch (error) {
+      console.error('Error loading announcements:', error);
+    }
+  };
+
+  const handleDeleteAnnouncement = async (id: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('announcements')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      if (data) {
+        setAnnouncements(prevAnnouncements => prevAnnouncements.filter(a => a.id !== id));
+      }
+    } catch (error) {
+      console.error('Error deleting announcement:', error);
+    }
+  };
+
   if (loading) {
     return (
       <motion.div 
@@ -397,38 +439,68 @@ export function Home() {
         >
           <div className="card">
             <div className="card-header">
-              <h2 className="card-title">
-                <Bell className="h-5 w-5 mr-2 text-red-600" />
-                Latest News
-              </h2>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-red-100 dark:bg-red-900/20">
+                    <Megaphone className="h-5 w-5 text-red-500" />
+                  </div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Latest Announcements</h2>
+                </div>
+                {user?.role === 'admin' && (
+                  <button
+                    onClick={() => setIsAnnouncementModalOpen(true)}
+                    className="px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Plus className="h-5 w-5" />
+                      <span>New Announcement</span>
+                    </div>
+                  </button>
+                )}
+              </div>
             </div>
             <div className="divide-y divide-theme-border-primary dark:divide-gray-700">
-              <AnimatePresence>
+              <div className="grid gap-4">
                 {announcements.map((announcement) => (
-                  <motion.div 
-                    key={announcement.id} 
+                  <motion.div
+                    key={announcement.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    className="p-6 hover:bg-theme-tertiary dark:hover:bg-gray-700 transition-colors duration-200"
+                    className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6"
                   >
-                    <h3 className="card-title">{announcement.title}</h3>
-                    <p className="card-content">{announcement.content}</p>
-                    <div className="card-meta">
-                      <span className="card-author">Posted by {announcement.profiles?.username || 'Unknown'}</span>
-                      <span className="card-date">
-                        {' '}
-                        • {new Date(announcement.created_at).toLocaleDateString()}
-                      </span>
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-4">
+                        <div className="p-2 rounded-xl bg-red-100 dark:bg-red-900/20">
+                          <Megaphone className="h-5 w-5 text-red-500" />
+                        </div>
+                        <div className="space-y-2">
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                            {announcement.title}
+                          </h3>
+                          <p className="text-gray-600 dark:text-gray-300">
+                            {announcement.content}
+                          </p>
+                          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                            <User className="h-4 w-4" />
+                            <span>{announcement.profiles?.username}</span>
+                            <span>•</span>
+                            <Calendar className="h-4 w-4" />
+                            <span>{new Date(announcement.created_at).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                      {user?.role === 'admin' && (
+                        <button
+                          onClick={() => handleDeleteAnnouncement(announcement.id)}
+                          className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          <Trash2 className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                        </button>
+                      )}
                     </div>
                   </motion.div>
                 ))}
-              </AnimatePresence>
-              {announcements.length === 0 && (
-                <div className="p-6 text-center text-theme-text-tertiary dark:text-gray-400">
-                  No announcements yet.
-                </div>
-              )}
+              </div>
             </div>
           </div>
         </motion.div>
