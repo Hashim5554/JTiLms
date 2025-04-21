@@ -48,13 +48,8 @@ interface DueWork {
   created_by: string;
   created_at: string;
   updated_at: string;
-  username?: string;
-  subjects?: {
-    name: string;
-  };
-  profiles?: {
-    username: string;
-  };
+  subject_name: string;
+  creator_username: string;
 }
 
 interface Discussion {
@@ -95,6 +90,8 @@ export function Home() {
     title: '',
     content: ''
   });
+  const [loadingDueWorks, setLoadingDueWorks] = useState(true);
+  const [dueWorksError, setDueWorksError] = useState<string | null>(null);
 
   useEffect(() => {
     if (currentClass || user?.role === 'ultra_admin') {
@@ -103,29 +100,65 @@ export function Home() {
     }
   }, [currentClass, user?.role]);
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Fetch announcements using the function
+      let announcementsQuery = supabase
+        .rpc('get_announcements_with_profiles')
+        .order('created_at', { ascending: false });
 
-        // Fetch announcements using the function
-        const { data, error: announcementsError } = await supabase
-          .rpc('get_announcements_with_profiles')
-          .order('created_at', { ascending: false });
-
-        if (announcementsError) throw announcementsError;
-        setAnnouncements(data || []);
-      } catch (err: any) {
-        console.error('Error loading data:', err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
+      // Filter by class if one is selected and user is not ultra_admin
+      if (currentClass?.id && user?.role !== 'ultra_admin') {
+        announcementsQuery = announcementsQuery.eq('class_id', currentClass.id);
       }
-    };
 
-    loadData();
-  }, [user]);
+      const { data: announcementsData, error: announcementsError } = await announcementsQuery;
+      if (announcementsError) {
+        console.error('Error loading announcements:', announcementsError);
+        throw new Error('Failed to load announcements. Please try again.');
+      }
+      setAnnouncements(announcementsData || []);
+
+      // Fetch discussions using the function
+      let discussionsQuery = supabase
+        .rpc('get_discussions_with_profiles')
+        .order('created_at', { ascending: false });
+
+      if (currentClass?.id) {
+        discussionsQuery = discussionsQuery.eq('class_id', currentClass.id);
+      }
+
+      const { data: discussionsData, error: discussionsError } = await discussionsQuery;
+      if (discussionsError) {
+        console.error('Error loading discussions:', discussionsError);
+        throw new Error('Failed to load discussions. Please try again.');
+      }
+      setDiscussions(discussionsData || []);
+
+      // Fetch due works using the new function
+      let dueWorksQuery = supabase
+        .rpc('get_due_works_with_profiles')
+        .order('due_date', { ascending: true });
+
+      if (currentClass?.id && user?.role !== 'ultra_admin') {
+        dueWorksQuery = dueWorksQuery.eq('class_id', currentClass.id);
+      }
+
+      const { data: dueWorksData, error: dueWorksError } = await dueWorksQuery;
+      if (dueWorksError) {
+        console.error('Error loading due works:', dueWorksError);
+        throw new Error('Failed to load due works. Please try again.');
+      }
+      setDueWorks(dueWorksData || []);
+    } catch (error: any) {
+      console.error('Error loading home data:', error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentClass, user?.role]);
 
   const loadSubjects = async () => {
     try {
@@ -160,46 +193,6 @@ export function Home() {
       console.error('Error loading class students:', error);
     }
   };
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Fetch announcements using the function
-      const { data, error: announcementsError } = await supabase
-        .rpc('get_announcements_with_profiles')
-        .order('created_at', { ascending: false });
-
-      if (announcementsError) throw announcementsError;
-      setAnnouncements(data || []);
-
-      // Fetch discussions using the function
-      let discussionsQuery = supabase
-        .rpc('get_discussions_with_profiles')
-        .order('created_at', { ascending: false });
-
-      if (currentClass?.id) {
-        discussionsQuery = discussionsQuery.eq('class_id', currentClass.id);
-      }
-
-      const { data: discussionsData, error: discussionsError } = await discussionsQuery;
-      if (discussionsError) throw discussionsError;
-      setDiscussions(discussionsData || []);
-
-      // Fetch due works using the new function
-      const { data: dueWorksData, error: dueWorksError } = await supabase
-        .rpc('get_due_works_with_profiles')
-        .order('due_date', { ascending: true });
-
-      if (dueWorksError) throw dueWorksError;
-      setDueWorks(dueWorksData || []);
-    } catch (error: any) {
-      console.error('Error loading home data:', error);
-      setError(error.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentClass]);
 
   const handlePostDiscussion = async () => {
     if (!newDiscussion.trim() || !user?.id || !currentClass?.id) return;
@@ -417,6 +410,48 @@ export function Home() {
     }
   };
 
+  // Fetch due works
+  useEffect(() => {
+    const fetchDueWorks = async () => {
+      if (!user) return;
+
+      try {
+        setLoadingDueWorks(true);
+        setDueWorksError(null);
+
+        // Get due works with subject and creator info in a single query
+        const { data, error } = await supabase
+          .rpc('get_due_works_with_info')
+          .order('due_date', { ascending: true });
+
+        if (error) {
+          console.error('Error fetching due works:', error);
+          setDueWorksError('Failed to load due works. Please try again.');
+          return;
+        }
+
+        if (!data) {
+          setDueWorks([]);
+          return;
+        }
+
+        // Filter by class if user is a student
+        const filteredData = user.role === 'student' && currentClass
+          ? data.filter(work => work.class_id === currentClass.id)
+          : data;
+
+        setDueWorks(filteredData);
+      } catch (error) {
+        console.error('Error in fetchDueWorks:', error);
+        setDueWorksError('An unexpected error occurred. Please try again.');
+      } finally {
+        setLoadingDueWorks(false);
+      }
+    };
+
+    fetchDueWorks();
+  }, [user, currentClass]);
+
   if (loading) {
     return (
       <motion.div 
@@ -617,25 +652,30 @@ export function Home() {
                     <div className="flex items-start justify-between">
                       <div>
                         <h3 className="card-title">{work.title}</h3>
-                        <p className="card-content">{work.subjects?.name}</p>
+                        <p className="text-sm text-theme-text-secondary dark:text-gray-400">
+                          {work.subject_name}
+                        </p>
                         <p className="text-sm text-theme-text-secondary dark:text-gray-400 mt-1">
                           {work.description}
                         </p>
                       </div>
                       <div className="flex flex-col items-end">
                         <span className={`px-2 py-1 text-xs rounded-full mb-2 ${
-                        new Date(work.due_date) < new Date()
+                          new Date(work.due_date) < new Date()
                             ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
                             : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                      }`}>
-                        {new Date(work.due_date).toLocaleDateString()}
-                      </span>
+                        }`}>
+                          {new Date(work.due_date).toLocaleDateString()}
+                        </span>
                         {new Date(work.due_date) < new Date() ? (
                           <AlertCircle className="h-5 w-5 text-red-600" />
                         ) : (
                           <Clock className="h-5 w-5 text-green-600" />
                         )}
                       </div>
+                    </div>
+                    <div className="mt-2 text-sm text-theme-text-secondary dark:text-gray-400">
+                      Posted by {work.creator_username}
                     </div>
                   </motion.div>
                 ))}
@@ -744,7 +784,7 @@ export function Home() {
                     </div>
                     <div className="card-content">{work.description}</div>
                     <div className="card-meta">
-                      <span className="card-author">Posted by {work.profiles?.username}</span>
+                      <span className="card-author">Posted by {work.creator_username}</span>
                       <span className="card-date">
                         {' '}
                         • Due {new Date(work.due_date).toLocaleDateString()}
