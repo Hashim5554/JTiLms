@@ -186,14 +186,9 @@ export function Home() {
       if (discussionsError) throw discussionsError;
       setDiscussions(discussionsData || []);
 
-      // Fetch due works
+      // Fetch due works using the function
       let dueWorksQuery = supabase
-        .from('due_works')
-        .select(`
-          *,
-          subjects (name),
-          profiles!due_works_created_by_fkey (username)
-        `)
+        .rpc('get_due_works_with_profiles')
         .order('due_date', { ascending: true });
 
       if (currentClass?.id) {
