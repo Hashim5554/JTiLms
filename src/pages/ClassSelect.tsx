@@ -1,166 +1,184 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { supabase } from '../supabaseClient';
-import { useAuth } from '../contexts/AuthContext';
-import { UserRole } from '../types';
+import { supabase } from '../lib/supabase';
+import { useAuthStore } from '../store/auth';
+import type { Class } from '../types';
+import { Check, ShieldAlert, School, Loader2, GraduationCap } from 'lucide-react';
 
-interface Class {
-  id: string;
-  grade: number;
-  section: string;
-  subject_id: string;
-  teacher_id: string;
-  academic_year: string;
-  semester: string;
-  max_students: number;
-  created_at: string;
-  updated_at: string;
-}
-
-const ClassSelect: React.FC = () => {
+export function ClassSelect() {
   const navigate = useNavigate();
-  const { user, role } = useAuth();
-  const [classes, setClasses] = useState<Class[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { user } = useAuthStore();
+  const [classes, setClasses] = React.useState<Class[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [selectedClass, setSelectedClass] = React.useState<Class | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchClasses = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+  React.useEffect(() => {
+    if (!user || user.role === 'student') {
+      navigate('/');
+      return;
+    }
+    loadClasses();
+  }, [user, navigate]);
 
-        if (!user) {
-          navigate('/login');
-          return;
-        }
+  const loadClasses = async () => {
+    if (!user) return;
 
-        // If user is a student, check if they have a class assignment
-        if (role === UserRole.Student) {
-          const { data: assignment, error: assignmentError } = await supabase
-            .from('class_assignments')
-            .select('class_id')
-            .eq('student_id', user.id)
-            .single();
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('classes')
+        .select('*')
+        .order('grade')
+        .order('section');
 
-          if (assignmentError) {
-            throw assignmentError;
-          }
+      if (error) throw error;
+      if (data) setClasses(data);
+    } catch (error) {
+      console.error('Error loading classes:', error);
+      setError('Failed to load classes. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-          if (!assignment) {
-            setError('No classes assigned');
-            setLoading(false);
-            return;
-          }
+  const selectClass = async (classId: string) => {
+    try {
+      localStorage.setItem('selectedClassId', classId);
+      navigate('/');
+    } catch (error) {
+      console.error('Error selecting class:', error);
+      setError('Failed to select class. Please try again.');
+    }
+  };
 
-          // Redirect to the student's assigned class
-          navigate(`/class/${assignment.class_id}`);
-          return;
-        }
-
-        // For teachers, admins, and ultraadmins, fetch all classes
-        const { data, error } = await supabase
-          .from('classes')
-          .select('*')
-          .order('grade')
-          .order('section');
-
-        if (error) throw error;
-        setClasses(data || []);
-      } catch (err) {
-        console.error('Error fetching classes:', err);
-        setError('Failed to load classes');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchClasses();
-  }, [user, role, navigate]);
-
-  const handleClassSelect = (classId: string) => {
-    navigate(`/class/${classId}`);
+  const handleClassSelect = (grade: number, section: string) => {
+    const classObj = classes.find(c => 
+      c.grade === grade && 
+      c.section === section
+    );
+    if (classObj) {
+      setSelectedClass(classObj);
+      selectClass(classObj.id);
+    }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center"
+      >
+        <motion.div 
+          initial={{ scale: 0.9 }}
+          animate={{ scale: 1 }}
+          className="text-center bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg"
+        >
+          <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto" />
+          <p className="mt-4 text-gray-600 dark:text-gray-300">Loading classes...</p>
+        </motion.div>
+      </motion.div>
     );
   }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
-        <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg max-w-md w-full text-center">
-          <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-4">Error</h2>
-          <p className="text-gray-600 dark:text-gray-300">{error}</p>
-          <button
-            onClick={() => navigate('/')}
-            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-          >
-            Return to Dashboard
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Group classes by grade
-  const classesByGrade = classes.reduce((acc, cls) => {
-    if (!acc[cls.grade]) {
-      acc[cls.grade] = [];
-    }
-    acc[cls.grade].push(cls);
-    return acc;
-  }, {} as Record<number, Class[]>);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4">
-      <div className="max-w-7xl mx-auto">
-        <motion.h1 
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 py-12 px-4 sm:px-6 lg:px-8">
+      {error && (
+        <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-3xl font-bold text-gray-800 dark:text-white mb-8 text-center"
+          className="mb-4 p-4 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 rounded-2xl"
         >
-          Select a Class
-        </motion.h1>
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="w-5 h-5" />
+            <p>{error}</p>
+          </div>
+        </motion.div>
+      )}
+      
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="text-center mb-12 bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg"
+      >
+        <motion.div 
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: "spring", stiffness: 200, damping: 20 }}
+          className="w-16 h-16 bg-primary/10 dark:bg-primary/20 rounded-2xl flex items-center justify-center mx-auto mb-6"
+        >
+          <School className="w-8 h-8 text-primary" />
+        </motion.div>
+        <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
+          Welcome to LGS JTi LMS
+        </h1>
+        <p className="text-xl text-gray-600 dark:text-gray-300">
+          Select a class to manage
+        </p>
+      </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {Object.entries(classesByGrade).map(([grade, gradeClasses]) => (
-            <motion.div
-              key={grade}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: Number(grade) * 0.1 }}
-              className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden"
-            >
-              <div className="p-4 bg-blue-500 text-white">
-                <h2 className="text-xl font-bold">Grade {grade}</h2>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden"
+      >
+        {[3, 4, 5, 6, 7, 8].map((grade, gradeIndex) => (
+          <motion.div
+            key={grade}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: gradeIndex * 0.1 }}
+            className="border-b border-gray-200 dark:border-gray-700 last:border-b-0"
+          >
+            <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700 flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-primary/10 dark:bg-primary/20">
+                <GraduationCap className="w-5 h-5 text-primary" />
               </div>
-              <div className="p-4 grid grid-cols-2 gap-2">
-                {gradeClasses.map((cls) => (
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Grade {grade}
+              </h2>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-6">
+              {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map((section, sectionIndex) => {
+                const classObj = classes.find(c => c.grade === grade && c.section === section);
+                const isSelected = selectedClass?.grade === grade && selectedClass?.section === section;
+                return (
                   <motion.button
-                    key={cls.id}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => handleClassSelect(cls.id)}
-                    className="p-3 bg-gray-100 dark:bg-gray-700 rounded-lg text-center hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors"
+                    key={section}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: (gradeIndex * 8 + sectionIndex) * 0.05 }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => classObj && handleClassSelect(grade, section)}
+                    disabled={!classObj}
+                    className={`p-4 rounded-2xl flex items-center justify-between transition-all duration-200 ${
+                      isSelected
+                        ? 'bg-primary/10 dark:bg-primary/20 text-primary ring-2 ring-primary'
+                        : 'bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-primary/5 dark:hover:bg-primary/10 hover:text-primary'
+                    } ${!classObj ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    <span className="text-lg font-semibold text-gray-800 dark:text-white">
-                      Section {cls.section}
-                    </span>
+                    <span className="text-lg font-medium">Section {section}</span>
+                    {isSelected && (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: "spring", stiffness: 200, damping: 10 }}
+                      >
+                        <Check className="h-5 w-5" />
+                      </motion.div>
+                    )}
                   </motion.button>
-                ))}
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </div>
+                );
+              })}
+            </div>
+          </motion.div>
+        ))}
+      </motion.div>
     </div>
   );
-};
-
-export default ClassSelect;
+}
