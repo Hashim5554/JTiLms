@@ -11,26 +11,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // Create Supabase client with error handling
-export const supabase = createClient<Database>(
-  supabaseUrl,
-  supabaseAnonKey,
-  {
-    auth: {
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: true,
-      storageKey: 'lgs-jti-auth'
-    },
-    db: {
-      schema: 'public'
-    },
-    global: {
-      headers: {
-        'x-application-name': 'lgs-jti'
-      }
-    }
-  }
-);
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
 // Utility function to check if error is "not found"
 export const isNotFoundError = (error: any) => {
