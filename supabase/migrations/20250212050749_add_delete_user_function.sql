@@ -1,5 +1,5 @@
--- Create a function to delete a user in the auth schema
-create or replace function auth.delete_user(user_id uuid)
+-- Create a function to delete a user
+create or replace function public.delete_user(user_id uuid)
 returns void
 language plpgsql
 security definer
@@ -11,4 +11,4 @@ end;
 $$;
 
 -- Grant execute permission to authenticated users
-grant execute on function auth.delete_user(uuid) to authenticated; 
+grant execute on function public.delete_user(uuid) to authenticated; 
