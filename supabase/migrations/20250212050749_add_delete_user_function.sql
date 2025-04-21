@@ -1,3 +1,6 @@
+-- Drop the existing function first
+drop function if exists public.delete_user(uuid);
+
 -- Create a function to delete a user
 create or replace function public.delete_user(user_id uuid)
 returns json
