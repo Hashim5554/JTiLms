@@ -1,12 +1,29 @@
 -- Create a function to delete a user
 create or replace function public.delete_user(user_id uuid)
-returns void
+returns json
 language plpgsql
 security definer
 as $$
+declare
+  result json;
 begin
   -- Delete from auth.users table
   delete from auth.users where id = user_id;
+  
+  -- Return success response
+  result := json_build_object(
+    'success', true,
+    'message', 'User deleted successfully'
+  );
+  
+  return result;
+exception when others then
+  -- Return error response
+  result := json_build_object(
+    'success', false,
+    'message', SQLERRM
+  );
+  return result;
 end;
 $$;
 
