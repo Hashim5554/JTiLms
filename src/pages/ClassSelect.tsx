@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
@@ -9,13 +9,13 @@ import { Check, ShieldAlert, School, Loader2, GraduationCap } from 'lucide-react
 export function ClassSelect() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const [classes, setClasses] = React.useState<Class[]>([]);
-  const [loading, setLoading] = React.useState(true);
-  const [selectedClass, setSelectedClass] = React.useState<Class | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
-  const [studentAssignments, setStudentAssignments] = React.useState<Class[]>([]);
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedClass, setSelectedClass] = useState<Class | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [studentAssignments, setStudentAssignments] = useState<Class[]>([]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!user) {
       navigate('/login');
       return;
@@ -33,62 +33,59 @@ export function ClassSelect() {
 
     try {
       setLoading(true);
-      console.log('Loading assignments for student:', user.id);
+      setError(null);
       
-      // First, get the class assignments
       const { data: assignments, error: assignmentError } = await supabase
         .from('class_assignments')
-        .select('class_id')
-        .eq('student_id', user.id);
+        .select(`
+          class_id,
+          classes (
+            id,
+            grade,
+            section,
+            name,
+            max_students
+          )
+        `)
+        .eq('user_id', user.id);
 
       if (assignmentError) {
         console.error('Error fetching assignments:', assignmentError);
-        throw assignmentError;
+        throw new Error('Failed to load your class assignments');
       }
-
-      console.log('Found assignments:', assignments);
 
       if (!assignments || assignments.length === 0) {
-        setError('No classes have been assigned to you yet.');
+        setError('No classes have been assigned to you yet. Please contact your administrator.');
         setLoading(false);
         return;
       }
 
-      // Then, get the class details for each assignment
-      const classIds = assignments.map(a => a.class_id);
-      const { data: classData, error: classError } = await supabase
-        .from('classes')
-        .select('*')
-        .in('id', classIds)
-        .order('grade')
-        .order('section');
+      const classData = assignments
+        .map(a => a.classes)
+        .filter((c): c is Class => c !== null)
+        .sort((a, b) => {
+          if (a.grade === b.grade) {
+            return a.section.localeCompare(b.section);
+          }
+          return a.grade - b.grade;
+        });
 
-      if (classError) {
-        console.error('Error fetching classes:', classError);
-        throw classError;
-      }
-
-      console.log('Found classes:', classData);
-
-      if (!classData || classData.length === 0) {
-        setError('No classes found for your assignments.');
+      if (classData.length === 0) {
+        setError('No valid classes found for your assignments');
         setLoading(false);
         return;
       }
 
+      setClasses(classData);
       setStudentAssignments(classData);
 
-      // If student has only one class, redirect to that class
       if (classData.length === 1) {
         navigate(`/class/${classData[0].id}`);
         return;
       }
-
-      // If student has multiple classes, show them all
-      setClasses(classData);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading student assignments:', error);
-      setError('Failed to load your class assignments. Please try again.');
+      setError(error.message || 'Failed to load your class assignments');
     } finally {
       setLoading(false);
     }
@@ -98,8 +95,8 @@ export function ClassSelect() {
     if (!user) return;
 
     setLoading(true);
+    setError(null);
     try {
-      console.log('Loading all classes for admin/ultraadmin');
       const { data, error } = await supabase
         .from('classes')
         .select('*')
@@ -108,21 +105,19 @@ export function ClassSelect() {
 
       if (error) {
         console.error('Error loading classes:', error);
-        throw error;
+        throw new Error('Failed to load classes');
       }
 
-      console.log('Found classes:', data);
-
       if (!data || data.length === 0) {
-        setError('No classes found in the system.');
+        setError('No classes found in the system');
         setLoading(false);
         return;
       }
 
       setClasses(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading classes:', error);
-      setError('Failed to load classes. Please try again.');
+      setError(error.message || 'Failed to load classes');
     } finally {
       setLoading(false);
     }
@@ -130,22 +125,53 @@ export function ClassSelect() {
 
   const selectClass = async (classId: string) => {
     try {
+      setLoading(true);
+      setError(null);
+
+      const { data: classData, error: classError } = await supabase
+        .from('classes')
+        .select('*')
+        .eq('id', classId)
+        .single();
+
+      if (classError || !classData) {
+        throw new Error('Invalid class selection');
+      }
+
+      if (user?.role === 'student') {
+        const { data: assignment, error: assignmentError } = await supabase
+          .from('class_assignments')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('class_id', classId)
+          .single();
+
+        if (assignmentError || !assignment) {
+          throw new Error('You are not assigned to this class');
+        }
+      }
+
       localStorage.setItem('selectedClassId', classId);
       navigate(`/class/${classId}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error selecting class:', error);
-      setError('Failed to select class. Please try again.');
+      setError(error.message || 'Failed to select class');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleClassSelect = (grade: number, section: string) => {
     const classObj = classes.find(c => 
       c.grade === grade && 
-      c.section === section
+      c.section.toLowerCase() === section.toLowerCase()
     );
+
     if (classObj) {
       setSelectedClass(classObj);
       selectClass(classObj.id);
+    } else {
+      setError('Invalid class selection');
     }
   };
 
@@ -197,8 +223,6 @@ export function ClassSelect() {
       </motion.div>
     );
   }
-
-  console.log('Rendering with classes:', classes);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 py-12 px-4 sm:px-6 lg:px-8">
