@@ -29,28 +29,24 @@ export function ClassSelect() {
   }, [user, navigate]);
 
   const loadStudentAssignments = async () => {
+    if (!user) return;
+
     try {
       setLoading(true);
+      console.log('Loading assignments for student:', user.id);
+      
+      // First, get the class assignments
       const { data: assignments, error: assignmentError } = await supabase
         .from('class_assignments')
-        .select(`
-          class_id,
-          classes (
-            id,
-            grade,
-            section,
-            subject_id,
-            teacher_id,
-            academic_year,
-            semester,
-            max_students,
-            created_at,
-            updated_at
-          )
-        `)
+        .select('class_id')
         .eq('student_id', user.id);
 
-      if (assignmentError) throw assignmentError;
+      if (assignmentError) {
+        console.error('Error fetching assignments:', assignmentError);
+        throw assignmentError;
+      }
+
+      console.log('Found assignments:', assignments);
 
       if (!assignments || assignments.length === 0) {
         setError('No classes have been assigned to you yet.');
@@ -58,17 +54,38 @@ export function ClassSelect() {
         return;
       }
 
-      const assignedClasses = assignments.map(a => a.classes);
-      setStudentAssignments(assignedClasses);
+      // Then, get the class details for each assignment
+      const classIds = assignments.map(a => a.class_id);
+      const { data: classData, error: classError } = await supabase
+        .from('classes')
+        .select('*')
+        .in('id', classIds)
+        .order('grade')
+        .order('section');
+
+      if (classError) {
+        console.error('Error fetching classes:', classError);
+        throw classError;
+      }
+
+      console.log('Found classes:', classData);
+
+      if (!classData || classData.length === 0) {
+        setError('No classes found for your assignments.');
+        setLoading(false);
+        return;
+      }
+
+      setStudentAssignments(classData);
 
       // If student has only one class, redirect to that class
-      if (assignedClasses.length === 1) {
-        navigate(`/class/${assignedClasses[0].id}`);
+      if (classData.length === 1) {
+        navigate(`/class/${classData[0].id}`);
         return;
       }
 
       // If student has multiple classes, show them all
-      setClasses(assignedClasses);
+      setClasses(classData);
     } catch (error) {
       console.error('Error loading student assignments:', error);
       setError('Failed to load your class assignments. Please try again.');
@@ -82,14 +99,27 @@ export function ClassSelect() {
 
     setLoading(true);
     try {
+      console.log('Loading all classes for admin/ultraadmin');
       const { data, error } = await supabase
         .from('classes')
         .select('*')
         .order('grade')
         .order('section');
 
-      if (error) throw error;
-      if (data) setClasses(data);
+      if (error) {
+        console.error('Error loading classes:', error);
+        throw error;
+      }
+
+      console.log('Found classes:', data);
+
+      if (!data || data.length === 0) {
+        setError('No classes found in the system.');
+        setLoading(false);
+        return;
+      }
+
+      setClasses(data);
     } catch (error) {
       console.error('Error loading classes:', error);
       setError('Failed to load classes. Please try again.');
@@ -167,6 +197,8 @@ export function ClassSelect() {
       </motion.div>
     );
   }
+
+  console.log('Rendering with classes:', classes);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 py-12 px-4 sm:px-6 lg:px-8">
