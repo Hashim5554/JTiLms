@@ -1,36 +1,40 @@
 -- Drop existing announcements table if it exists
-DROP TABLE IF EXISTS announcements CASCADE;
+DROP TABLE IF EXISTS public.announcements CASCADE;
 
 -- Create announcements table with proper structure
-CREATE TABLE announcements (
+CREATE TABLE public.announcements (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,
   content TEXT NOT NULL,
-  created_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
+  class_id UUID REFERENCES public.classes(id) ON DELETE CASCADE,
+  created_by UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 -- Enable RLS
-ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
 
 -- Create policies
 CREATE POLICY "Announcements are viewable by everyone"
-  ON announcements FOR SELECT
+  ON public.announcements FOR SELECT
   USING (true);
 
-CREATE POLICY "Only admins can create announcements"
-  ON announcements FOR INSERT
-  WITH CHECK (is_admin(auth.uid()));
+CREATE POLICY "Users can create announcements"
+  ON public.announcements FOR INSERT
+  WITH CHECK (auth.uid() = created_by);
 
-CREATE POLICY "Only admins can update announcements"
-  ON announcements FOR UPDATE
-  USING (is_admin(auth.uid()))
-  WITH CHECK (is_admin(auth.uid()));
+CREATE POLICY "Users can update their own announcements"
+  ON public.announcements FOR UPDATE
+  USING (auth.uid() = created_by);
 
-CREATE POLICY "Only admins can delete announcements"
-  ON announcements FOR DELETE
-  USING (is_admin(auth.uid()));
+CREATE POLICY "Users can delete their own announcements"
+  ON public.announcements FOR DELETE
+  USING (auth.uid() = created_by);
 
 -- Add indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_announcements_created_by ON announcements(created_by); 
+CREATE INDEX IF NOT EXISTS idx_announcements_created_by ON public.announcements(created_by);
+
+-- Create updated_at trigger
+CREATE TRIGGER handle_updated_at BEFORE UPDATE ON public.announcements
+  FOR EACH ROW EXECUTE PROCEDURE moddatetime(updated_at); 

@@ -54,6 +54,7 @@ export function Home() {
   const user = useAuthStore((state) => state.user);
   const { currentClass, classes } = useOutletContext<HomeContextType>();
   const [isAnnouncementModalOpen, setIsAnnouncementModalOpen] = useState(false);
+  const [userClass, setUserClass] = useState<Class | null>(null);
 
   useEffect(() => {
     if (currentClass || user?.role === 'ultra_admin') {
@@ -62,6 +63,73 @@ export function Home() {
       loadClassStudents();
     }
   }, [currentClass, user?.role]);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Get user's class if they are a student
+        if (user?.role === 'student') {
+          const { data: classData, error: classError } = await supabase
+            .from('class_assignments')
+            .select(`
+              class_id,
+              classes (
+                id,
+                grade,
+                section
+              )
+            `)
+            .eq('user_id', user.id)
+            .single();
+
+          if (classError) throw classError;
+          if (classData?.classes) {
+            setUserClass(classData.classes);
+          }
+        }
+
+        // Fetch announcements
+        let query = supabase
+          .from('announcements')
+          .select(`
+            id,
+            title,
+            content,
+            created_at,
+            created_by,
+            class_id,
+            classes (
+              grade,
+              section
+            ),
+            profiles (
+              username
+            )
+          `)
+          .order('created_at', { ascending: false });
+
+        // If user is a student, only show announcements for their class
+        if (user?.role === 'student' && userClass) {
+          query = query.eq('class_id', userClass.id);
+        }
+
+        const { data, error: announcementsError } = await query;
+
+        if (announcementsError) throw announcementsError;
+        setAnnouncements(data || []);
+      } catch (err: any) {
+        console.error('Error loading data:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [user, userClass]);
 
   const loadSubjects = async () => {
     try {
