@@ -32,7 +32,8 @@ import {
   CheckCircle,
   AlertTriangle,
   UserMinus,
-  ChevronUp
+  ChevronUp,
+  Lock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -55,6 +56,7 @@ interface ExtendedProfile extends Profile {
 interface ExtendedClass extends Class {
   grade: string;
   section: string;
+  subject_name: string;
 }
 
 export function Users() {
@@ -92,6 +94,13 @@ export function Users() {
 
   const user = useAuthStore((state) => state.user);
 
+  // Add new state for class selection
+  const [selectedClass, setSelectedClass] = useState<ExtendedClass | null>(null);
+  const [showClassSelect, setShowClassSelect] = useState(false);
+
+  // Add new state for add user modal
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
+
   // Load initial data
   useEffect(() => {
     loadClasses();
@@ -112,16 +121,16 @@ export function Users() {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('profiles')
-        .select(`
-          *,
-          class_assignments(
-            class_id,
-            classes(
-              grade,
-              section
-            )
+      .from('profiles')
+      .select(`
+        *,
+        class_assignments(
+          class_id,
+          classes(
+            grade,
+            section
           )
+        )
         `)
         .order('username');
 
@@ -155,17 +164,34 @@ export function Users() {
   };
 
   // Add validation for class assignments
-  const validateClassAssignment = (classId: string) => {
+  const validateClassAssignment = async (classId: string) => {
     const classItem = classes.find(c => c.id === classId);
     if (!classItem) return false;
     
-    // Check if class is full (assuming max 30 students per class)
-    const studentsInClass = users.filter(u => 
-      u.role === 'student' && 
-      u.class_assignments?.some(a => a.class_id === classId)
-    ).length;
-    
-    return studentsInClass < 30;
+    try {
+      // Get the class's max students limit
+      const { data: classData, error: classError } = await supabase
+        .from('classes')
+        .select('max_students')
+        .eq('id', classId)
+        .single();
+
+      if (classError) throw classError;
+      if (!classData?.max_students) return false;
+
+      // Count current students in the class
+      const { count, error: countError } = await supabase
+        .from('class_assignments')
+        .select('*', { count: 'exact', head: true })
+        .eq('class_id', classId);
+
+      if (countError) throw countError;
+      
+      return count !== null && count < classData.max_students;
+    } catch (error) {
+      console.error('Error validating class assignment:', error);
+      return false;
+    }
   };
 
   // Add filter functionality
@@ -206,15 +232,50 @@ export function Users() {
         throw new Error('Password must be at least 6 characters long');
       }
 
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(newUser.email)) {
+        throw new Error('Please enter a valid email address');
+      }
+
+      // Validate username format (alphanumeric and underscores only)
+      const usernameRegex = /^[a-zA-Z0-9_]+$/;
+      if (!usernameRegex.test(newUser.username)) {
+        throw new Error('Username can only contain letters, numbers, and underscores');
+      }
+
+      // Check if username is already taken
+      const { data: existingUser, error: checkError } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('username', newUser.username)
+        .single();
+
+      if (existingUser) {
+        throw new Error('Username is already taken');
+      }
+
+      // Validate class assignments
+      if (newUser.role === 'student' && selectedClasses.length > 0) {
+        const classValidations = await Promise.all(
+          selectedClasses.map(classId => validateClassAssignment(classId))
+        );
+
+        if (classValidations.some(isValid => !isValid)) {
+          throw new Error('One or more selected classes are full or invalid');
+        }
+      }
+
       // Create user
-      const { user: createdUser } = await createUser({
+      const { user: createdUser, error: createError } = await createUser({
         email: newUser.email,
         password: newUser.password,
         username: newUser.username,
         role: newUser.role
       });
 
-      if (!createdUser) throw new Error('Failed to create user');
+      if (createError) throw createError;
+      if (!createdUser) throw new Error('Failed to create user account');
 
       // Assign classes if any selected
       if (selectedClasses.length > 0) {
@@ -320,8 +381,8 @@ export function Users() {
     try {
       // First, remove all existing class assignments
       const { error: deleteError } = await supabase
-        .from('class_assignments')
-        .delete()
+          .from('class_assignments')
+          .delete()
         .eq('user_id', userId);
 
       if (deleteError) throw deleteError;
@@ -353,218 +414,65 @@ export function Users() {
     }
   };
 
-  const AddUserForm = () => (
-    <div className="bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-red-100 dark:bg-red-900/20">
-            <UserPlus className="h-6 w-6 text-red-500" />
-          </div>
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Add New User</h3>
-        </div>
-        <button
-          onClick={() => setIsCreateModalOpen(false)}
-          className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-        >
-          <X className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-        </button>
-      </div>
+  const handleAddUser = async () => {
+    if (!isFormValid) return;
 
-      <form onSubmit={handleCreateUser} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-2">
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Username
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <User className="h-5 w-5 text-gray-400" />
-              </div>
-              <input
-                type="text"
-                id="username"
-                value={newUser.username}
-                onChange={(e) => setNewUser({...newUser, username: e.target.value})}
-                className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
-                placeholder="Enter username"
-                required
-              />
-            </div>
-          </div>
+    try {
+      setLoading(true);
+      setError(null);
 
-          <div className="space-y-2">
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Email
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Mail className="h-5 w-5 text-gray-400" />
-              </div>
-              <input
-                type="email"
-                id="email"
-                value={newUser.email}
-                onChange={(e) => setNewUser({...newUser, email: e.target.value})}
-                className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
-                placeholder="Enter email"
-                required
-              />
-            </div>
-          </div>
+      // Create auth user
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email: newUser.email,
+        password: newUser.password,
+        email_confirm: true,
+      });
 
-          <div className="space-y-2">
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Password
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <KeyRound className="h-5 w-5 text-gray-400" />
-              </div>
-              <input
-                type="password"
-                id="password"
-                value={newUser.password}
-                onChange={(e) => setNewUser({...newUser, password: e.target.value})}
-                className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
-                placeholder="Enter password"
-                required
-              />
-            </div>
-          </div>
+      if (authError) throw authError;
+      if (!authData.user) throw new Error('Failed to create user');
 
-          <div className="space-y-2">
-            <label htmlFor="role" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Role
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Shield className="h-5 w-5 text-gray-400" />
-              </div>
-              <select
-                id="role"
-                value={newUser.role}
-                onChange={(e) => setNewUser({...newUser, role: e.target.value as UserRole})}
-                className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all appearance-none"
-                required
-              >
-                <option value="">Select a role</option>
-                <option value="student">Student</option>
-                <option value="admin">Admin</option>
-                <option value="ultra_admin">Ultra Admin</option>
-              </select>
-              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                <ChevronDown className="h-5 w-5 text-gray-400" />
-              </div>
-            </div>
-          </div>
-        </div>
+      // Create profile
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert([{
+          id: authData.user.id,
+          username: newUser.username,
+          role: newUser.role,
+        }]);
 
-        {newUser.role === 'student' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-red-100 dark:bg-red-900/20">
-                  <GraduationCap className="h-5 w-5 text-red-500" />
-                </div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Assign Classes
-                </label>
-              </div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                {newUser.selectedClasses.length} classes selected
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto p-2">
-              {classes.map((classItem) => (
-                <motion.div
-                  key={classItem.id}
-                  whileHover={{ scale: 1.02 }}
-                  className={`flex items-center gap-3 p-4 rounded-xl border ${
-                    validateClassAssignment(classItem.id) 
-                      ? 'border-gray-200 dark:border-gray-700 hover:border-red-500 dark:hover:border-red-500' 
-                      : 'border-gray-100 dark:border-gray-700 opacity-50'
-                  } transition-colors`}
-                >
-                  <input
-                    type="checkbox"
-                    id={`class-${classItem.id}`}
-                    checked={newUser.selectedClasses.includes(classItem.id)}
-                    onChange={(e) => {
-                      if (e.target.checked && !validateClassAssignment(classItem.id)) {
-                        setError('This class is full');
-                        setTimeout(() => setError(null), 3000);
-                        return;
-                      }
-                      if (e.target.checked) {
-                        setNewUser({
-                          ...newUser,
-                          selectedClasses: [...newUser.selectedClasses, classItem.id]
-                        });
-                      } else {
-                        setNewUser({
-                          ...newUser,
-                          selectedClasses: newUser.selectedClasses.filter(id => id !== classItem.id)
-                        });
-                      }
-                    }}
-                    disabled={!validateClassAssignment(classItem.id)}
-                    className="checkbox checkbox-primary w-5 h-5"
-                  />
-                  <label
-                    htmlFor={`class-${classItem.id}`}
-                    className={`flex-1 cursor-pointer ${
-                      !validateClassAssignment(classItem.id) ? 'cursor-not-allowed' : ''
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/20">
-                        <School className="w-5 h-5 text-red-500" />
-                      </div>
-                      <div>
-                        <div className="font-medium text-gray-900 dark:text-white">
-                          Grade {classItem.grade} - Section {classItem.section}
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          {validateClassAssignment(classItem.id) ? 'Available' : 'Class Full'}
-                        </div>
-                      </div>
-                    </div>
-                  </label>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        )}
+      if (profileError) throw profileError;
 
-        <div className="flex justify-end space-x-4 pt-4">
-          <button
-            type="button"
-            onClick={() => setIsCreateModalOpen(false)}
-            className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? (
-              <div className="flex items-center space-x-2">
-                <Loader2 className="h-5 w-5 animate-spin" />
-                <span>Adding User...</span>
-              </div>
-            ) : (
-              <div className="flex items-center space-x-2">
-                <Plus className="h-5 w-5" />
-                <span>Add User</span>
-              </div>
-            )}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
+      // If student, create class assignment
+      if (newUser.role === 'student' && selectedClass) {
+        const { error: assignmentError } = await supabase
+          .from('class_assignments')
+          .insert([{
+            user_id: authData.user.id,
+            class_id: selectedClass.id,
+          }]);
+
+        if (assignmentError) throw assignmentError;
+      }
+
+      // Refresh users list
+      loadUsers();
+      setShowAddUserModal(false);
+      setNewUser({
+        username: '',
+        email: '',
+        password: '',
+        role: '',
+      });
+      setSelectedClass(null);
+    } catch (error: any) {
+      console.error('Error creating user:', error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isFormValid = !loading && !error && newUser.email && newUser.username && newUser.password;
 
   if (user?.role !== 'ultra_admin') {
     return (
@@ -607,7 +515,7 @@ export function Users() {
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => setIsCreateModalOpen(true)}
+            onClick={() => setShowAddUserModal(true)}
             className="button-primary flex items-center gap-2"
           >
             <UserPlus className="w-5 h-5" />
@@ -820,22 +728,176 @@ export function Users() {
         )}
       </motion.div>
 
-      {/* Create User Modal */}
+      {/* Add User Modal */}
       <AnimatePresence>
-        {isCreateModalOpen && (
+        {showAddUserModal && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
+              initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md"
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden"
             >
-              <AddUserForm />
+              <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Add New User</h2>
+                  <button
+                    onClick={() => setShowAddUserModal(false)}
+                    className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <X className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Username */}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Username
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <User className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <input
+                        type="text"
+                        value={newUser.username}
+                        onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+                        className="input-primary pl-10 w-full"
+                        placeholder="Enter username"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Email */}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Email
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Mail className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <input
+                        type="email"
+                        value={newUser.email}
+                        onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                        className="input-primary pl-10 w-full"
+                        placeholder="Enter email"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Password */}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Password
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Lock className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <input
+                        type="password"
+                        value={newUser.password}
+                        onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                        className="input-primary pl-10 w-full"
+                        placeholder="Enter password"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Role */}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Role
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Shield className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <select
+                        value={newUser.role}
+                        onChange={(e) => setNewUser({ ...newUser, role: e.target.value as UserRole })}
+                        className="input-primary pl-10 w-full"
+                      >
+                        <option value="">Select role</option>
+                        <option value="student">Student</option>
+                        <option value="teacher">Teacher</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Class Selection (for students) */}
+                {newUser.role === 'student' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Assign to Class
+                      </label>
+                      <button
+                        onClick={() => setShowClassSelect(true)}
+                        className="text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium"
+                      >
+                        Select Class
+                      </button>
+                    </div>
+                    {selectedClass ? (
+                      <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              Grade {selectedClass.grade} - Section {selectedClass.section}
+                            </p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              {selectedClass.subject_name}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => setSelectedClass(null)}
+                            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                          >
+                            <X className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-xl text-center">
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          No class selected
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+                <div className="flex justify-end space-x-3">
+                  <button
+                    onClick={() => setShowAddUserModal(false)}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAddUser}
+                    disabled={!isFormValid}
+                    className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Create User
+                  </button>
+                </div>
+              </div>
             </motion.div>
           </motion.div>
         )}
@@ -861,7 +923,7 @@ export function Users() {
                   <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
                     Edit Classes for {editingUser.username}
                   </h2>
-                  <button
+                        <button
                     onClick={() => {
                       setIsEditModalOpen(false);
                       setEditingUser(null);
@@ -929,6 +991,69 @@ export function Users() {
                       Save Changes
                     </motion.button>
                   </div>
+                </div>
+        </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Class Selection Modal */}
+      <AnimatePresence>
+        {showClassSelect && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden"
+            >
+              <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Select Class</h2>
+                  <button
+                    onClick={() => setShowClassSelect(false)}
+                    className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <X className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {classes.map((class_) => (
+                    <motion.button
+                      key={class_.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        setSelectedClass(class_);
+                        setShowClassSelect(false);
+                      }}
+                      className={`p-4 rounded-xl border transition-colors ${
+                        selectedClass?.id === class_.id
+                          ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
+                          : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <div className="text-center">
+                        <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                          Grade {class_.grade} - Section {class_.section}
+                        </p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {class_.subject_name}
+                        </p>
+                      </div>
+                    </motion.button>
+                  ))}
                 </div>
               </div>
             </motion.div>
