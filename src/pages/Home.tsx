@@ -19,18 +19,55 @@ import {
   X,
   Megaphone
 } from 'lucide-react';
-import { 
-  Class, 
-  Profile, 
-  Discussion, 
-  Announcement, 
-  DueWork
-} from '../types';
+import { Class } from '../types';
 import '../styles/cards.css';
 
 interface HomeContextType {
   currentClass: Class | null;
   classes: Class[];
+}
+
+interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  username?: string;
+  role?: string;
+}
+
+interface DueWork {
+  id: string;
+  title: string;
+  description: string;
+  due_date: string;
+  subject_id: string;
+  class_id: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  username?: string;
+  subjects?: {
+    name: string;
+  };
+  profiles?: {
+    username: string;
+  };
+}
+
+interface Discussion {
+  id: string;
+  content: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  class_id: string;
+  username?: string;
+  profiles?: {
+    username: string;
+  };
 }
 
 export function Home() {
@@ -53,14 +90,16 @@ export function Home() {
   const [subjects, setSubjects] = useState<any[]>([]);
   const user = useAuthStore((state) => state.user);
   const { currentClass, classes } = useOutletContext<HomeContextType>();
-  const [isAnnouncementModalOpen, setIsAnnouncementModalOpen] = useState(false);
-  const [userClass, setUserClass] = useState<Class | null>(null);
+  const [isNewsModalOpen, setIsNewsModalOpen] = useState(false);
+  const [newNews, setNewNews] = useState({
+    title: '',
+    content: ''
+  });
 
   useEffect(() => {
     if (currentClass || user?.role === 'ultra_admin') {
       loadData();
       loadSubjects();
-      loadClassStudents();
     }
   }, [currentClass, user?.role]);
 
@@ -69,27 +108,6 @@ export function Home() {
       try {
         setLoading(true);
         setError(null);
-
-        // Get user's class if they are a student
-        if (user?.role === 'student') {
-          const { data: classData, error: classError } = await supabase
-            .from('class_assignments')
-            .select(`
-              class_id,
-              classes (
-                id,
-                grade,
-                section
-              )
-            `)
-            .eq('user_id', user.id)
-            .single();
-
-          if (classError) throw classError;
-          if (classData?.classes) {
-            setUserClass(classData.classes);
-          }
-        }
 
         // Fetch announcements using the function
         const { data, error: announcementsError } = await supabase
@@ -107,7 +125,7 @@ export function Home() {
     };
 
     loadData();
-  }, [user, userClass]);
+  }, [user]);
 
   const loadSubjects = async () => {
     try {
@@ -147,28 +165,28 @@ export function Home() {
     setLoading(true);
     setError(null);
     try {
-      let announcementsQuery = supabase
-        .from('announcements')
-        .select(`
-          *,
-          profiles!announcements_created_by_fkey (
-            username,
-            photo_url
-          )
-        `)
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      let discussionsQuery = supabase
-        .from('discussions')
-        .select(`
-          *,
-          profiles!discussions_created_by_fkey (
-            username
-          )
-        `)
+      // Fetch announcements using the function
+      const { data, error: announcementsError } = await supabase
+        .rpc('get_announcements_with_profiles')
         .order('created_at', { ascending: false });
 
+      if (announcementsError) throw announcementsError;
+      setAnnouncements(data || []);
+
+      // Fetch discussions using the function
+      let discussionsQuery = supabase
+        .rpc('get_discussions_with_profiles')
+        .order('created_at', { ascending: false });
+
+      if (currentClass?.id) {
+        discussionsQuery = discussionsQuery.eq('class_id', currentClass.id);
+      }
+
+      const { data: discussionsData, error: discussionsError } = await discussionsQuery;
+      if (discussionsError) throw discussionsError;
+      setDiscussions(discussionsData || []);
+
+      // Fetch due works
       let dueWorksQuery = supabase
         .from('due_works')
         .select(`
@@ -179,32 +197,12 @@ export function Home() {
         .order('due_date', { ascending: true });
 
       if (currentClass?.id) {
-        announcementsQuery = announcementsQuery.or(`class_id.eq.${currentClass.id},class_id.is.null`);
-        discussionsQuery = discussionsQuery.eq('class_id', currentClass.id);
         dueWorksQuery = dueWorksQuery.eq('class_id', currentClass.id);
-      } else {
-        announcementsQuery = announcementsQuery.is('class_id', null);
-        discussionsQuery = discussionsQuery.is('class_id', null);
-        dueWorksQuery = dueWorksQuery.is('class_id', null);
       }
 
-      const [
-        announcementsData,
-        dueWorksData,
-        discussionsData
-      ] = await Promise.all([
-        announcementsQuery,
-        dueWorksQuery,
-        discussionsQuery
-      ]);
-
-      if (announcementsData.error) throw announcementsData.error;
-      if (dueWorksData.error) throw dueWorksData.error;
-      if (discussionsData.error) throw discussionsData.error;
-
-      setAnnouncements(announcementsData.data || []);
-      setDueWorks(dueWorksData.data || []);
-      setDiscussions(discussionsData.data || []);
+      const { data: dueWorksData, error: dueWorksError } = await dueWorksQuery;
+      if (dueWorksError) throw dueWorksError;
+      setDueWorks(dueWorksData || []);
     } catch (error: any) {
       console.error('Error loading home data:', error);
       setError(error.message);
@@ -383,6 +381,52 @@ export function Home() {
     }
   };
 
+  const handleCreateNews = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!user) {
+      setError('You must be logged in to create news');
+      return;
+    }
+
+    if (user.role !== 'admin' && user.role !== 'ultra_admin') {
+      setError('You do not have permission to create news');
+      return;
+    }
+
+    if (!newNews.title.trim() || !newNews.content.trim()) {
+      setError('Title and content are required');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('announcements')
+        .insert([{
+          title: newNews.title.trim(),
+          content: newNews.content.trim(),
+          created_by: user.id
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        setAnnouncements(prev => [data, ...prev]);
+        setIsNewsModalOpen(false);
+        setNewNews({ title: '', content: '' });
+        setError(null);
+      }
+    } catch (error: any) {
+      console.error('Error creating news:', error);
+      setError(error.message || 'Failed to create news');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <motion.div 
@@ -494,16 +538,16 @@ export function Home() {
                   <div className="p-2 rounded-xl bg-red-100 dark:bg-red-900/20">
                     <Megaphone className="h-5 w-5 text-red-500" />
                   </div>
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Latest Announcements</h2>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Latest News</h2>
                 </div>
-                {user?.role === 'admin' && (
+                {(user?.role === 'admin' || user?.role === 'ultra_admin') && (
                   <button
-                    onClick={() => setIsAnnouncementModalOpen(true)}
+                    onClick={() => setIsNewsModalOpen(true)}
                     className="px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
                   >
                     <div className="flex items-center gap-2">
                       <Plus className="h-5 w-5" />
-                      <span>New Announcement</span>
+                      <span>Post News</span>
                     </div>
                   </button>
                 )}
@@ -540,7 +584,7 @@ export function Home() {
                             </div>
                           </div>
                         </div>
-                        {user?.role === 'admin' && (
+                        {(user?.role === 'admin' || user?.role === 'ultra_admin') && (
                           <button
                             onClick={() => handleDeleteAnnouncement(announcement.id)}
                             className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
