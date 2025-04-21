@@ -1,3 +1,12 @@
+-- Create moddatetime function if it doesn't exist
+create or replace function moddatetime()
+returns trigger as $$
+begin
+  new.updated_at = timezone('utc'::text, now());
+  return new;
+end;
+$$ language plpgsql;
+
 -- Drop existing announcements table if it exists
 DROP TABLE IF EXISTS public.announcements CASCADE;
 
@@ -37,4 +46,4 @@ CREATE INDEX IF NOT EXISTS idx_announcements_created_by ON public.announcements(
 
 -- Create updated_at trigger
 CREATE TRIGGER handle_updated_at BEFORE UPDATE ON public.announcements
-  FOR EACH ROW EXECUTE PROCEDURE moddatetime(updated_at); 
+  FOR EACH ROW EXECUTE PROCEDURE moddatetime(); 
