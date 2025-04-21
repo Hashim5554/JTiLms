@@ -188,12 +188,7 @@ export function Home() {
 
       // Fetch due works using the function
       const { data: dueWorksData, error: dueWorksError } = await supabase
-        .from('due_works')
-        .select(`
-          *,
-          subjects (name),
-          profiles (username)
-        `)
+        .rpc('get_due_works_with_profiles')
         .order('due_date', { ascending: true });
 
       if (dueWorksError) throw dueWorksError;
