@@ -256,12 +256,25 @@ export function Users() {
     
     setLoading(true);
     try {
-        const { error } = await supabase
+      // Delete from profiles table first
+      const { error: profileError } = await supabase
         .from('profiles')
-          .delete()
+        .delete()
         .eq('id', userId);
-        
-        if (error) throw error;
+      
+      if (profileError) throw profileError;
+
+      // Delete any class assignments
+      const { error: assignmentError } = await supabase
+        .from('class_assignments')
+        .delete()
+        .eq('user_id', userId);
+
+      if (assignmentError) throw assignmentError;
+
+      // Delete from auth.users table using RPC
+      const { error: authError } = await supabase.rpc('delete_user', { user_id: userId });
+      if (authError) throw authError;
       
       setUsers(users.filter(user => user.id !== userId));
       setSuccess('User deleted successfully');
