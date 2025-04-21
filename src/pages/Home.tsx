@@ -464,46 +464,48 @@ export function Home() {
               </div>
             </div>
             <div className="divide-y divide-theme-border-primary dark:divide-gray-700">
-              <div className="grid gap-4">
-                {announcements.map((announcement) => (
-                  <motion.div
-                    key={announcement.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-4">
-                        <div className="p-2 rounded-xl bg-red-100 dark:bg-red-900/20">
-                          <Megaphone className="h-5 w-5 text-red-500" />
-                        </div>
-                        <div className="space-y-2">
-                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                            {announcement.title}
-                          </h3>
-                          <p className="text-gray-600 dark:text-gray-300">
-                            {announcement.content}
-                          </p>
-                          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                            <User className="h-4 w-4" />
-                            <span>{announcement.profiles?.username}</span>
-                            <span>•</span>
-                            <Calendar className="h-4 w-4" />
-                            <span>{new Date(announcement.created_at).toLocaleDateString()}</span>
+              <div className="space-y-4">
+                <div className="grid gap-4">
+                  {announcements.map((announcement) => (
+                    <motion.div
+                      key={announcement.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-4">
+                          <div className="p-2 rounded-xl bg-red-100 dark:bg-red-900/20">
+                            <Megaphone className="h-5 w-5 text-red-500" />
+                          </div>
+                          <div className="space-y-2">
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                              {announcement.title}
+                            </h3>
+                            <p className="text-gray-600 dark:text-gray-300">
+                              {announcement.content}
+                            </p>
+                            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                              <User className="h-4 w-4" />
+                              <span>{announcement.profiles?.username}</span>
+                              <span>•</span>
+                              <Calendar className="h-4 w-4" />
+                              <span>{new Date(announcement.created_at).toLocaleDateString()}</span>
+                            </div>
                           </div>
                         </div>
+                        {user?.role === 'admin' && (
+                          <button
+                            onClick={() => handleDeleteAnnouncement(announcement.id)}
+                            className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          >
+                            <Trash2 className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                          </button>
+                        )}
                       </div>
-                      {user?.role === 'admin' && (
-                        <button
-                          onClick={() => handleDeleteAnnouncement(announcement.id)}
-                          className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                        >
-                          <Trash2 className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                        </button>
-                      )}
-                    </div>
-                  </motion.div>
-                ))}
+                    </motion.div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
