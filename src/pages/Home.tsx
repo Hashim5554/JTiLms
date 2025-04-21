@@ -91,23 +91,21 @@ export function Home() {
           }
         }
 
-        // Fetch announcements
+        // Fetch announcements using the view
         let query = supabase
-          .from('announcements')
+          .from('announcements_with_profiles')
           .select(`
             id,
             title,
             content,
             created_at,
-            created_by,
             class_id,
             classes (
               grade,
               section
             ),
-            profiles (
-              username
-            )
+            username,
+            role
           `)
           .order('created_at', { ascending: false });
 
@@ -555,7 +553,7 @@ export function Home() {
                             </p>
                             <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
                               <User className="h-4 w-4" />
-                              <span>{announcement.profiles?.username}</span>
+                              <span>{announcement.username}</span>
                               <span>•</span>
                               <Calendar className="h-4 w-4" />
                               <span>{new Date(announcement.created_at).toLocaleDateString()}</span>

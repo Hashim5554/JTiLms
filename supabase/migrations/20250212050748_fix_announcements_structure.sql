@@ -46,4 +46,13 @@ CREATE INDEX IF NOT EXISTS idx_announcements_created_by ON public.announcements(
 
 -- Create updated_at trigger
 CREATE TRIGGER handle_updated_at BEFORE UPDATE ON public.announcements
-  FOR EACH ROW EXECUTE PROCEDURE moddatetime(); 
+  FOR EACH ROW EXECUTE PROCEDURE moddatetime();
+
+-- Create a view that joins announcements with profiles
+CREATE OR REPLACE VIEW public.announcements_with_profiles AS
+SELECT 
+  a.*,
+  p.username,
+  p.role
+FROM public.announcements a
+LEFT JOIN public.profiles p ON a.created_by = p.id; 
