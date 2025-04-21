@@ -273,7 +273,7 @@ export function Users() {
       if (assignmentError) throw assignmentError;
 
       // Delete from auth.users table using RPC
-      const { error: authError } = await supabase.rpc('delete_user', { user_id: userId });
+      const { error: authError } = await supabase.rpc('auth.delete_user', { user_id: userId });
       if (authError) throw authError;
       
       setUsers(users.filter(user => user.id !== userId));
