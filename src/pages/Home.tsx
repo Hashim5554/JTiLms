@@ -437,7 +437,7 @@ export function Home() {
 
         // Filter by class if user is a student
         const filteredData = user.role === 'student' && currentClass
-          ? data.filter(work => work.class_id === currentClass.id)
+          ? data.filter((work: DueWork) => work.class_id === currentClass.id)
           : data;
 
         setDueWorks(filteredData);

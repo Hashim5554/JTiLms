@@ -31,6 +31,7 @@ as $$
   from public.due_works dw
   left join public.subjects s on dw.subject_id = s.id
   left join public.profiles p on dw.created_by = p.id
+  where dw.due_date >= now()
   order by dw.due_date asc;
 $$;
 
