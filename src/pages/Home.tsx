@@ -187,15 +187,10 @@ export function Home() {
       setDiscussions(discussionsData || []);
 
       // Fetch due works using the function
-      let dueWorksQuery = supabase
+      const { data: dueWorksData, error: dueWorksError } = await supabase
         .rpc('get_due_works_with_profiles')
         .order('due_date', { ascending: true });
 
-      if (currentClass?.id) {
-        dueWorksQuery = dueWorksQuery.eq('class_id', currentClass.id);
-      }
-
-      const { data: dueWorksData, error: dueWorksError } = await dueWorksQuery;
       if (dueWorksError) throw dueWorksError;
       setDueWorks(dueWorksData || []);
     } catch (error: any) {
