@@ -91,30 +91,10 @@ export function Home() {
           }
         }
 
-        // Fetch announcements using the view
-        let query = supabase
-          .from('announcements_with_profiles')
-          .select(`
-            id,
-            title,
-            content,
-            created_at,
-            class_id,
-            classes (
-              grade,
-              section
-            ),
-            username,
-            role
-          `)
+        // Fetch announcements using the function
+        const { data, error: announcementsError } = await supabase
+          .rpc('get_announcements_with_profiles')
           .order('created_at', { ascending: false });
-
-        // If user is a student, only show announcements for their class
-        if (user?.role === 'student' && userClass) {
-          query = query.eq('class_id', userClass.id);
-        }
-
-        const { data, error: announcementsError } = await query;
 
         if (announcementsError) throw announcementsError;
         setAnnouncements(data || []);
