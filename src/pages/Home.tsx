@@ -186,14 +186,9 @@ export function Home() {
       if (discussionsError) throw discussionsError;
       setDiscussions(discussionsData || []);
 
-      // Fetch due works using the function
+      // Fetch due works using the new function
       const { data: dueWorksData, error: dueWorksError } = await supabase
-        .from('due_works')
-        .select(`
-          *,
-          subjects (name),
-          profiles (username)
-        `)
+        .rpc('get_due_works_with_profiles')
         .order('due_date', { ascending: true });
 
       if (dueWorksError) throw dueWorksError;
