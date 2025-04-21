@@ -144,6 +144,7 @@ export function ClassSelect() {
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-6">
               {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map((section, sectionIndex) => {
+                const classObj = classes.find(c => c.grade === grade && c.section === section);
                 const isSelected = selectedClass?.grade === grade && selectedClass?.section === section;
                 return (
                   <motion.button
@@ -153,12 +154,13 @@ export function ClassSelect() {
                     transition={{ delay: (gradeIndex * 8 + sectionIndex) * 0.05 }}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => handleClassSelect(grade, section)}
+                    onClick={() => classObj && handleClassSelect(grade, section)}
+                    disabled={!classObj}
                     className={`p-4 rounded-2xl flex items-center justify-between transition-all duration-200 ${
                       isSelected
                         ? 'bg-primary/10 dark:bg-primary/20 text-primary ring-2 ring-primary'
                         : 'bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-primary/5 dark:hover:bg-primary/10 hover:text-primary'
-                    }`}
+                    } ${!classObj ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <span className="text-lg font-medium">Section {section}</span>
                     {isSelected && (
