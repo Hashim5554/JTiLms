@@ -341,90 +341,123 @@ export function Users() {
   };
 
   const AddUserForm = () => (
-    <div className="bg-theme-secondary shadow-lg rounded-xl p-6 space-y-6">
+    <div className="bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium text-theme-text-primary">Add New User</h3>
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-red-100 dark:bg-red-900/20">
+            <UserPlus className="h-6 w-6 text-red-500" />
+          </div>
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Add New User</h3>
+        </div>
         <button
           onClick={() => setIsCreateModalOpen(false)}
-          className="p-2 rounded-full hover:bg-theme-tertiary transition-colors"
+          className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
         >
-          <X className="h-5 w-5 text-theme-text-secondary" />
+          <X className="h-5 w-5 text-gray-500 dark:text-gray-400" />
         </button>
       </div>
 
       <form onSubmit={handleCreateUser} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <label htmlFor="username" className="block text-sm font-medium text-theme-text-secondary">
+            <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Username
             </label>
-            <input
-              type="text"
-              id="username"
-              value={newUser.username}
-              onChange={(e) => setNewUser({...newUser, username: e.target.value})}
-              className="w-full px-4 py-2 rounded-lg border border-theme-border-primary bg-theme-primary text-theme-text-primary focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
-              placeholder="Enter username"
-              required
-            />
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <User className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                id="username"
+                value={newUser.username}
+                onChange={(e) => setNewUser({...newUser, username: e.target.value})}
+                className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                placeholder="Enter username"
+                required
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="email" className="block text-sm font-medium text-theme-text-secondary">
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Email
             </label>
-            <input
-              type="email"
-              id="email"
-              value={newUser.email}
-              onChange={(e) => setNewUser({...newUser, email: e.target.value})}
-              className="w-full px-4 py-2 rounded-lg border border-theme-border-primary bg-theme-primary text-theme-text-primary focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
-              placeholder="Enter email"
-              required
-            />
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Mail className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type="email"
+                id="email"
+                value={newUser.email}
+                onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+                className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                placeholder="Enter email"
+                required
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="password" className="block text-sm font-medium text-theme-text-secondary">
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Password
             </label>
-            <input
-              type="password"
-              id="password"
-              value={newUser.password}
-              onChange={(e) => setNewUser({...newUser, password: e.target.value})}
-              className="w-full px-4 py-2 rounded-lg border border-theme-border-primary bg-theme-primary text-theme-text-primary focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
-              placeholder="Enter password"
-              required
-            />
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <KeyRound className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type="password"
+                id="password"
+                value={newUser.password}
+                onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                placeholder="Enter password"
+                required
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="role" className="block text-sm font-medium text-theme-text-secondary">
+            <label htmlFor="role" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Role
             </label>
-            <select
-              id="role"
-              value={newUser.role}
-              onChange={(e) => setNewUser({...newUser, role: e.target.value as UserRole})}
-              className="w-full px-4 py-2 rounded-lg border border-theme-border-primary bg-theme-primary text-theme-text-primary focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
-              required
-            >
-              <option value="">Select a role</option>
-              <option value="student">Student</option>
-              <option value="admin">Admin</option>
-              <option value="ultra_admin">Ultra Admin</option>
-            </select>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Shield className="h-5 w-5 text-gray-400" />
+              </div>
+              <select
+                id="role"
+                value={newUser.role}
+                onChange={(e) => setNewUser({...newUser, role: e.target.value as UserRole})}
+                className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all appearance-none"
+                required
+              >
+                <option value="">Select a role</option>
+                <option value="student">Student</option>
+                <option value="admin">Admin</option>
+                <option value="ultra_admin">Ultra Admin</option>
+              </select>
+              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                <ChevronDown className="h-5 w-5 text-gray-400" />
+              </div>
+            </div>
           </div>
         </div>
 
         {newUser.role === 'student' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <label className="block text-sm font-medium text-theme-text-secondary">
-                Assign Classes
-              </label>
-              <div className="text-xs text-theme-text-secondary">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-red-100 dark:bg-red-900/20">
+                  <GraduationCap className="h-5 w-5 text-red-500" />
+                </div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Assign Classes
+                </label>
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">
                 {newUser.selectedClasses.length} classes selected
               </div>
             </div>
@@ -435,8 +468,8 @@ export function Users() {
                   whileHover={{ scale: 1.02 }}
                   className={`flex items-center gap-3 p-4 rounded-xl border ${
                     validateClassAssignment(classItem.id) 
-                      ? 'border-theme-border-primary hover:border-red-500' 
-                      : 'border-theme-tertiary opacity-50'
+                      ? 'border-gray-200 dark:border-gray-700 hover:border-red-500 dark:hover:border-red-500' 
+                      : 'border-gray-100 dark:border-gray-700 opacity-50'
                   } transition-colors`}
                 >
                   <input
@@ -470,15 +503,15 @@ export function Users() {
                       !validateClassAssignment(classItem.id) ? 'cursor-not-allowed' : ''
                     }`}
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                       <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/20">
-                        <GraduationCap className="w-5 h-5 text-red-500" />
+                        <School className="w-5 h-5 text-red-500" />
                       </div>
                       <div>
-                        <div className="font-medium text-theme-text-primary">
+                        <div className="font-medium text-gray-900 dark:text-white">
                           Grade {classItem.grade} - Section {classItem.section}
                         </div>
-                        <div className="text-xs text-theme-text-secondary">
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
                           {validateClassAssignment(classItem.id) ? 'Available' : 'Class Full'}
                         </div>
                       </div>
@@ -490,18 +523,18 @@ export function Users() {
           </div>
         )}
 
-        <div className="flex justify-end space-x-4">
+        <div className="flex justify-end space-x-4 pt-4">
           <button
             type="button"
             onClick={() => setIsCreateModalOpen(false)}
-            className="px-4 py-2 rounded-lg border border-theme-border-primary text-theme-text-secondary hover:bg-theme-tertiary transition-colors"
+            className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={loading}
-            className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (
               <div className="flex items-center space-x-2">
