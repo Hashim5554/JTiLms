@@ -98,19 +98,19 @@ export function ClassSelect() {
     setLoading(true);
     setError(null);
     try {
-      const { classes: loadedClasses, error: loadError } = await loadClasses();
-
-      if (loadError) {
-        throw new Error(loadError);
+      const response = await loadClasses();
+      
+      if (response.error) {
+        throw new Error(response.error);
       }
 
-      if (!loadedClasses || loadedClasses.length === 0) {
+      if (!response.classes || response.classes.length === 0) {
         setError('No classes found in the system');
         setLoading(false);
         return;
       }
 
-      setClasses(loadedClasses);
+      setClasses(response.classes);
     } catch (error: any) {
       console.error('Error loading classes:', error);
       setError(error.message || 'Failed to load classes');
