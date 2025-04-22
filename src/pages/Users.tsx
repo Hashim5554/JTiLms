@@ -3,6 +3,7 @@ import { useAuthStore } from '../store/auth';
 import { supabase } from '../lib/supabase';
 import type { UserRole, Profile, Class } from '../types';
 import { createUser } from '../lib/supabase';
+import { loadClasses as fetchClasses } from '../utils/classUtils';
 import { 
   UserPlus, 
   Search, 
@@ -108,13 +109,20 @@ export function Users() {
   }, []);
 
   const loadClasses = async () => {
-    const { data } = await supabase
-      .from('classes')
-      .select('*')
-      .order('grade')
-      .order('section');
-    
-    if (data) setClasses(data);
+    try {
+      const { classes: loadedClasses, error } = await fetchClasses();
+      
+      if (error) {
+        console.error('Error loading classes:', error);
+        return;
+      }
+      
+      if (loadedClasses) {
+        setClasses(loadedClasses);
+      }
+    } catch (err) {
+      console.error('Error in loadClasses:', err);
+    }
   };
 
   const loadUsers = async () => {
@@ -846,32 +854,35 @@ export function Users() {
                       </label>
                       <button
                         onClick={() => setShowClassSelect(true)}
-                        className="text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium"
+                        className="text-sm text-primary hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 font-medium"
                       >
                         Select Class
                       </button>
                     </div>
                     {selectedClass ? (
-                      <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-xl">
-                        <div className="flex items-center justify-between">
+                      <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-xl flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-primary/10 dark:bg-primary/20">
+                            <GraduationCap className="w-4 h-4 text-primary" />
+                          </div>
                           <div>
-                            <p className="font-medium text-gray-900 dark:text-white">
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">
                               Grade {selectedClass.grade} - Section {selectedClass.section}
                             </p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
                               {selectedClass.subject_name}
                             </p>
                           </div>
-                          <button
-                            onClick={() => setSelectedClass(null)}
-                            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                          >
-                            <X className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                          </button>
                         </div>
+                        <button
+                          onClick={() => setSelectedClass(null)}
+                          className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                        >
+                          <X className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                        </button>
                       </div>
                     ) : (
-                      <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-xl text-center">
+                      <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-xl text-center">
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                           No class selected
                         </p>
@@ -910,89 +921,96 @@ export function Users() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
+              initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md"
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
             >
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+              <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                     Edit Classes for {editingUser.username}
                   </h2>
-                        <button
+                  <button
                     onClick={() => {
                       setIsEditModalOpen(false);
                       setEditingUser(null);
                       setEditingUserClasses([]);
                     }}
-                    className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700"
+                    className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                   >
-                    <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                    <X className="h-5 w-5 text-gray-500 dark:text-gray-400" />
                   </button>
                 </div>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    {classes.map((classItem) => (
-                      <motion.div
-                        key={classItem.id}
-                        whileHover={{ scale: 1.02 }}
-                        className="flex items-center gap-2 p-2 rounded-xl bg-gray-50 dark:bg-gray-700"
+              </div>
+
+              <div className="p-4 max-h-[60vh] overflow-y-auto">
+                <div className="grid grid-cols-1 gap-2">
+                  {classes.map((classItem) => (
+                    <motion.div
+                      key={classItem.id}
+                      whileHover={{ scale: 1.01 }}
+                      className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    >
+                      <input
+                        type="checkbox"
+                        id={`edit-class-${classItem.id}`}
+                        checked={editingUserClasses.includes(classItem.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setEditingUserClasses([...editingUserClasses, classItem.id]);
+                          } else {
+                            setEditingUserClasses(editingUserClasses.filter(id => id !== classItem.id));
+                          }
+                        }}
+                        className="checkbox checkbox-primary"
+                      />
+                      <label
+                        htmlFor={`edit-class-${classItem.id}`}
+                        className="flex-1 cursor-pointer"
                       >
-                        <input
-                          type="checkbox"
-                          id={`edit-class-${classItem.id}`}
-                          checked={editingUserClasses.includes(classItem.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setEditingUserClasses([...editingUserClasses, classItem.id]);
-                            } else {
-                              setEditingUserClasses(editingUserClasses.filter(id => id !== classItem.id));
-                            }
-                          }}
-                          className="checkbox checkbox-primary"
-                        />
-                        <label
-                          htmlFor={`edit-class-${classItem.id}`}
-                          className="flex-1 cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-primary/10 dark:bg-primary/20">
                             <GraduationCap className="w-4 h-4 text-primary" />
-                            <span className="text-gray-900 dark:text-white">
-                              Grade {classItem.grade} - Section {classItem.section}
-                            </span>
                           </div>
-                        </label>
-                      </motion.div>
-                    ))}
-                  </div>
-                  <div className="flex justify-end gap-3 pt-4">
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => {
-                        setIsEditModalOpen(false);
-                        setEditingUser(null);
-                        setEditingUserClasses([]);
-                      }}
-                      className="px-4 py-2 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
-                    >
-                      Cancel
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => handleEditUserClasses(editingUser.id, editingUserClasses)}
-                      className="button-primary"
-                    >
-                      Save Changes
-                    </motion.button>
-                  </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">
+                              Grade {classItem.grade} - Section {classItem.section}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {classItem.subject_name}
+                            </p>
+                          </div>
+                        </div>
+                      </label>
+                    </motion.div>
+                  ))}
                 </div>
-        </div>
+              </div>
+
+              <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => {
+                      setIsEditModalOpen(false);
+                      setEditingUser(null);
+                      setEditingUserClasses([]);
+                    }}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleEditUserClasses(editingUser.id, editingUserClasses)}
+                    className="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary-600 rounded-lg transition-colors"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </div>
             </motion.div>
           </motion.div>
         )}
@@ -1011,44 +1029,47 @@ export function Users() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden"
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
             >
-              <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Select Class</h2>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Select Class</h2>
                   <button
                     onClick={() => setShowClassSelect(false)}
-                    className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                   >
                     <X className="h-5 w-5 text-gray-500 dark:text-gray-400" />
                   </button>
                 </div>
               </div>
 
-              <div className="p-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="p-4 max-h-[60vh] overflow-y-auto">
+                <div className="grid grid-cols-1 gap-2">
                   {classes.map((class_) => (
                     <motion.button
                       key={class_.id}
-                      initial={{ opacity: 0, y: 20 }}
+                      initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.99 }}
                       onClick={() => {
                         setSelectedClass(class_);
                         setShowClassSelect(false);
                       }}
-                      className={`p-4 rounded-xl border transition-colors ${
+                      className={`p-3 rounded-xl border transition-colors flex items-center gap-3 ${
                         selectedClass?.id === class_.id
-                          ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
+                          ? 'border-primary bg-primary/5 dark:bg-primary/10'
                           : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
                       }`}
                     >
-                      <div className="text-center">
-                        <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                      <div className="p-2 rounded-lg bg-primary/10 dark:bg-primary/20">
+                        <GraduationCap className="w-4 h-4 text-primary" />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
                           Grade {class_.grade} - Section {class_.section}
                         </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
                           {class_.subject_name}
                         </p>
                       </div>

@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/auth';
 import type { Class } from '../types';
 import { Check, ShieldAlert, School, Loader2, GraduationCap } from 'lucide-react';
-import { loadClasses } from '../utils/classUtils';
+import { loadClasses, getStudentClasses } from '../utils/classUtils';
 
 export function ClassSelect() {
   const navigate = useNavigate();
@@ -25,7 +25,7 @@ export function ClassSelect() {
     if (user.role === 'student') {
       loadStudentAssignments();
     } else {
-      loadClasses();
+      loadAllClasses();
     }
   }, [user, navigate]);
 
@@ -36,52 +36,32 @@ export function ClassSelect() {
       setLoading(true);
       setError(null);
       
-      const { data: assignments, error: assignmentError } = await supabase
-        .from('class_assignments')
-        .select(`
-          class_id,
-          classes (
-            id,
-            grade,
-            section,
-            name,
-            max_students
-          )
-        `)
-        .eq('user_id', user.id);
+      const { classes: assignedClasses, error: assignmentsError } = await getStudentClasses(user.id);
 
-      if (assignmentError) {
-        console.error('Error fetching assignments:', assignmentError);
-        throw new Error('Failed to load your class assignments');
+      if (assignmentsError) {
+        throw new Error(assignmentsError);
       }
 
-      if (!assignments || assignments.length === 0) {
+      if (!assignedClasses || assignedClasses.length === 0) {
         setError('No classes have been assigned to you yet. Please contact your administrator.');
         setLoading(false);
         return;
       }
 
-      const classData = assignments
-        .map(a => a.classes)
-        .filter((c): c is Class => c !== null)
-        .sort((a, b) => {
-          if (a.grade === b.grade) {
-            return a.section.localeCompare(b.section);
-          }
-          return a.grade - b.grade;
-        });
+      // Sort classes by grade and section
+      const sortedClasses = [...assignedClasses].sort((a, b) => {
+        if (a.grade === b.grade) {
+          return a.section.localeCompare(b.section);
+        }
+        return a.grade - b.grade;
+      });
 
-      if (classData.length === 0) {
-        setError('No valid classes found for your assignments');
-        setLoading(false);
-        return;
-      }
+      setClasses(sortedClasses);
+      setStudentAssignments(sortedClasses);
 
-      setClasses(classData);
-      setStudentAssignments(classData);
-
-      if (classData.length === 1) {
-        navigate(`/class/${classData[0].id}`);
+      // Auto-navigate if only one class
+      if (sortedClasses.length === 1) {
+        navigate(`/class/${sortedClasses[0].id}`);
         return;
       }
     } catch (error: any) {
@@ -92,29 +72,33 @@ export function ClassSelect() {
     }
   };
 
-  const loadClasses = async () => {
+  const loadAllClasses = async () => {
     if (!user) return;
 
     setLoading(true);
     setError(null);
     try {
-      const response = await loadClasses();
+      const { classes: loadedClasses, error: loadError } = await loadClasses();
       
-      if (!response) {
-        throw new Error('Failed to load classes: No response received');
+      if (loadError) {
+        throw new Error(loadError);
       }
 
-      if (response.error) {
-        throw new Error(response.error);
-      }
-
-      if (!response.classes || response.classes.length === 0) {
+      if (!loadedClasses || loadedClasses.length === 0) {
         setError('No classes found in the system');
         setLoading(false);
         return;
       }
 
-      setClasses(response.classes);
+      // Sort classes by grade and section
+      const sortedClasses = [...loadedClasses].sort((a, b) => {
+        if (a.grade === b.grade) {
+          return a.section.localeCompare(b.section);
+        }
+        return a.grade - b.grade;
+      });
+
+      setClasses(sortedClasses);
     } catch (error: any) {
       console.error('Error loading classes:', error);
       setError(error.message || 'Failed to load classes');
@@ -224,6 +208,15 @@ export function ClassSelect() {
     );
   }
 
+  // Group classes by grade
+  const classGroups = classes.reduce<Record<number, Class[]>>((acc, cls) => {
+    if (!acc[cls.grade]) {
+      acc[cls.grade] = [];
+    }
+    acc[cls.grade].push(cls);
+    return acc;
+  }, {});
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 py-12 px-4 sm:px-6 lg:px-8">
       <motion.div 
@@ -248,74 +241,56 @@ export function ClassSelect() {
         </p>
       </motion.div>
 
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.5, delay: 0.2 }}
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden"
-      >
-        {[3, 4, 5, 6, 7, 8].map((grade, gradeIndex) => {
-          const gradeClasses = classes.filter(c => c.grade === grade);
-          if (gradeClasses.length === 0) return null;
-
-          return (
-            <motion.div
-              key={grade}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: gradeIndex * 0.1 }}
-              className="border-b border-gray-200 dark:border-gray-700 last:border-b-0"
-            >
-              <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700 flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-primary/10 dark:bg-primary/20">
-                  <GraduationCap className="w-5 h-5 text-primary" />
-                </div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Grade {grade}
-                </h2>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-6">
-                {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map((section, sectionIndex) => {
-                  const classObj = classes.find(c => c.grade === grade && c.section === section);
-                  const isSelected = selectedClass?.grade === grade && selectedClass?.section === section;
-                  const isAssigned = user?.role === 'student' ? 
-                    studentAssignments.some(a => a.grade === grade && a.section === section) : 
-                    true;
-
-                  return (
-                    <motion.button
-                      key={section}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: (gradeIndex * 8 + sectionIndex) * 0.05 }}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => classObj && handleClassSelect(grade, section)}
-                      disabled={!classObj || !isAssigned}
-                      className={`p-4 rounded-2xl flex items-center justify-between transition-all duration-200 ${
-                        isSelected
-                          ? 'bg-primary/10 dark:bg-primary/20 text-primary ring-2 ring-primary'
-                          : 'bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-primary/5 dark:hover:bg-primary/10 hover:text-primary'
-                      } ${!classObj || !isAssigned ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                      <span className="text-lg font-medium">Section {section}</span>
-                      {isSelected && (
-                        <motion.div
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          transition={{ type: "spring", stiffness: 200, damping: 10 }}
-                        >
-                          <Check className="h-5 w-5" />
-                        </motion.div>
-                      )}
-                    </motion.button>
-                  );
-                })}
-              </div>
-            </motion.div>
-          );
-        })}
-      </motion.div>
+      {/* Display classes grouped by grades */}
+      <div className="max-w-7xl mx-auto">
+        {Object.entries(classGroups).map(([grade, gradeClasses]) => (
+          <motion.div
+            key={grade}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: Number(grade) * 0.05 }}
+            className="mb-10"
+          >
+            <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-4 flex items-center">
+              <GraduationCap className="w-6 h-6 mr-2 text-primary" />
+              Grade {grade}
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {gradeClasses.map(cls => (
+                <motion.button
+                  key={cls.id}
+                  onClick={() => selectClass(cls.id)}
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`
+                    p-6 rounded-2xl shadow-md text-center 
+                    ${selectedClass?.id === cls.id 
+                      ? 'bg-primary text-white' 
+                      : 'bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white'}
+                    transition-all duration-300
+                  `}
+                >
+                  <div className="flex flex-col items-center justify-center">
+                    <div className="text-2xl md:text-3xl font-bold mb-2">{cls.section}</div>
+                    <div className="text-sm opacity-80">
+                      {cls.max_students} students max
+                    </div>
+                    {selectedClass?.id === cls.id && (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        className="mt-2"
+                      >
+                        <Check className="w-6 h-6" />
+                      </motion.div>
+                    )}
+                  </div>
+                </motion.button>
+              ))}
+            </div>
+          </motion.div>
+        ))}
+      </div>
     </div>
   );
 }
