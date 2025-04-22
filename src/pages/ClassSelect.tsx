@@ -100,6 +100,10 @@ export function ClassSelect() {
     try {
       const response = await loadClasses();
       
+      if (!response) {
+        throw new Error('Failed to load classes: No response received');
+      }
+
       if (response.error) {
         throw new Error(response.error);
       }
