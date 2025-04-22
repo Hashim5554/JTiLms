@@ -7,6 +7,7 @@ RETURNS TABLE (
   id UUID,
   grade INTEGER,
   section TEXT,
+  name TEXT,
   max_students INTEGER,
   created_at TIMESTAMPTZ,
   updated_at TIMESTAMPTZ
@@ -23,6 +24,7 @@ BEGIN
     c.id,
     c.grade,
     c.section,
+    c.name,
     c.max_students,
     c.created_at,
     c.updated_at

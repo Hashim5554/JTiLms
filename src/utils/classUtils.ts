@@ -7,6 +7,7 @@ export interface Class {
   id: string;
   grade: number;
   section: string;
+  name: string;
   max_students: number;
   created_at: string;
   updated_at: string;
