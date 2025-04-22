@@ -98,11 +98,43 @@ export function Home() {
       loadData();
       loadSubjects();
     }
+  }, [currentClass, user?.role, loadData]);
+
+  // New simplified due works loading function
+  const loadDueWorks = useCallback(async () => {
+    try {
+      setLoadingDueWorks(true);
+      setDueWorksError(null);
+      
+      let dueWorksQuery = supabase.rpc('get_all_due_works');
+      
+      // Filter by class if one is selected and user is not ultra_admin
+      if (currentClass?.id && user?.role !== 'ultra_admin') {
+        dueWorksQuery = dueWorksQuery.eq('class_id', currentClass.id);
+      }
+      
+      const { data, error } = await dueWorksQuery;
+      
+      if (error) {
+        console.error('Error loading due works:', error);
+        setDueWorksError('Failed to load due works. Please try again.');
+        return;
+      }
+      
+      setDueWorks(data || []);
+    } catch (error: any) {
+      console.error('Error loading due works:', error);
+      setDueWorksError(error.message || 'Failed to load due works. Please try again.');
+    } finally {
+      setLoadingDueWorks(false);
+    }
   }, [currentClass, user?.role]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setDueWorksError(null);
+    
     try {
       // Fetch announcements using the function
       let announcementsQuery = supabase
@@ -137,15 +169,17 @@ export function Home() {
       }
       setDiscussions(discussionsData || []);
 
-      // Load due works with simplified approach
+      // Fetch due works using the function with better error handling
+      setLoadingDueWorks(true);
       await loadDueWorks();
+      
     } catch (error: any) {
       console.error('Error loading home data:', error);
       setError(error.message);
     } finally {
       setLoading(false);
     }
-  }, [currentClass, user?.role]);
+  }, [currentClass, user?.role, loadDueWorks]);
 
   const loadSubjects = async () => {
     try {
@@ -394,42 +428,6 @@ export function Home() {
       setError(error.message || 'Failed to create news');
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Add a separate function to load due works
-  const loadDueWorks = async () => {
-    try {
-      setLoadingDueWorks(true);
-      setDueWorksError(null);
-
-      // Get all due works using our simplified function
-      const { data, error } = await supabase
-        .rpc('get_all_due_works');
-
-      if (error) {
-        console.error('Error loading due works:', error);
-        setDueWorksError('Failed to load due works. Please try again.');
-        return;
-      }
-
-      if (!data) {
-        setDueWorks([]);
-        return;
-      }
-
-      // Filter by class if needed
-      let filteredData = data;
-      if (currentClass?.id && user?.role !== 'ultra_admin') {
-        filteredData = data.filter((work: DueWork) => work.class_id === currentClass.id);
-      }
-
-      setDueWorks(filteredData);
-    } catch (error: any) {
-      console.error('Error in loadDueWorks:', error);
-      setDueWorksError('An unexpected error occurred. Please try again.');
-    } finally {
-      setLoadingDueWorks(false);
     }
   };
 
