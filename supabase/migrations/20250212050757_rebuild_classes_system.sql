@@ -107,7 +107,7 @@ CREATE POLICY "Classes visible to all authenticated users"
 CREATE POLICY "Only admins can insert classes"
   ON classes FOR INSERT
   TO authenticated
-  USING (auth.jwt() ->> 'role' = 'admin');
+  WITH CHECK (auth.jwt() ->> 'role' = 'admin');
   
 CREATE POLICY "Only admins can update classes"
   ON classes FOR UPDATE
@@ -130,7 +130,7 @@ CREATE POLICY "Class assignments visible to all authenticated users"
 CREATE POLICY "Only admins can insert class_assignments"
   ON class_assignments FOR INSERT
   TO authenticated
-  USING (auth.jwt() ->> 'role' = 'admin');
+  WITH CHECK (auth.jwt() ->> 'role' = 'admin');
   
 CREATE POLICY "Only admins can update class_assignments"
   ON class_assignments FOR UPDATE
