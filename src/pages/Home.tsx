@@ -139,7 +139,7 @@ export function Home() {
 
       // Fetch due works using the new function
       let dueWorksQuery = supabase
-        .rpc('get_due_works_with_profiles')
+        .rpc('get_due_works_with_info')
         .order('due_date', { ascending: true });
 
       if (currentClass?.id && user?.role !== 'ultra_admin') {
