@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/auth';
 import type { Class } from '../types';
 import { Check, ShieldAlert, School, Loader2, GraduationCap } from 'lucide-react';
+import { loadClasses } from '../utils/classUtils';
 
 export function ClassSelect() {
   const navigate = useNavigate();
@@ -97,24 +98,19 @@ export function ClassSelect() {
     setLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase
-        .from('classes')
-        .select('*')
-        .order('grade')
-        .order('section');
+      const { classes: loadedClasses, error: loadError } = await loadClasses();
 
-      if (error) {
-        console.error('Error loading classes:', error);
-        throw new Error('Failed to load classes');
+      if (loadError) {
+        throw new Error(loadError);
       }
 
-      if (!data || data.length === 0) {
+      if (!loadedClasses || loadedClasses.length === 0) {
         setError('No classes found in the system');
         setLoading(false);
         return;
       }
 
-      setClasses(data);
+      setClasses(loadedClasses);
     } catch (error: any) {
       console.error('Error loading classes:', error);
       setError(error.message || 'Failed to load classes');
