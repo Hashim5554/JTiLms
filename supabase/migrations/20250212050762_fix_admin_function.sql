@@ -1,5 +1,5 @@
--- Drop the existing function if it exists
-DROP FUNCTION IF EXISTS is_admin_user();
+-- Drop the existing function with CASCADE to remove dependent policies
+DROP FUNCTION IF EXISTS is_admin_user() CASCADE;
 
 -- Create an improved version of the is_admin_user function
 CREATE OR REPLACE FUNCTION is_admin_user() 
@@ -22,6 +22,14 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Grant execute permission on this function
 GRANT EXECUTE ON FUNCTION is_admin_user() TO authenticated;
+
+-- Recreate the policy that was dropped by CASCADE
+CREATE POLICY "Admin users can use admin API" 
+  ON auth.users
+  FOR ALL
+  TO authenticated
+  USING (is_admin_user())
+  WITH CHECK (is_admin_user());
 
 -- Create a function to debug the current user's role
 CREATE OR REPLACE FUNCTION public.debug_user_role()

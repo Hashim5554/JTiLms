@@ -482,32 +482,20 @@ export function Users() {
       setLoading(true);
       setError(null);
 
-      // Create auth user using RPC function
-      const { data: authData, error: authError } = await supabase.rpc('create_user_with_admin_api', {
-        user_email: newUser.email,
-        user_password: newUser.password,
-        user_data: {
-          username: newUser.username,
-          role: newUser.role
-        }
+      // Create user directly with our simplified function
+      const { data: userData, error: userError } = await supabase.rpc('create_new_user', {
+        email: newUser.email,
+        password: newUser.password,
+        role: newUser.role,
+        username: newUser.username
       });
 
-      if (authError) throw authError;
-      if (!authData || authData.error) throw new Error(authData?.error || 'Failed to create user');
+      if (userError) throw userError;
+      if (!userData || userData.error) {
+        throw new Error(userData?.error || 'Failed to create user');
+      }
 
-      const userId = authData.id;
-
-      // Create profile
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert([{
-          id: userId,
-          username: newUser.username,
-          email: newUser.email,
-          role: newUser.role,
-        }]);
-
-      if (profileError) throw profileError;
+      const userId = userData.id;
 
       // If student, create class assignment
       if (newUser.role === 'student' && selectedClass) {
