@@ -26,16 +26,9 @@ export function Login() {
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <div className="flex justify-center mb-4">
-            <img 
-              src="/lgs-logo.png" 
-              alt="LGS Logo" 
-              className="h-16 w-16 block dark:hidden animate-fade-in" 
-            />
-            <img 
-              src="/lgs-logo-white.png" 
-              alt="LGS Logo" 
-              className="h-16 w-16 hidden dark:block animate-fade-in" 
-            />
+            <div className="w-16 h-16 flex items-center justify-center bg-red-600 dark:bg-red-500 rounded-full text-white font-bold text-xl">
+              LGS
+            </div>
           </div>
           <h1 className="text-4xl font-bold text-red-600 dark:text-red-500 mb-2 animate-fade-in">
             LGS JTi

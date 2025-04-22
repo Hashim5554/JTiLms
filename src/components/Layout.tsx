@@ -224,7 +224,9 @@ export function Layout() {
           {/* Logo and Title */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center">
-              <img src="/lgs-logo.png" alt="LGS Logo" className="h-8 w-8 mr-2" />
+              <div className="w-8 h-8 flex items-center justify-center bg-red-600 text-white font-bold text-xs rounded-full mr-2">
+                LGS
+              </div>
               <span className="text-xl font-bold text-gray-800 dark:text-white">LGS JTi</span>
             </div>
             <ThemeToggle />
