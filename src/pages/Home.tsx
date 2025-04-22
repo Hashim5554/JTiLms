@@ -137,21 +137,8 @@ export function Home() {
       }
       setDiscussions(discussionsData || []);
 
-      // Fetch due works using the new function
-      let dueWorksQuery = supabase
-        .rpc('get_due_works_with_info')
-        .order('due_date', { ascending: true });
-
-      if (currentClass?.id && user?.role !== 'ultra_admin') {
-        dueWorksQuery = dueWorksQuery.eq('class_id', currentClass.id);
-      }
-
-      const { data: dueWorksData, error: dueWorksError } = await dueWorksQuery;
-      if (dueWorksError) {
-        console.error('Error loading due works:', dueWorksError);
-        throw new Error('Failed to load due works. Please try again.');
-      }
-      setDueWorks(dueWorksData || []);
+      // Load due works with simplified approach
+      await loadDueWorks();
     } catch (error: any) {
       console.error('Error loading home data:', error);
       setError(error.message);
@@ -410,47 +397,41 @@ export function Home() {
     }
   };
 
-  // Fetch due works
-  useEffect(() => {
-    const fetchDueWorks = async () => {
-      if (!user) return;
+  // Add a separate function to load due works
+  const loadDueWorks = async () => {
+    try {
+      setLoadingDueWorks(true);
+      setDueWorksError(null);
 
-      try {
-        setLoadingDueWorks(true);
-        setDueWorksError(null);
+      // Get all due works using our simplified function
+      const { data, error } = await supabase
+        .rpc('get_all_due_works');
 
-        // Get due works with subject and creator info in a single query
-        const { data, error } = await supabase
-          .rpc('get_due_works_with_info')
-          .order('due_date', { ascending: true });
-
-        if (error) {
-          console.error('Error fetching due works:', error);
-          setDueWorksError('Failed to load due works. Please try again.');
-          return;
-        }
-
-        if (!data) {
-          setDueWorks([]);
-          return;
-        }
-
-        // Filter by class if user is a student
-        const filteredData = user.role === 'student' && currentClass
-          ? data.filter((work: DueWork) => work.class_id === currentClass.id)
-          : data;
-
-        setDueWorks(filteredData);
-      } catch (error) {
-        console.error('Error in fetchDueWorks:', error);
-        setDueWorksError('An unexpected error occurred. Please try again.');
-      } finally {
-        setLoadingDueWorks(false);
+      if (error) {
+        console.error('Error loading due works:', error);
+        setDueWorksError('Failed to load due works. Please try again.');
+        return;
       }
-    };
 
-    fetchDueWorks();
-  }, [user, currentClass]);
+      if (!data) {
+        setDueWorks([]);
+        return;
+      }
+
+      // Filter by class if needed
+      let filteredData = data;
+      if (currentClass?.id && user?.role !== 'ultra_admin') {
+        filteredData = data.filter((work: DueWork) => work.class_id === currentClass.id);
+      }
+
+      setDueWorks(filteredData);
+    } catch (error: any) {
+      console.error('Error in loadDueWorks:', error);
+      setDueWorksError('An unexpected error occurred. Please try again.');
+    } finally {
+      setLoadingDueWorks(false);
+    }
+  };
 
   if (loading) {
     return (
