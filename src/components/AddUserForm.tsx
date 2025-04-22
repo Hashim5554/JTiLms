@@ -67,21 +67,28 @@ export function AddUserForm({ onSuccess, onCancel }: AddUserFormProps) {
     setError(null);
 
     try {
-      // Create auth user
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: formData.email,
-        password: formData.password,
-        email_confirm: true,
+      // Create auth user using the RPC function
+      const { data: authData, error: authError } = await supabase.rpc('create_user_with_admin_api', {
+        user_email: formData.email,
+        user_password: formData.password,
+        user_data: {
+          username: formData.email.split('@')[0],
+          role: formData.role
+        }
       });
 
       if (authError) throw authError;
+      if (!authData || authData.error) throw new Error(authData?.error || 'Failed to create user');
 
+      const userId = authData.id;
+      
       // Create profile
       const { error: profileError } = await supabase
         .from('profiles')
         .insert([{
-          id: authData.user.id,
+          id: userId,
           email: formData.email,
+          username: formData.email.split('@')[0], // Use email as default username
           role: formData.role,
           first_name: formData.first_name,
           last_name: formData.last_name,
@@ -96,7 +103,7 @@ export function AddUserForm({ onSuccess, onCancel }: AddUserFormProps) {
         const { error: assignmentError } = await supabase
           .from('class_assignments')
           .insert([{
-            user_id: authData.user.id,
+            user_id: userId,
             class_id: formData.class_id,
           }]);
 

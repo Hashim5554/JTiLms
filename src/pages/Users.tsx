@@ -482,22 +482,28 @@ export function Users() {
       setLoading(true);
       setError(null);
 
-      // Create auth user
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: newUser.email,
-        password: newUser.password,
-        email_confirm: true,
+      // Create auth user using RPC function
+      const { data: authData, error: authError } = await supabase.rpc('create_user_with_admin_api', {
+        user_email: newUser.email,
+        user_password: newUser.password,
+        user_data: {
+          username: newUser.username,
+          role: newUser.role
+        }
       });
 
       if (authError) throw authError;
-      if (!authData.user) throw new Error('Failed to create user');
+      if (!authData || authData.error) throw new Error(authData?.error || 'Failed to create user');
+
+      const userId = authData.id;
 
       // Create profile
       const { error: profileError } = await supabase
         .from('profiles')
         .insert([{
-          id: authData.user.id,
+          id: userId,
           username: newUser.username,
+          email: newUser.email,
           role: newUser.role,
         }]);
 
@@ -508,7 +514,7 @@ export function Users() {
         const { error: assignmentError } = await supabase
           .from('class_assignments')
           .insert([{
-            user_id: authData.user.id,
+            user_id: userId,
             class_id: selectedClass.id,
           }]);
 
