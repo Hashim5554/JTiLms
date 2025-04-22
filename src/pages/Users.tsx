@@ -42,26 +42,30 @@ type SortField = 'username' | 'role' | 'created_at';
 type SortOrder = 'asc' | 'desc';
 
 interface ClassAssignment {
+  id: string;
+  user_id: string;
   class_id: string;
-  classes?: {
-    grade: number;
-    section: string;
-  };
-}
-
-interface ExtendedProfile extends Profile {
-  email?: string;
-  class_assignments?: ClassAssignment[];
+  created_at: string;
 }
 
 interface ExtendedClass extends Class {
   subject_name?: string;
 }
 
+interface ClassAssignmentWithDetails extends ClassAssignment {
+  class_details?: ExtendedClass | null;
+}
+
+interface ExtendedProfile extends Profile {
+  email?: string;
+  class_assignments?: ClassAssignmentWithDetails[];
+}
+
 export function Users() {
   // State management
   const [users, setUsers] = useState<ExtendedProfile[]>([]);
   const [classes, setClasses] = useState<ExtendedClass[]>([]);
+  const [classesMap, setClassesMap] = useState<Map<string, ExtendedClass>>(new Map());
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -126,81 +130,84 @@ export function Users() {
   const loadUsers = async () => {
     setLoading(true);
     try {
-      // First, get all profiles
+      // Get profiles
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('*')
-        .order('username');
-
-      if (profilesError) {
-        console.error('Error fetching profiles:', profilesError);
-        throw new Error(`Database error: ${profilesError.message}`);
-      }
-
-      if (!profiles || profiles.length === 0) {
-        setUsers([]);
-        setLoading(false);
-        return;
-      }
-
-      // Get all class assignments for these users
-      const userIds = profiles.map(profile => profile.id);
-      const { data: classAssignments, error: assignmentsError } = await supabase
-        .from('class_assignments')
-        .select('user_id, class_id')
-        .in('user_id', userIds);
-
-      if (assignmentsError) {
-        console.error('Error fetching class assignments:', assignmentsError);
-        // Continue with profiles but without assignments
-      }
-
-      // Get all classes for reference
-      const { data: allClasses, error: classesError } = await supabase
-        .from('classes')
-        .select('id, grade, section');
-
-      if (classesError) {
-        console.error('Error fetching classes:', classesError);
-        // Continue with profiles but without class details
-      }
-
-      // Build a map of user_id -> class assignments
-      const assignmentsByUser: Record<string, { class_id: string; classes?: { grade: number; section: string } }[]> = {};
+        .select('*');
+        
+      if (profilesError) throw profilesError;
       
-      if (classAssignments && allClasses) {
-        // Create a map of class_id -> class details for quick lookup
-        const classMap = new Map(allClasses.map(c => [
-          c.id, 
-          { grade: c.grade, section: c.section }
-        ]));
-
-        // Group assignments by user
-        classAssignments.forEach(assignment => {
-          if (!assignmentsByUser[assignment.user_id]) {
-            assignmentsByUser[assignment.user_id] = [];
+      // Get class assignments
+      const { data: classAssignments, error: classAssignmentsError } = await supabase
+        .from('class_assignments')
+        .select('*');
+        
+      if (classAssignmentsError) {
+        console.error('Error loading class assignments:', classAssignmentsError);
+        // Continue with profiles even if class assignments fail
+      }
+      
+      // Get classes
+      const { data: classes, error: classesError } = await supabase
+        .from('classes')
+        .select('*');
+        
+      if (classesError) {
+        console.error('Error loading classes:', classesError);
+        // Continue with profiles even if classes fail
+      }
+      
+      // Create a map of user IDs to their class assignments
+      const userClassAssignmentsMap = new Map();
+      if (classAssignments) {
+        classAssignments.forEach((assignment: ClassAssignment) => {
+          const userId = assignment.user_id;
+          if (!userClassAssignmentsMap.has(userId)) {
+            userClassAssignmentsMap.set(userId, []);
           }
-
-          const classInfo = classMap.get(assignment.class_id);
-          
-          assignmentsByUser[assignment.user_id].push({
-            class_id: assignment.class_id,
-            classes: classInfo ? classInfo : undefined
-          });
+          userClassAssignmentsMap.get(userId).push(assignment);
         });
       }
-
+      
+      // Create a map of class IDs to class objects for quick lookup
+      const newClassesMap = new Map();
+      if (classes) {
+        classes.forEach((classObj: ExtendedClass) => {
+          newClassesMap.set(classObj.id, classObj);
+        });
+      }
+      setClassesMap(newClassesMap);
+      
       // Combine profiles with their class assignments
-      const usersWithAssignments = profiles.map(profile => ({
-        ...profile,
-        class_assignments: assignmentsByUser[profile.id] || []
-      })) as ExtendedProfile[];
-
+      const usersWithAssignments = profiles?.map(profile => {
+        const userAssignments = userClassAssignmentsMap.get(profile.id) || [];
+        
+        // Add class details to each assignment
+        const enhancedAssignments = userAssignments.map((assignment: ClassAssignment) => {
+          const classDetails = newClassesMap.get(assignment.class_id);
+          return {
+            ...assignment,
+            class_details: classDetails || null
+          };
+        });
+        
+        // Update role if it's 'ultra_admin' to 'admin'
+        let updatedRole = profile.role;
+        if (updatedRole === 'ultra_admin') {
+          updatedRole = 'admin';
+        }
+        
+        return {
+          ...profile,
+          role: updatedRole as UserRole,
+          class_assignments: enhancedAssignments
+        } as ExtendedProfile;
+      }) || [];
+      
       setUsers(usersWithAssignments);
-      setSuccess(null);
     } catch (error: any) {
       console.error('Error loading users:', error);
-      setError(error.message || 'Failed to load users. Please try again.');
+      setError(error.message || 'Failed to load users');
     } finally {
       setLoading(false);
     }
@@ -209,8 +216,8 @@ export function Users() {
   // Add validation for role changes
   const canChangeRole = (currentRole: UserRole, newRole: UserRole) => {
     const roleHierarchy = {
-      'ultra_admin': ['admin', 'student'] as UserRole[],
-      'admin': ['student'] as UserRole[],
+      'admin': ['teacher', 'student'] as UserRole[],
+      'teacher': ['student'] as UserRole[],
       'student': [] as UserRole[]
     } as Record<UserRole, UserRole[]>;
     return roleHierarchy[currentRole]?.includes(newRole) || false;
@@ -410,7 +417,7 @@ export function Users() {
 
     setLoading(true);
     try {
-        const { error } = await supabase
+      const { error } = await supabase
         .from('profiles')
         .update({ role: newRole })
         .eq('id', userId);
@@ -418,7 +425,7 @@ export function Users() {
       if (error) throw error;
       
       setUsers(users.map(user => 
-        user.id === userId ? { ...user, role: newRole as 'ultra_admin' | 'student' | 'teacher' } : user
+        user.id === userId ? { ...user, role: newRole } : user
       ));
       setSuccess('User role updated successfully');
     } catch (error: any) {
@@ -515,7 +522,8 @@ export function Users() {
         username: '',
         email: '',
         password: '',
-        role: '',
+        role: 'student',
+        selectedClasses: []
       });
       setSelectedClass(null);
     } catch (error: any) {
@@ -528,7 +536,17 @@ export function Users() {
 
   const isFormValid = !loading && !error && newUser.email && newUser.username && newUser.password;
 
-  if (user?.role !== 'ultra_admin') {
+  const getClassString = (user: ExtendedProfile) => {
+    if (!user || !user.class_assignments || !user.class_assignments.length) return 'No assigned class';
+    
+    return user.class_assignments.map((ca) => {
+      const classObj = classesMap.get(ca.class_id);
+      if (!classObj) return '';
+      return `${classObj.grade}-${classObj.section}`;
+    }).filter(Boolean).join(', ');
+  };
+
+  if (user?.role !== 'admin') {
     return (
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
@@ -538,7 +556,7 @@ export function Users() {
         <div className="text-center p-8 rounded-2xl bg-white dark:bg-gray-800 shadow-xl">
           <Shield className="w-16 h-16 mx-auto mb-4 text-red-500" />
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Access Denied</h2>
-          <p className="text-gray-600 dark:text-gray-300">Only ultra admins can view this page.</p>
+          <p className="text-gray-600 dark:text-gray-300">Only administrators can view this page.</p>
         </div>
       </motion.div>
     );
@@ -628,6 +646,7 @@ export function Users() {
                   >
                     <option value="all">All Roles</option>
                     <option value="admin">Admin</option>
+                    <option value="teacher">Teacher</option>
                     <option value="student">Student</option>
                   </select>
                 </div>
@@ -723,9 +742,9 @@ export function Users() {
                                 value={user.role}
                                 onChange={(e) => handleRoleChange(user.id, e.target.value as UserRole)}
                                 className="flex-1 px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-                                disabled={user.role === 'ultra_admin'}
+                                disabled={user.role === 'admin'}
                               >
-                                <option value="admin">Admin</option>
+                                <option value="teacher">Teacher</option>
                                 <option value="student">Student</option>
                               </select>
                             </div>
@@ -742,7 +761,9 @@ export function Users() {
                                   className="px-3 py-1 rounded-xl bg-primary/10 text-primary text-sm flex items-center gap-1"
                                 >
                                   <GraduationCap className="w-4 h-4" />
-                                  Grade {assignment.classes?.grade} - Section {assignment.classes?.section}
+                                  {assignment.class_details && (
+                                    <>Grade {assignment.class_details.grade} - Section {assignment.class_details.section}</>
+                                  )}
                                 </motion.span>
                               ))}
                             </div>
@@ -878,11 +899,10 @@ export function Users() {
                         <Shield className="h-5 w-5 text-gray-400" />
                       </div>
                       <select
-                        value={newUser.role}
+                        value={newUser.role || 'student'}
                         onChange={(e) => setNewUser({ ...newUser, role: e.target.value as UserRole })}
                         className="input-primary pl-10 w-full"
                       >
-                        <option value="">Select role</option>
                         <option value="student">Student</option>
                         <option value="teacher">Teacher</option>
                         <option value="admin">Admin</option>
