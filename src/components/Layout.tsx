@@ -116,17 +116,38 @@ export function Layout() {
         .select('*');
 
       if (error) throw error;
-      if (!classData) return;
+      if (!classData || classData.length === 0) {
+        console.warn("No classes found in database");
+        return;
+      }
 
+      console.log("Classes loaded:", classData.length);
       setClasses(classData);
+      
+      // Get the stored class ID
       const storedClassId = localStorage.getItem('selectedClassId');
-      if (storedClassId && classData.some(c => c.id === storedClassId)) {
-        setSelectedClassId(storedClassId);
+      console.log("Stored class ID:", storedClassId);
+      
+      if (storedClassId) {
+        const classExists = classData.some(c => c.id === storedClassId);
+        console.log("Class exists:", classExists);
         
-        // Get the current pathname and navigate to home if we're on the class select page
-        if (location.pathname === '/select-class') {
-          navigate('/');
+        if (classExists) {
+          console.log("Setting selected class ID:", storedClassId);
+          setSelectedClassId(storedClassId);
+          
+          // Navigate to home if we're on the select page
+          if (location.pathname === '/select-class') {
+            console.log("Navigating to home from select page");
+            navigate('/');
+          }
+        } else {
+          console.warn("Stored class ID not found in available classes");
+          // Class ID not found, clear it
+          localStorage.removeItem('selectedClassId');
         }
+      } else {
+        console.log("No stored class ID found");
       }
     } catch (error) {
       console.error('Error loading classes:', error);

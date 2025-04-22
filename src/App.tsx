@@ -17,7 +17,7 @@ import { AfternoonClubs } from './pages/AfternoonClubs';
 import { useAuthStore } from './store/auth';
 import { supabase } from './lib/supabase';
 import { useTheme } from './hooks/useTheme';
-import { setupRLSPolicies } from '@/lib/rls';
+import { setupRLSPolicies } from './lib/rls';
 
 function App() {
   const { user, setUser } = useAuthStore();
@@ -96,9 +96,20 @@ function App() {
     return <Login />;
   }
 
-  // If no class is selected and not on the class select page, show class select
-  if (!selectedClassId && user.role !== 'ultra_admin') {
-    return <ClassSelect />;
+  // Handle class selection more gracefully:
+  // 1. ultra_admin doesn't need a class
+  // 2. If we're explicitly on the select-class path, show that
+  // 3. Otherwise, show class select only if no class is selected
+  if (user.role !== 'ultra_admin') {
+    // If we're explicitly trying to select a class, show the selector
+    if (window.location.pathname === '/select-class') {
+      return <ClassSelect />;
+    }
+    
+    // Otherwise, only show class select if there's no class selected
+    if (!selectedClassId) {
+      return <ClassSelect />;
+    }
   }
 
   return (

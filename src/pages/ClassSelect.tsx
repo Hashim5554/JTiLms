@@ -138,12 +138,14 @@ export function ClassSelect() {
       // Store the selected class ID in localStorage
       localStorage.setItem('selectedClassId', classId);
       
-      // Navigate to home page instead of class-specific page
-      navigate('/');
+      // Use a small timeout to ensure localStorage is set before navigation
+      setTimeout(() => {
+        // Force reload to ensure App component picks up the new class ID
+        window.location.href = '/';
+      }, 100);
     } catch (error: any) {
       console.error('Error selecting class:', error);
       setError(error.message || 'Failed to select class');
-    } finally {
       setLoading(false);
     }
   };
