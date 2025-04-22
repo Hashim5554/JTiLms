@@ -122,6 +122,11 @@ export function Layout() {
       const storedClassId = localStorage.getItem('selectedClassId');
       if (storedClassId && classData.some(c => c.id === storedClassId)) {
         setSelectedClassId(storedClassId);
+        
+        // Get the current pathname and navigate to home if we're on the class select page
+        if (location.pathname === '/select-class') {
+          navigate('/');
+        }
       }
     } catch (error) {
       console.error('Error loading classes:', error);

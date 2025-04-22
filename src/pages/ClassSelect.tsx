@@ -135,8 +135,11 @@ export function ClassSelect() {
         }
       }
 
+      // Store the selected class ID in localStorage
       localStorage.setItem('selectedClassId', classId);
-      navigate(`/class/${classId}`);
+      
+      // Navigate to home page instead of class-specific page
+      navigate('/');
     } catch (error: any) {
       console.error('Error selecting class:', error);
       setError(error.message || 'Failed to select class');
@@ -287,11 +290,6 @@ export function ClassSelect() {
                     >
                       <div className="flex flex-col items-center justify-center">
                         <div className="text-2xl md:text-3xl font-bold mb-2">{section}</div>
-                        {isAvailable && cls && (
-                          <div className="text-sm opacity-80">
-                            {cls.max_students} max
-                          </div>
-                        )}
                         {selectedClass?.id === cls?.id && (
                           <motion.div
                             initial={{ scale: 0 }}
