@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import '../styles/cards.css';
 import type { UserRole } from '../types';
+import { loadClasses as fetchClassesFromUtils, Class as UtilsClass } from '../utils/classUtils';
 
 type RecordType = 'results' | 'schoolAttendance' | 'onlineAttendance' | 'discipline';
 
@@ -42,10 +43,12 @@ interface Student {
   photo_url?: string;
 }
 
-interface Class {
+interface RecordClass {
   id: string;
   grade: number;
   section: string;
+  subject_id: string;
+  subject_name: string;
 }
 
 interface Result {
@@ -143,7 +146,7 @@ interface ClassAssignment {
 export function RecordRoom() {
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState<RecordType>('results');
-  const [classes, setClasses] = useState<Class[]>([]);
+  const [classes, setClasses] = useState<RecordClass[]>([]);
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [students, setStudents] = useState<StudentProfile[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
@@ -177,7 +180,7 @@ export function RecordRoom() {
 
   useEffect(() => {
     if (isAdmin) {
-      loadClasses();
+      fetchClassesData();
       loadSubjects();
     } else {
       // For students, load their own data
@@ -192,16 +195,23 @@ export function RecordRoom() {
     }
   }, [selectedClass, activeTab]);
 
-  const loadClasses = async () => {
+  const fetchClassesData = async () => {
     setLoading(true);
     try {
-      const { data } = await supabase
-        .from('classes')
-        .select('*')
-        .order('grade')
-        .order('section');
-      
-      if (data) setClasses(data);
+      const { classes: loadedClasses, error } = await fetchClassesFromUtils();
+      if (error) {
+        setMessage({ type: 'error', text: error });
+      } else {
+        // Convert UtilsClass[] to RecordClass[]
+        const recordClasses: RecordClass[] = loadedClasses.map(cls => ({
+          id: cls.id,
+          grade: cls.grade,
+          section: cls.section,
+          subject_id: '', // Default empty values for subject_id and subject_name
+          subject_name: ''
+        }));
+        setClasses(recordClasses);
+      }
     } catch (error) {
       console.error('Error loading classes:', error);
       setMessage({ type: 'error', text: 'Failed to load classes' });
@@ -673,7 +683,7 @@ export function RecordRoom() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={3} className="px-6 py-4 text-center text-sm text-gray-500">
+                  <td colSpan={3} className="px-6 py-4 text-center text-sm text-theme-text-secondary">
                     No discipline records found
                   </td>
                 </tr>
