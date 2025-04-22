@@ -546,7 +546,7 @@ export function Users() {
     }).filter(Boolean).join(', ');
   };
 
-  if (user?.role !== 'admin') {
+  if (user?.role !== 'admin' && user?.role !== 'ultra_admin') {
     return (
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
