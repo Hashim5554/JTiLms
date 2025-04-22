@@ -1,24 +1,24 @@
 import React from 'react';
+import { useTheme } from '../hooks/useTheme'; // Fixed import path
 
-export function Logo() {
+interface LogoProps {
+  width?: number;
+  height?: number;
+  className?: string;
+}
+
+export function Logo({ width = 100, height = 100, className = '' }: LogoProps) {
+  const { theme } = useTheme(); // Get current theme state
+  const isDarkMode = theme === 'dark';
+  
   return (
-    <svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Background */}
-      <rect width="100" height="100" fill="#FF0000"/>
-      
-      {/* Main diagonal shape */}
-      <path 
-        d="M20 80 L50 20 L80 80 Z" 
-        fill="white"
-      />
-      
-      {/* Circle */}
-      <circle 
-        cx="80" 
-        cy="20" 
-        r="15" 
-        fill="white"
-      />
-    </svg>
+    <img
+      src={isDarkMode ? "/lgs-logo-white.png" : "/lgs-logo.png"}
+      alt="LGS Logo"
+      width={width}
+      height={height}
+      className={className}
+      style={{ objectFit: 'contain' }}
+    />
   );
 }
