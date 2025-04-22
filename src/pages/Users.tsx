@@ -44,7 +44,7 @@ type SortOrder = 'asc' | 'desc';
 interface ClassAssignment {
   class_id: string;
   classes?: {
-    grade: string;
+    grade: number;
     section: string;
   };
 }
@@ -55,9 +55,7 @@ interface ExtendedProfile extends Profile {
 }
 
 interface ExtendedClass extends Class {
-  grade: string;
-  section: string;
-  subject_name: string;
+  subject_name?: string;
 }
 
 export function Users() {
@@ -128,30 +126,77 @@ export function Users() {
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-      .from('profiles')
-      .select(`
-        *,
-        class_assignments(
-          class_id,
-          classes(
-            grade,
-            section
-          )
-        )
-        `)
+      // First, get all profiles
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('*')
         .order('username');
 
-      if (error) {
-        console.error('Supabase error:', error);
-        throw new Error(`Database error: ${error.message}`);
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError);
+        throw new Error(`Database error: ${profilesError.message}`);
       }
 
-      if (!data) {
-        throw new Error('No data returned from the database');
+      if (!profiles || profiles.length === 0) {
+        setUsers([]);
+        setLoading(false);
+        return;
       }
 
-      setUsers(data);
+      // Get all class assignments for these users
+      const userIds = profiles.map(profile => profile.id);
+      const { data: classAssignments, error: assignmentsError } = await supabase
+        .from('class_assignments')
+        .select('user_id, class_id')
+        .in('user_id', userIds);
+
+      if (assignmentsError) {
+        console.error('Error fetching class assignments:', assignmentsError);
+        // Continue with profiles but without assignments
+      }
+
+      // Get all classes for reference
+      const { data: allClasses, error: classesError } = await supabase
+        .from('classes')
+        .select('id, grade, section');
+
+      if (classesError) {
+        console.error('Error fetching classes:', classesError);
+        // Continue with profiles but without class details
+      }
+
+      // Build a map of user_id -> class assignments
+      const assignmentsByUser: Record<string, { class_id: string; classes?: { grade: number; section: string } }[]> = {};
+      
+      if (classAssignments && allClasses) {
+        // Create a map of class_id -> class details for quick lookup
+        const classMap = new Map(allClasses.map(c => [
+          c.id, 
+          { grade: c.grade, section: c.section }
+        ]));
+
+        // Group assignments by user
+        classAssignments.forEach(assignment => {
+          if (!assignmentsByUser[assignment.user_id]) {
+            assignmentsByUser[assignment.user_id] = [];
+          }
+
+          const classInfo = classMap.get(assignment.class_id);
+          
+          assignmentsByUser[assignment.user_id].push({
+            class_id: assignment.class_id,
+            classes: classInfo ? classInfo : undefined
+          });
+        });
+      }
+
+      // Combine profiles with their class assignments
+      const usersWithAssignments = profiles.map(profile => ({
+        ...profile,
+        class_assignments: assignmentsByUser[profile.id] || []
+      })) as ExtendedProfile[];
+
+      setUsers(usersWithAssignments);
       setSuccess(null);
     } catch (error: any) {
       console.error('Error loading users:', error);
@@ -275,15 +320,16 @@ export function Users() {
       }
 
       // Create user
-      const { user: createdUser, error: createError } = await createUser({
+      const result = await createUser({
         email: newUser.email,
         password: newUser.password,
         username: newUser.username,
         role: newUser.role
       });
 
-      if (createError) throw createError;
-      if (!createdUser) throw new Error('Failed to create user account');
+      if (!result || !result.user) {
+        throw new Error('Failed to create user');
+      }
 
       // Assign classes if any selected
       if (selectedClasses.length > 0) {
@@ -291,7 +337,7 @@ export function Users() {
           .from('class_assignments')
           .insert(
             selectedClasses.map(classId => ({
-              user_id: createdUser.id,
+              user_id: result.user.id,
               class_id: classId
             }))
           );
