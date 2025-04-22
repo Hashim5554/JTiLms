@@ -482,31 +482,42 @@ export function Users() {
       setLoading(true);
       setError(null);
 
-      // Create user directly with our simplified function
-      const { data: userData, error: userError } = await supabase.rpc('create_new_user', {
-        email: newUser.email,
-        password: newUser.password,
-        role: newUser.role,
-        username: newUser.username
-      });
-
-      if (userError) throw userError;
-      if (!userData || userData.error) {
-        throw new Error(userData?.error || 'Failed to create user');
-      }
-
-      const userId = userData.id;
-
-      // If student, create class assignment
+      // If creating a student with class, use the specialized function
       if (newUser.role === 'student' && selectedClass) {
-        const { error: assignmentError } = await supabase
-          .from('class_assignments')
-          .insert([{
-            user_id: userId,
-            class_id: selectedClass.id,
-          }]);
+        const { data: studentData, error: studentError } = await supabase.rpc('create_student_with_class', {
+          email: newUser.email,
+          password: newUser.password,
+          username: newUser.username,
+          class_id: selectedClass.id
+        });
 
-        if (assignmentError) throw assignmentError;
+        if (studentError) throw studentError;
+        if (!studentData || studentData.error) {
+          throw new Error(studentData?.error || 'Failed to create student account');
+        }
+
+        // If class assignment failed but user was created
+        if (studentData.user_created && !studentData.class_assigned) {
+          console.warn('User created but class assignment failed:', studentData.error);
+          setSuccess('User created but class assignment failed');
+        } else {
+          setSuccess('Student created and assigned to class successfully');
+        }
+      } else {
+        // For other roles, use the regular user creation function
+        const { data: userData, error: userError } = await supabase.rpc('create_new_user', {
+          email: newUser.email,
+          password: newUser.password,
+          role: newUser.role,
+          username: newUser.username
+        });
+
+        if (userError) throw userError;
+        if (!userData || userData.error) {
+          throw new Error(userData?.error || 'Failed to create user');
+        }
+        
+        setSuccess('User created successfully');
       }
 
       // Refresh users list
