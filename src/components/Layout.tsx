@@ -3,7 +3,6 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth';
 import { supabase } from '../lib/supabase';
 import { ThemeToggle } from './ThemeToggle';
-import { Logo } from './Logo';
 import { 
   Home, 
   Bell, 
@@ -206,20 +205,33 @@ export function Layout() {
   );
 
   return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Desktop sidebar */}
-      <aside className="hidden md:flex md:flex-col md:w-64 md:fixed md:inset-y-0 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 shadow-sm">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Mobile menu button */}
+      <div className="lg:hidden fixed top-4 right-4 z-50">
+        <button
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          className="p-2 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+        >
+          {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+        </button>
+      </div>
+
+      {/* Sidebar */}
+      <div className={`fixed inset-y-0 left-0 z-40 w-64 bg-white dark:bg-gray-800 shadow-lg transform transition-transform duration-200 ease-in-out ${
+        isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+      }`}>
         <div className="flex flex-col h-full">
-          {/* Logo and brand */}
-          <div className="px-4 py-5 flex items-center justify-center border-b border-gray-200 dark:border-gray-700">
-            <Link to="/" className="flex items-center space-x-3">
-              <Logo width={40} height={40} className="flex-shrink-0" />
-              <span className="text-xl font-bold text-gray-900 dark:text-white">EduLearn</span>
-            </Link>
+          {/* Logo and Title */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center">
+              <img src="/lgs-logo.png" alt="LGS Logo" className="h-8 w-8 mr-2" />
+              <span className="text-xl font-bold text-gray-800 dark:text-white">LGS JTi</span>
+            </div>
+            <ThemeToggle />
           </div>
 
-          {/* Navigation links */}
-          <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
+          {/* Navigation */}
+          <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
             <NavLink to="/" icon={Home} label="Home" />
             <NavLink 
               to="/announcements" 
@@ -304,157 +316,12 @@ export function Layout() {
             </div>
           </div>
         </div>
-      </aside>
-
-      {/* Mobile menu */}
-      <div className="md:hidden">
-        <div className="fixed inset-0 flex z-40">
-          {/* Mobile menu backdrop */}
-          {isMobileMenuOpen && (
-            <div 
-              className="fixed inset-0 bg-gray-600 bg-opacity-75 transition-opacity" 
-              onClick={() => setIsMobileMenuOpen(false)}
-            />
-          )}
-
-          {/* Mobile menu sidebar */}
-          <div 
-            className={`fixed inset-y-0 left-0 flex flex-col w-full sm:w-64 bg-white dark:bg-gray-800 transform transition-transform duration-300 ease-in-out ${
-              isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-            }`}
-          >
-            {/* Mobile menu header */}
-            <div className="px-4 py-5 flex items-center justify-between border-b border-gray-200 dark:border-gray-700">
-              <Link to="/" className="flex items-center space-x-3" onClick={() => setIsMobileMenuOpen(false)}>
-                <Logo width={40} height={40} className="flex-shrink-0" />
-                <span className="text-xl font-bold text-gray-900 dark:text-white">EduLearn</span>
-              </Link>
-              <button 
-                className="p-2 rounded-md text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 focus:outline-none"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-
-            {/* Mobile navigation links */}
-            <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
-              <NavLink to="/" icon={Home} label="Home" />
-              <NavLink 
-                to="/announcements" 
-                icon={Bell} 
-                label="Announcements" 
-                notificationCount={notifications.announcements} 
-              />
-              <NavLink 
-                to="/subjects" 
-                icon={BookOpen} 
-                label="Subjects" 
-                notificationCount={notifications.subjects} 
-              />
-              <NavLink 
-                to="/library" 
-                icon={Library} 
-                label="Library" 
-                notificationCount={notifications.library} 
-              />
-              <NavLink 
-                to="/record-room" 
-                icon={FileText} 
-                label="Record Room" 
-                notificationCount={notifications.recordRoom} 
-              />
-              <NavLink 
-                to="/afternoon-clubs" 
-                icon={Users} 
-                label="Clubs" 
-                notificationCount={notifications.clubs} 
-              />
-              {user?.role === 'ultra_admin' && (
-                <>
-                  <NavLink to="/users" icon={Users2} label="Users" />
-                  <NavLink to="/customize" icon={Palette} label="Customize" />
-                </>
-              )}
-            </nav>
-
-            {/* Class Selector */}
-            <div className="px-4 py-4 border-t border-gray-200 dark:border-gray-700">
-              <Link
-                to="/select-class"
-                className="flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
-              >
-                <GraduationCap className="h-5 w-5 mr-2" />
-                <span>Change Class</span>
-              </Link>
-            </div>
-
-            {/* User Info, Timetable, and Logout */}
-            <div className="px-4 py-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
-              {/* Timetable Button */}
-              <a
-                href="https://lgs254f1.edupage.org/timetable/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
-              >
-                <CalendarDays className="h-5 w-5 mr-2" />
-                <span>Timetable</span>
-              </a>
-
-              {/* User Info and Logout */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <div className="ml-3">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      {user?.username}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {user?.role}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={signOut}
-                  className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-red-600 dark:hover:text-red-400 transition-colors duration-200"
-                >
-                  <LogOut className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
-      {/* Top navigation bar */}
-      <div className="md:pl-64 flex flex-col flex-1">
-        <div className="sticky top-0 z-10 bg-white dark:bg-gray-800 shadow-sm">
-          <div className="flex items-center justify-between h-16 px-4 sm:px-6 md:px-8 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center space-x-4">
-              {/* Mobile menu button */}
-              <button
-                className="md:hidden p-2 rounded-md text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-400"
-                onClick={() => setIsMobileMenuOpen(true)}
-              >
-                <Menu className="h-6 w-6" />
-              </button>
-              
-              {/* Show Logo and brand name on mobile */}
-              <div className="md:hidden flex items-center space-x-3">
-                <Logo width={32} height={32} className="flex-shrink-0" />
-                <span className="text-lg font-bold text-gray-900 dark:text-white">EduLearn</span>
-              </div>
-            </div>
-
-            {/* ... existing right side elements (notifications, theme toggle, etc.) ... */}
-          </div>
-        </div>
-
-        {/* Main content */}
-        <main className="flex-1">
-          <div className="px-4 sm:px-6 md:px-8 py-6">
-            <Outlet />
-          </div>
+      {/* Main content */}
+      <div className="lg:pl-64">
+        <main className="p-6">
+          <Outlet context={{ currentClass, selectedClassId, classes }} />
         </main>
       </div>
     </div>
