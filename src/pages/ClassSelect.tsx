@@ -155,7 +155,7 @@ export function ClassSelect() {
       setSelectedClass(classObj);
       selectClass(classObj.id);
     } else {
-      setError('Invalid class selection');
+      setError(`Cannot find class for Grade ${grade} Section ${section}`);
     }
   };
 
@@ -217,6 +217,9 @@ export function ClassSelect() {
     return acc;
   }, {});
 
+  // Define sections for visual display
+  const sections = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 py-12 px-4 sm:px-6 lg:px-8">
       <motion.div 
@@ -243,53 +246,69 @@ export function ClassSelect() {
 
       {/* Display classes grouped by grades */}
       <div className="max-w-7xl mx-auto">
-        {Object.entries(classGroups).map(([grade, gradeClasses]) => (
-          <motion.div
-            key={grade}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: Number(grade) * 0.05 }}
-            className="mb-10"
-          >
-            <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-4 flex items-center">
-              <GraduationCap className="w-6 h-6 mr-2 text-primary" />
-              Grade {grade}
-            </h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {gradeClasses.map(cls => (
-                <motion.button
-                  key={cls.id}
-                  onClick={() => selectClass(cls.id)}
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.98 }}
-                  className={`
-                    p-6 rounded-2xl shadow-md text-center 
-                    ${selectedClass?.id === cls.id 
-                      ? 'bg-primary text-white' 
-                      : 'bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white'}
-                    transition-all duration-300
-                  `}
-                >
-                  <div className="flex flex-col items-center justify-center">
-                    <div className="text-2xl md:text-3xl font-bold mb-2">{cls.section}</div>
-                    <div className="text-sm opacity-80">
-                      {cls.max_students} students max
-                    </div>
-                    {selectedClass?.id === cls.id && (
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        className="mt-2"
-                      >
-                        <Check className="w-6 h-6" />
-                      </motion.div>
-                    )}
-                  </div>
-                </motion.button>
-              ))}
-            </div>
-          </motion.div>
-        ))}
+        {Object.entries(classGroups).map(([grade, gradeClasses]) => {
+          const numericGrade = parseInt(grade);
+          return (
+            <motion.div
+              key={grade}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: numericGrade * 0.05 }}
+              className="mb-10"
+            >
+              <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-4 flex items-center">
+                <GraduationCap className="w-6 h-6 mr-2 text-primary" />
+                Grade {grade}
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+                {sections.map(section => {
+                  // Find class for this grade and section
+                  const cls = gradeClasses.find(c => c.section.toUpperCase() === section);
+                  const isAvailable = !!cls;
+                  
+                  return (
+                    <motion.button
+                      key={`${grade}-${section}`}
+                      onClick={() => isAvailable && cls && selectClass(cls.id)}
+                      whileHover={isAvailable ? { scale: 1.03 } : { scale: 1 }}
+                      whileTap={isAvailable ? { scale: 0.98 } : { scale: 1 }}
+                      disabled={!isAvailable}
+                      className={`
+                        p-6 rounded-2xl shadow-md text-center 
+                        ${isAvailable 
+                          ? (selectedClass?.id === cls?.id 
+                              ? 'bg-primary text-white' 
+                              : 'bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white'
+                            )
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                        }
+                        transition-all duration-300
+                      `}
+                    >
+                      <div className="flex flex-col items-center justify-center">
+                        <div className="text-2xl md:text-3xl font-bold mb-2">{section}</div>
+                        {isAvailable && cls && (
+                          <div className="text-sm opacity-80">
+                            {cls.max_students} max
+                          </div>
+                        )}
+                        {selectedClass?.id === cls?.id && (
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            className="mt-2"
+                          >
+                            <Check className="w-6 h-6" />
+                          </motion.div>
+                        )}
+                      </div>
+                    </motion.button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          );
+        })}
       </div>
     </div>
   );
