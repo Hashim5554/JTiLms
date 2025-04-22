@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { useTheme } from '../hooks/useTheme'; // Fixed import path
+import React from 'react';
 
 interface LogoProps {
   width?: number;
@@ -8,32 +7,17 @@ interface LogoProps {
 }
 
 export function Logo({ width = 100, height = 100, className = '' }: LogoProps) {
-  // Add fallback state to ensure component doesn't crash
-  const [logoSrc, setLogoSrc] = useState("/lgs-logo.png");
-  
-  // Use try-catch to handle any theme hook errors
-  try {
-    const { theme } = useTheme();
-    
-    // Use useEffect to safely update the logo source
-    useEffect(() => {
-      const isDarkMode = theme === 'dark';
-      setLogoSrc(isDarkMode ? "/lgs-logo-white.png" : "/lgs-logo.png");
-    }, [theme]);
-  } catch (error) {
-    console.error("Error using theme hook:", error);
-    // Keep using default logo if theme hook fails
-  }
-  
+  // Use a simple text-based fallback to ensure component renders
   return (
-    <img
-      src={logoSrc}
-      alt="LGS Logo"
-      width={width}
-      height={height}
-      className={className}
-      style={{ objectFit: 'contain' }}
-      onError={() => setLogoSrc("/lgs-logo.png")} // Fallback if image fails to load
-    />
+    <div 
+      className={`flex items-center justify-center bg-red-600 text-white font-bold rounded-md ${className}`}
+      style={{ 
+        width: `${width}px`, 
+        height: `${height}px`,
+        fontSize: `${Math.min(width, height) / 3}px` 
+      }}
+    >
+      LGS
+    </div>
   );
 }
