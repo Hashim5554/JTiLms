@@ -674,7 +674,19 @@ export function RecordRoom() {
                       {new Date(discipline.date).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {discipline.warning_count}
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                        discipline.warning_count >= 3
+                          ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200'
+                          : discipline.warning_count === 2
+                          ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200'
+                          : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200'
+                      }`}>
+                        {discipline.warning_count === 3 
+                          ? 'B Grade' 
+                          : discipline.warning_count === 2 
+                          ? 'A Grade' 
+                          : 'Tardy'}
+                      </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
                       {discipline.reason}
@@ -697,195 +709,222 @@ export function RecordRoom() {
 
   // Admin view components
   const AdminResultsView = () => (
-    <div className="space-y-6">
-      <div className="bg-theme-secondary shadow-lg rounded-xl p-6">
-        <h3 className="text-lg font-medium text-theme-text-primary mb-4">Add New Result</h3>
-        <form onSubmit={handleAddResult} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="student" className="block text-sm font-medium text-theme-text-secondary">
-                Student
-              </label>
-              <select
-                id="student"
-                value={newResult.student_id}
-                onChange={(e) => setNewResult({...newResult, student_id: e.target.value})}
-                className="mt-1 block w-full rounded-md border-theme-border-primary shadow-sm focus:border-red-500 focus:ring-red-500"
-              >
-                <option value="">Select a student</option>
-                {students.map(student => (
-                  <option key={student.id} value={student.id}>
-                    {student.username}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="subject" className="block text-sm font-medium text-theme-text-secondary">
-                Subject
-              </label>
-              <select
-                id="subject"
-                value={newResult.subject_id}
-                onChange={(e) => setNewResult({...newResult, subject_id: e.target.value})}
-                className="mt-1 block w-full rounded-md border-theme-border-primary shadow-sm focus:border-red-500 focus:ring-red-500"
-              >
-                <option value="">Select a subject</option>
-                {subjects.map(subject => (
-                  <option key={subject.id} value={subject.id}>
-                    {subject.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label htmlFor="test-name" className="block text-sm font-medium text-theme-text-secondary">
-                Test Name
-              </label>
-              <input
-                type="text"
-                id="test-name"
-                value={newResult.test_name}
-                onChange={(e) => setNewResult({...newResult, test_name: e.target.value})}
-                className="mt-1 block w-full rounded-md border-theme-border-primary shadow-sm focus:border-red-500 focus:ring-red-500"
-                placeholder="e.g., Mid-Term Exam"
-              />
-            </div>
-            <div>
-              <label htmlFor="test-date" className="block text-sm font-medium text-theme-text-secondary">
-                Test Date
-              </label>
-              <input
-                type="date"
-                id="test-date"
-                value={newResult.test_date}
-                onChange={(e) => setNewResult({...newResult, test_date: e.target.value})}
-                className="mt-1 block w-full rounded-md border-theme-border-primary shadow-sm focus:border-red-500 focus:ring-red-500"
-              />
-            </div>
-            <div>
-              <label htmlFor="grade" className="block text-sm font-medium text-theme-text-secondary">
-                Grade
-              </label>
-              <input
-                type="text"
-                id="grade"
-                value={newResult.grade}
-                onChange={(e) => setNewResult({...newResult, grade: e.target.value})}
-                className="mt-1 block w-full rounded-md border-theme-border-primary shadow-sm focus:border-red-500 focus:ring-red-500"
-                placeholder="e.g., A, B, C"
-              />
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="marks" className="block text-sm font-medium text-theme-text-secondary">
-                Marks
-              </label>
-              <input
-                type="number"
-                id="marks"
-                value={newResult.marks}
-                onChange={(e) => setNewResult({...newResult, marks: e.target.value})}
-                className="mt-1 block w-full rounded-md border-theme-border-primary shadow-sm focus:border-red-500 focus:ring-red-500"
-                placeholder="e.g., 85"
-              />
-            </div>
-            <div>
-              <label htmlFor="total-marks" className="block text-sm font-medium text-theme-text-secondary">
-                Total Marks
-              </label>
-              <input
-                type="number"
-                id="total-marks"
-                value={newResult.total_marks}
-                onChange={(e) => setNewResult({...newResult, total_marks: e.target.value})}
-                className="mt-1 block w-full rounded-md border-theme-border-primary shadow-sm focus:border-red-500 focus:ring-red-500"
-                placeholder="e.g., 100"
-              />
-            </div>
-          </div>
-          
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
+    <div>
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+          Student Results
+        </h2>
+        <button
+          className="mt-4 inline-flex items-center rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 sm:mt-0"
+          onClick={() => document.getElementById('addResultForm')?.scrollIntoView({ behavior: 'smooth' })}
+        >
+          <Plus className="mr-2 h-4 w-4" /> Add New Result
+        </button>
+      </div>
+
+      <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-800">
+              <tr>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  Student
+                </th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  Subject
+                </th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  Test
+                </th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  Marks
+                </th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  Grade
+                </th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  Date
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
+              {results.length > 0 ? (
+                results.map((result) => (
+                  <tr key={result.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                    <td className="whitespace-nowrap px-4 py-4 text-sm">
+                      <div className="flex items-center">
+                        <div className="h-8 w-8 flex-shrink-0 rounded-full bg-gray-200 dark:bg-gray-700">
+                          {/* User avatar could go here */}
+                        </div>
+                        <div className="ml-4">
+                          <div className="font-medium text-gray-900 dark:text-white">
+                            {result.profiles?.username || 'Unknown Student'}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-4 text-sm text-gray-700 dark:text-gray-300">
+                      {result.subjects?.name || 'Unknown Subject'}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-4 text-sm text-gray-700 dark:text-gray-300">
+                      {result.test_name}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-4 text-sm text-gray-700 dark:text-gray-300">
+                      <span className="font-medium">{result.marks}</span> / {result.total_marks}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-4 text-sm">
+                      <span className="inline-flex rounded-full bg-green-100 px-2 text-xs font-semibold leading-5 text-green-800 dark:bg-green-900/30 dark:text-green-200">
+                        {result.grade}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-4 text-sm text-gray-700 dark:text-gray-300">
+                      {new Date(result.test_date).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                    No results found. Add a new result below.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="addResultForm" className="mt-10 rounded-xl border border-gray-200 bg-gray-50 p-6 dark:border-gray-700 dark:bg-gray-800/50">
+        <h3 className="mb-4 text-lg font-medium text-gray-900 dark:text-white">Add New Result</h3>
+        <form className="grid gap-6 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <label htmlFor="student" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Student
+            </label>
+            <select
+              id="student"
+              value={newResult.student_id}
+              onChange={(e) => setNewResult({ ...newResult, student_id: e.target.value })}
+              className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
             >
-              <Plus className="h-5 w-5 mr-2" />
+              <option value="">Select Student</option>
+              {students.map((student) => (
+                <option key={student.id} value={student.id}>
+                  {student.username}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="subject" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Subject
+            </label>
+            <select
+              id="subject"
+              value={newResult.subject_id}
+              onChange={(e) => setNewResult({ ...newResult, subject_id: e.target.value })}
+              className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+            >
+              <option value="">Select Subject</option>
+              {subjects.map((subject) => (
+                <option key={subject.id} value={subject.id}>
+                  {subject.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="testName" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Test Name
+            </label>
+            <input
+              type="text"
+              id="testName"
+              value={newResult.test_name}
+              onChange={(e) => setNewResult({ ...newResult, test_name: e.target.value })}
+              className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+              placeholder="Midterm, Final, Quiz, etc."
+            />
+          </div>
+
+          <div>
+            <label htmlFor="marks" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Marks Obtained
+            </label>
+            <input
+              type="number"
+              id="marks"
+              value={newResult.marks}
+              onChange={(e) => setNewResult({ ...newResult, marks: e.target.value })}
+              className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+              placeholder="85"
+              min="0"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="totalMarks" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Total Marks
+            </label>
+            <input
+              type="number"
+              id="totalMarks"
+              value={newResult.total_marks}
+              onChange={(e) => setNewResult({ ...newResult, total_marks: e.target.value })}
+              className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+              placeholder="100"
+              min="0"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="grade" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Grade
+            </label>
+            <select
+              id="grade"
+              value={newResult.grade}
+              onChange={(e) => setNewResult({ ...newResult, grade: e.target.value })}
+              className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+            >
+              <option value="">Select Grade</option>
+              <option value="A+">A+</option>
+              <option value="A">A</option>
+              <option value="B+">B+</option>
+              <option value="B">B</option>
+              <option value="C+">C+</option>
+              <option value="C">C</option>
+              <option value="D">D</option>
+              <option value="F">F</option>
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="testDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Test Date
+            </label>
+            <input
+              type="date"
+              id="testDate"
+              value={newResult.test_date}
+              onChange={(e) => setNewResult({ ...newResult, test_date: e.target.value })}
+              className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+            />
+          </div>
+
+          <div className="sm:col-span-2">
+            <button
+              type="button"
+              onClick={handleAddResult}
+              className="inline-flex w-full justify-center rounded-md border border-transparent bg-red-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+              disabled={!newResult.student_id || !newResult.subject_id || !newResult.test_name || !newResult.marks || !newResult.total_marks || !newResult.grade}
+            >
               Add Result
             </button>
           </div>
         </form>
-      </div>
-
-      <div className="bg-theme-secondary shadow-lg rounded-xl overflow-hidden">
-        <div className="px-4 py-5 sm:px-6 flex justify-between items-center border-b border-theme-border-primary">
-          <h3 className="text-lg leading-6 font-medium text-theme-text-primary">Results</h3>
-        </div>
-        <div className="border-t border-theme-border-primary">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-theme-border-primary">
-              <thead className="bg-theme-tertiary">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider rounded-tl-lg">
-                    Student
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider">
-                    Subject
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider">
-                    Test
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider">
-                    Grade
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider rounded-tr-lg">
-                    Marks
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-theme-secondary divide-y divide-theme-border-primary">
-                {results.length > 0 ? (
-                  results.map((result) => (
-                    <tr key={result.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {result.profiles?.username}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {result.subjects?.name}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {result.test_name}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(result.test_date).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {result.grade}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {result.marks}/{result.total_marks}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-4 text-center text-sm text-gray-500">
-                      No results found
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -900,15 +939,6 @@ export function RecordRoom() {
             <h3 className="text-lg font-medium text-theme-text-primary">
               {activeTab === 'schoolAttendance' ? 'School Attendance' : 'Online Course Attendance'}
             </h3>
-            <div className="mt-2 md:mt-0 flex items-center">
-              <Calendar className="h-5 w-5 text-theme-text-secondary mr-2" />
-              <input
-                type="date"
-                value={currentDate}
-                onChange={(e) => setCurrentDate(e.target.value)}
-                className="rounded-md border-theme-border-primary shadow-sm focus:border-red-500 focus:ring-red-500"
-              />
-            </div>
           </div>
           
           <div className="overflow-x-auto">
@@ -1012,236 +1042,306 @@ export function RecordRoom() {
   };
 
   const AdminDisciplineView = () => (
-    <div className="space-y-6">
-      <div className="bg-theme-secondary shadow-lg rounded-xl p-6">
-        <h3 className="text-lg font-medium text-theme-text-primary mb-4">Add Discipline Record</h3>
-        <form onSubmit={handleAddDiscipline} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="discipline-student" className="block text-sm font-medium text-theme-text-secondary">
-                Student
-              </label>
-              <select
-                id="discipline-student"
-                value={newDiscipline.student_id}
-                onChange={(e) => setNewDiscipline({...newDiscipline, student_id: e.target.value})}
-                className="mt-1 block w-full rounded-md border-theme-border-primary shadow-sm focus:border-red-500 focus:ring-red-500"
-              >
-                <option value="">Select a student</option>
-                {students.map(student => (
-                  <option key={student.id} value={student.id}>
-                    {student.username}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="discipline-date" className="block text-sm font-medium text-theme-text-secondary">
-                Date
-              </label>
-              <input
-                type="date"
-                id="discipline-date"
-                value={newDiscipline.date}
-                onChange={(e) => setNewDiscipline({...newDiscipline, date: e.target.value})}
-                className="mt-1 block w-full rounded-md border-theme-border-primary shadow-sm focus:border-red-500 focus:ring-red-500"
-              />
-            </div>
+    <div>
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+          Discipline Records
+        </h2>
+        <button
+          className="mt-4 inline-flex items-center rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 sm:mt-0"
+          onClick={() => document.getElementById('addDisciplineForm')?.scrollIntoView({ behavior: 'smooth' })}
+        >
+          <Plus className="mr-2 h-4 w-4" /> Add New Record
+        </button>
+      </div>
+
+      <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-800">
+              <tr>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  Student
+                </th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  Warnings
+                </th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  Reason
+                </th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  Date
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
+              {disciplines.length > 0 ? (
+                disciplines.map((discipline) => (
+                  <tr key={discipline.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                    <td className="whitespace-nowrap px-4 py-4 text-sm">
+                      <div className="font-medium text-gray-900 dark:text-white">
+                        {discipline.profiles?.username || 'Unknown Student'}
+                      </div>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-4 text-sm">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                        discipline.warning_count >= 3
+                          ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200'
+                          : discipline.warning_count === 2
+                          ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200'
+                          : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200'
+                      }`}>
+                        {discipline.warning_count === 3 
+                          ? 'B Grade' 
+                          : discipline.warning_count === 2 
+                          ? 'A Grade' 
+                          : 'Tardy'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-sm text-gray-700 dark:text-gray-300">
+                      {discipline.reason}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-4 text-sm text-gray-700 dark:text-gray-300">
+                      {new Date(discipline.date).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                    No discipline records found. Add a new record below.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="addDisciplineForm" className="mt-10 rounded-xl border border-gray-200 bg-gray-50 p-6 dark:border-gray-700 dark:bg-gray-800/50">
+        <h3 className="mb-4 text-lg font-medium text-gray-900 dark:text-white">Add New Discipline Record</h3>
+        <form className="grid gap-6 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <label htmlFor="disciplineStudent" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Student
+            </label>
+            <select
+              id="disciplineStudent"
+              value={newDiscipline.student_id}
+              onChange={(e) => setNewDiscipline({ ...newDiscipline, student_id: e.target.value })}
+              className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+            >
+              <option value="">Select Student</option>
+              {students.map((student) => (
+                <option key={student.id} value={student.id}>
+                  {student.username}
+                </option>
+              ))}
+            </select>
           </div>
-          
+
           <div>
-            <label htmlFor="warning-count" className="block text-sm font-medium text-theme-text-secondary">
+            <label htmlFor="warningCount" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Warning Count
             </label>
-            <input
-              type="number"
-              id="warning-count"
+            <select
+              id="warningCount"
               value={newDiscipline.warning_count}
-              onChange={(e) => setNewDiscipline({...newDiscipline, warning_count: e.target.value})}
-              min="1"
-              className="mt-1 block w-full rounded-md border-theme-border-primary shadow-sm focus:border-red-500 focus:ring-red-500"
+              onChange={(e) => setNewDiscipline({ ...newDiscipline, warning_count: e.target.value })}
+              className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+            >
+              <option value="1">1 - Tardy</option>
+              <option value="2">2 - A Grade</option>
+              <option value="3">3 - B Grade</option>
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="date" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Date
+            </label>
+            <input
+              type="date"
+              id="date"
+              value={newDiscipline.date}
+              onChange={(e) => setNewDiscipline({ ...newDiscipline, date: e.target.value })}
+              className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
             />
           </div>
-          
-          <div>
-            <label htmlFor="reason" className="block text-sm font-medium text-theme-text-secondary">
+
+          <div className="sm:col-span-2">
+            <label htmlFor="reason" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Reason
             </label>
             <textarea
               id="reason"
-              rows={3}
               value={newDiscipline.reason}
-              onChange={(e) => setNewDiscipline({...newDiscipline, reason: e.target.value})}
-              className="mt-1 block w-full rounded-md border-theme-border-primary shadow-sm focus:border-red-500 focus:ring-red-500"
-              placeholder="Describe the reason for the warning"
+              onChange={(e) => setNewDiscipline({ ...newDiscipline, reason: e.target.value })}
+              rows={3}
+              className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+              placeholder="Describe the incident..."
             />
           </div>
-          
-          <div className="flex justify-end">
+
+          <div className="sm:col-span-2">
             <button
-              type="submit"
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
+              type="button"
+              onClick={handleAddDiscipline}
+              className="inline-flex w-full justify-center rounded-md border border-transparent bg-red-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+              disabled={!newDiscipline.student_id || !newDiscipline.reason.trim()}
             >
-              <AlertTriangle className="h-5 w-5 mr-2" />
-              Add Warning
+              Add Discipline Record
             </button>
           </div>
         </form>
       </div>
-
-      <div className="bg-theme-secondary shadow-lg rounded-xl overflow-hidden">
-        <div className="px-4 py-5 sm:px-6 flex justify-between items-center border-b border-theme-border-primary">
-          <h3 className="text-lg leading-6 font-medium text-theme-text-primary">Discipline Records</h3>
-        </div>
-        <div className="border-t border-theme-border-primary">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-theme-border-primary">
-              <thead className="bg-theme-tertiary">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider rounded-tl-lg">
-                    Student
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider">
-                    Warning Count
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider">
-                    Reason
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-theme-secondary divide-y divide-theme-border-primary">
-                {disciplines.length > 0 ? (
-                  disciplines.map((discipline) => (
-                    <tr key={discipline.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {discipline.profiles?.username}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(discipline.date).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {discipline.warning_count}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        {discipline.reason}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={4} className="px-6 py-4 text-center text-sm text-theme-text-secondary">
-                      No discipline records found
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
     </div>
   );
 
-  return (
-    <div className="page-container">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-theme-text-primary dark:text-white">Record Room</h1>
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="text-center">
+          <Loader2 className="mx-auto h-12 w-12 animate-spin text-red-600" />
+          <p className="mt-4 text-gray-600 dark:text-gray-300">Loading...</p>
+        </div>
       </div>
+    );
+  }
 
-      {message && (
-        <div className={`card mb-4 ${
-          message.type === 'error' ? 'bg-red-50 dark:bg-red-900/50' : 'bg-green-50 dark:bg-green-900/50'
-        }`}>
-          <p className={`${
-            message.type === 'error' ? 'text-red-600 dark:text-red-200' : 'text-green-600 dark:text-green-200'
-          }`}>
-            {message.text}
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-6">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Record Room</h1>
+          <p className="mt-2 text-gray-600 dark:text-gray-300">
+            Manage student records, attendance, and academic performance
           </p>
         </div>
-      )}
 
-      <div className="card mb-8">
-        <div className="card-header">
-          <div className="flex items-center space-x-4">
+        {message && (
+          <div className={`mb-4 rounded-lg p-4 ${
+            message.type === 'success' 
+              ? 'bg-green-50 text-green-800 dark:bg-green-900/50 dark:text-green-200' 
+              : 'bg-red-50 text-red-800 dark:bg-red-900/50 dark:text-red-200'
+          }`}>
+            <p className="flex items-center">
+              {message.type === 'success' ? <Check className="mr-2 h-5 w-5" /> : <AlertTriangle className="mr-2 h-5 w-5" />}
+              {message.text}
+            </p>
+          </div>
+        )}
+
+        <div className="mb-6 flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
+          <div className="flex space-x-2 overflow-x-auto rounded-lg bg-white p-1 shadow-sm dark:bg-gray-800">
             <button
               onClick={() => setActiveTab('results')}
-              className={`px-4 py-2 rounded-2xl transition-colors ${
+              className={`flex items-center rounded-md px-4 py-2 text-sm font-medium transition-colors ${
                 activeTab === 'results'
-                  ? 'bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-200'
-                  : 'text-theme-text-secondary dark:text-gray-400 hover:bg-theme-tertiary dark:hover:bg-gray-700'
+                  ? 'bg-red-600 text-white'
+                  : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700'
               }`}
             >
-              <GraduationCap className="h-5 w-5" />
+              <FileText className="mr-2 h-4 w-4" />
+              Results
             </button>
             <button
               onClick={() => setActiveTab('schoolAttendance')}
-              className={`px-4 py-2 rounded-2xl transition-colors ${
+              className={`flex items-center rounded-md px-4 py-2 text-sm font-medium transition-colors ${
                 activeTab === 'schoolAttendance'
-                  ? 'bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-200'
-                  : 'text-theme-text-secondary dark:text-gray-400 hover:bg-theme-tertiary dark:hover:bg-gray-700'
+                  ? 'bg-red-600 text-white'
+                  : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700'
               }`}
             >
-              <Calendar className="h-5 w-5" />
+              <UserCheck className="mr-2 h-4 w-4" />
+              School Attendance
+            </button>
+            <button
+              onClick={() => setActiveTab('onlineAttendance')}
+              className={`flex items-center rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                activeTab === 'onlineAttendance'
+                  ? 'bg-red-600 text-white'
+                  : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700'
+              }`}
+            >
+              <Video className="mr-2 h-4 w-4" />
+              Online Attendance
             </button>
             <button
               onClick={() => setActiveTab('discipline')}
-              className={`px-4 py-2 rounded-2xl transition-colors ${
+              className={`flex items-center rounded-md px-4 py-2 text-sm font-medium transition-colors ${
                 activeTab === 'discipline'
-                  ? 'bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-200'
-                  : 'text-theme-text-secondary dark:text-gray-400 hover:bg-theme-tertiary dark:hover:bg-gray-700'
+                  ? 'bg-red-600 text-white'
+                  : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700'
               }`}
             >
-              <AlertTriangle className="h-5 w-5" />
+              <AlertTriangle className="mr-2 h-4 w-4" />
+              Discipline
             </button>
           </div>
-        </div>
-      </div>
 
-      <div className="p-6">
-        {isAdmin ? (
-          <div className="space-y-6">
-            <div className="card">
-              <div className="card-header">
-                <h2 className="card-title">Select Class</h2>
-              </div>
-              <div className="p-6">
+          {isAdmin && (
+            <div className="flex items-center space-x-3">
+              <div className="relative">
                 <select
                   value={selectedClass}
                   onChange={(e) => setSelectedClass(e.target.value)}
-                  className="input-primary w-full"
+                  className="appearance-none rounded-lg border border-gray-300 bg-white pl-3 pr-10 py-2 text-gray-700 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
                 >
-                  <option value="">Select a class</option>
-                  {classes.map(cls => (
-                    <option key={cls.id} value={cls.id}>
-                      Grade {cls.grade} - Section {cls.section}
+                  <option value="">Select class</option>
+                  {classes.map((classItem) => (
+                    <option key={classItem.id} value={classItem.id}>
+                      Grade {classItem.grade} - Section {classItem.section}
                     </option>
                   ))}
                 </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               </div>
-            </div>
 
-            {selectedClass ? (
-              <>
-                {activeTab === 'results' && <AdminResultsView />}
-                {(activeTab === 'schoolAttendance' || activeTab === 'onlineAttendance') && <AdminAttendanceView />}
-                {activeTab === 'discipline' && <AdminDisciplineView />}
-              </>
-            ) : (
-              <div className="card p-6 text-center">
-                <p className="text-theme-text-secondary dark:text-gray-400">Please select a class to view records</p>
-              </div>
-            )}
-          </div>
-        ) : (
-          <>
-            {activeTab === 'results' && <StudentResultsView />}
-            {(activeTab === 'schoolAttendance' || activeTab === 'onlineAttendance') && <StudentAttendanceView />}
-            {activeTab === 'discipline' && <StudentDisciplineView />}
-          </>
-        )}
+              {activeTab === 'schoolAttendance' || activeTab === 'onlineAttendance' ? (
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={currentDate}
+                    onChange={(e) => setCurrentDate(e.target.value)}
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-700 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                  />
+                  <Calendar className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
+        
+        <div className="rounded-xl bg-white p-6 shadow-sm dark:bg-gray-800">
+          {!isAdmin ? (
+            <>
+              {/* Student views */}
+              {activeTab === 'results' && <StudentResultsView />}
+              {activeTab === 'schoolAttendance' && <StudentAttendanceView />}
+              {activeTab === 'onlineAttendance' && <StudentAttendanceView />}
+              {activeTab === 'discipline' && <StudentDisciplineView />}
+            </>
+          ) : (
+            <>
+              {/* Admin views */}
+              {!selectedClass ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <GraduationCap className="h-16 w-16 text-gray-400 dark:text-gray-600" />
+                  <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-white">No Class Selected</h3>
+                  <p className="mt-1 text-gray-500 dark:text-gray-400">Please select a class to view and manage records</p>
+                </div>
+              ) : (
+                <>
+                  {activeTab === 'results' && <AdminResultsView />}
+                  {activeTab === 'schoolAttendance' && <AdminAttendanceView />}
+                  {activeTab === 'onlineAttendance' && <AdminAttendanceView />}
+                  {activeTab === 'discipline' && <AdminDisciplineView />}
+                </>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
