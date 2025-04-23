@@ -94,7 +94,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 GRANT EXECUTE ON FUNCTION is_admin_user() TO authenticated;
 
 -- Create policy to ensure both 'admin' and 'ultra_admin' have proper permissions
-CREATE OR REPLACE POLICY "Admin users can access full API" 
+DROP POLICY IF EXISTS "Admin users can access full API" ON auth.users;
+CREATE POLICY "Admin users can access full API" 
   ON auth.users
   FOR ALL
   TO authenticated
