@@ -132,7 +132,7 @@ export function Users() {
     try {
       // Get profiles
       const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
+      .from('profiles')
         .select('*');
         
       if (profilesError) throw profilesError;
@@ -216,6 +216,7 @@ export function Users() {
   // Add validation for role changes
   const canChangeRole = (currentRole: UserRole, newRole: UserRole) => {
     const roleHierarchy = {
+      'ultra_admin': ['admin', 'teacher', 'student'] as UserRole[],
       'admin': ['teacher', 'student'] as UserRole[],
       'teacher': ['student'] as UserRole[],
       'student': [] as UserRole[]
@@ -417,7 +418,7 @@ export function Users() {
 
     setLoading(true);
     try {
-      const { error } = await supabase
+        const { error } = await supabase
         .from('profiles')
         .update({ role: newRole })
         .eq('id', userId);
@@ -482,44 +483,33 @@ export function Users() {
       setLoading(true);
       setError(null);
 
-      // If creating a student with class, use the specialized function
-      if (newUser.role === 'student' && selectedClass) {
-        const { data: studentData, error: studentError } = await supabase.rpc('create_student_with_class', {
-          email: newUser.email,
-          password: newUser.password,
-          username: newUser.username,
-          class_id: selectedClass.id
-        });
+      // Create user directly with our simplified function
+      const { data: userData, error: userError } = await supabase.rpc('create_new_user', {
+        email: newUser.email,
+        password: newUser.password,
+        role: newUser.role,
+        username: newUser.username
+      });
 
-        if (studentError) throw studentError;
-        if (!studentData || studentData.error) {
-          throw new Error(studentData?.error || 'Failed to create student account');
-        }
-
-        // If class assignment failed but user was created
-        if (studentData.user_created && !studentData.class_assigned) {
-          console.warn('User created but class assignment failed:', studentData.error);
-          setSuccess('User created but class assignment failed');
-        } else {
-          setSuccess('Student created and assigned to class successfully');
-        }
-      } else {
-        // For other roles, use the regular user creation function
-        const { data: userData, error: userError } = await supabase.rpc('create_new_user', {
-          email: newUser.email,
-          password: newUser.password,
-          role: newUser.role,
-          username: newUser.username
-        });
-
-        if (userError) throw userError;
-        if (!userData || userData.error) {
-          throw new Error(userData?.error || 'Failed to create user');
-        }
-        
-        setSuccess('User created successfully');
+      if (userError) throw userError;
+      if (!userData || userData.error) {
+        throw new Error(userData?.error || 'Failed to create user');
       }
 
+      const userId = userData.id;
+
+      // If student, create class assignment
+      if (newUser.role === 'student' && selectedClass) {
+        const { error: assignmentError } = await supabase
+          .from('class_assignments')
+          .insert([{
+            user_id: userId,
+            class_id: selectedClass.id,
+          }]);
+        
+        if (assignmentError) throw assignmentError;
+      }
+      
       // Refresh users list
       loadUsers();
       setShowAddUserModal(false);
@@ -583,8 +573,8 @@ export function Users() {
           <div className="flex items-center gap-4">
             <div className="p-3 rounded-2xl bg-primary/10 dark:bg-primary/20">
               <UsersIcon className="w-8 h-8 text-primary" />
-            </div>
-            <div>
+        </div>
+          <div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white">User Management</h1>
               <p className="text-gray-600 dark:text-gray-400">Manage user accounts and permissions</p>
             </div>
@@ -629,7 +619,7 @@ export function Users() {
             Filters
             {isFilterOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
           </motion.button>
-        </div>
+          </div>
 
         <AnimatePresence>
           {isFilterOpen && (
@@ -655,10 +645,10 @@ export function Users() {
                     <option value="student">Student</option>
                   </select>
                 </div>
-                <div>
+          <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Sort By
-                  </label>
+            </label>
                   <select
                     value={sortField}
                     onChange={(e) => setSortField(e.target.value as SortField)}
@@ -724,7 +714,7 @@ export function Users() {
                         )}
                       </motion.button>
                     </div>
-                  </div>
+          </div>
 
                   <AnimatePresence>
                     {expandedUser === user.id && (
@@ -735,29 +725,30 @@ export function Users() {
                         className="mt-4 space-y-4"
                       >
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div>
+          <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                              Role
-                            </label>
+              Role
+            </label>
                             <div className="flex items-center gap-2">
                               <div className="p-2 rounded-xl bg-gray-100 dark:bg-gray-700">
                                 <Shield className="w-4 h-4 text-gray-600 dark:text-gray-300" />
                               </div>
-                              <select
+            <select
                                 value={user.role}
                                 onChange={(e) => handleRoleChange(user.id, e.target.value as UserRole)}
                                 className="flex-1 px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-                                disabled={user.role === 'admin'}
+                                disabled={user.role === 'admin' || user.role === 'ultra_admin'}
                               >
+                                <option value="admin">Admin</option>
                                 <option value="teacher">Teacher</option>
                                 <option value="student">Student</option>
                               </select>
-                            </div>
+          </div>
                           </div>
-                          <div>
+          <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                               Assigned Classes
-                            </label>
+            </label>
                             <div className="flex flex-wrap gap-2">
                               {user.class_assignments?.map((assignment) => (
                                 <motion.span
@@ -770,9 +761,9 @@ export function Users() {
                                     <>Grade {assignment.class_details.grade} - Section {assignment.class_details.section}</>
                                   )}
                                 </motion.span>
-                              ))}
-                            </div>
-                          </div>
+              ))}
+            </div>
+          </div>
                         </div>
                         <div className="flex justify-end gap-2">
                           <motion.button
@@ -831,8 +822,8 @@ export function Users() {
                     className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                   >
                     <X className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                  </button>
-                </div>
+            </button>
+          </div>
               </div>
 
               <div className="p-6 space-y-6">
@@ -854,7 +845,7 @@ export function Users() {
                         placeholder="Enter username"
                       />
                     </div>
-                  </div>
+      </div>
 
                   {/* Email */}
                   <div className="space-y-2">
@@ -864,7 +855,7 @@ export function Users() {
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <Mail className="h-5 w-5 text-gray-400" />
-                      </div>
+        </div>
                       <input
                         type="email"
                         value={newUser.email}
@@ -908,9 +899,9 @@ export function Users() {
                         onChange={(e) => setNewUser({ ...newUser, role: e.target.value as UserRole })}
                         className="input-primary pl-10 w-full"
                       >
+                        <option value="admin">Admin</option>
                         <option value="student">Student</option>
                         <option value="teacher">Teacher</option>
-                        <option value="admin">Admin</option>
                       </select>
                     </div>
                   </div>
@@ -1111,7 +1102,7 @@ export function Users() {
                   >
                     <X className="h-5 w-5 text-gray-500 dark:text-gray-400" />
                   </button>
-                </div>
+        </div>
               </div>
 
               <div className="p-4 max-h-[60vh] overflow-y-auto">
@@ -1146,8 +1137,8 @@ export function Users() {
                       </div>
                     </motion.button>
                   ))}
-                </div>
-              </div>
+      </div>
+    </div>
             </motion.div>
           </motion.div>
         )}
