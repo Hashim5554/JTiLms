@@ -98,43 +98,11 @@ export function Home() {
       loadData();
       loadSubjects();
     }
-  }, [currentClass, user?.role, loadData]);
-
-  // New simplified due works loading function
-  const loadDueWorks = useCallback(async () => {
-    try {
-      setLoadingDueWorks(true);
-      setDueWorksError(null);
-      
-      let dueWorksQuery = supabase.rpc('get_all_due_works');
-      
-      // Filter by class if one is selected and user is not ultra_admin
-      if (currentClass?.id && user?.role !== 'ultra_admin') {
-        dueWorksQuery = dueWorksQuery.eq('class_id', currentClass.id);
-      }
-      
-      const { data, error } = await dueWorksQuery;
-      
-      if (error) {
-        console.error('Error loading due works:', error);
-        setDueWorksError('Failed to load due works. Please try again.');
-        return;
-      }
-      
-      setDueWorks(data || []);
-    } catch (error: any) {
-      console.error('Error loading due works:', error);
-      setDueWorksError(error.message || 'Failed to load due works. Please try again.');
-    } finally {
-      setLoadingDueWorks(false);
-    }
   }, [currentClass, user?.role]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
-    setDueWorksError(null);
-    
     try {
       // Fetch announcements using the function
       let announcementsQuery = supabase
@@ -169,17 +137,15 @@ export function Home() {
       }
       setDiscussions(discussionsData || []);
 
-      // Fetch due works using the function with better error handling
-      setLoadingDueWorks(true);
+      // Load due works
       await loadDueWorks();
-      
     } catch (error: any) {
       console.error('Error loading home data:', error);
       setError(error.message);
     } finally {
       setLoading(false);
     }
-  }, [currentClass, user?.role, loadDueWorks]);
+  }, [currentClass, user?.role]);
 
   const loadSubjects = async () => {
     try {
@@ -242,6 +208,41 @@ export function Home() {
     }
   };
 
+  const loadDueWorks = async () => {
+    try {
+      setLoadingDueWorks(true);
+      setDueWorksError(null);
+
+      // Get due works with the new simplified function
+      const { data, error } = await supabase
+        .rpc('get_home_due_works');
+
+      if (error) {
+        console.error('Error loading due works:', error);
+        setDueWorksError('Failed to load due works. Please try again.');
+        return;
+      }
+
+      if (!data) {
+        setDueWorks([]);
+        return;
+      }
+
+      // Filter by class if one is selected and user is not admin
+      let filteredWorks = data;
+      if (currentClass?.id && user?.role !== 'ultra_admin') {
+        filteredWorks = data.filter((work: {class_id: string}) => work.class_id === currentClass.id);
+      }
+
+      setDueWorks(filteredWorks);
+    } catch (error: any) {
+      console.error('Error loading due works:', error);
+      setDueWorksError('Failed to load due works. Please try again.');
+    } finally {
+      setLoadingDueWorks(false);
+    }
+  };
+
   const handleCreateDueWork = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -295,31 +296,23 @@ export function Home() {
           subject_id: newDueWork.subject_id,
           created_by: user.id,
           class_id: currentClass.id
-        }])
-        .select(`
-          *,
-          subjects (name),
-          profiles (username)
-        `)
-        .single();
+        }]);
 
       if (error) throw error;
 
-      if (data) {
-        // Add the new due work to the beginning of the list
-        setDueWorks(prevWorks => [data, ...prevWorks]);
-        
-        // Close the modal and reset the form
-        setShowDueWorkModal(false);
-        setNewDueWork({
-          title: '',
-          description: '',
-          due_date: '',
-          subject_id: '',
-          class_id: ''
-        });
-        setError(null);
-      }
+      // Reload due works to get the updated list
+      loadDueWorks();
+      
+      // Close the modal and reset the form
+      setShowDueWorkModal(false);
+      setNewDueWork({
+        title: '',
+        description: '',
+        due_date: '',
+        subject_id: '',
+        class_id: ''
+      });
+      setError(null);
     } catch (error: any) {
       console.error('Error creating due work:', error);
       setError(error.message || 'Failed to create due work');
@@ -430,6 +423,13 @@ export function Home() {
       setLoading(false);
     }
   };
+
+  // Replace the existing useEffect that loads due works
+  useEffect(() => {
+    if (user) {
+      loadDueWorks();
+    }
+  }, [user, currentClass]);
 
   if (loading) {
     return (
@@ -888,6 +888,84 @@ export function Home() {
                   </button>
                 </div>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* News Modal */}
+      <AnimatePresence>
+        {isNewsModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Post News</h2>
+                <button
+                  onClick={() => setIsNewsModalOpen(false)}
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              <form onSubmit={handleCreateNews} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Title
+                  </label>
+                  <input
+                    type="text"
+                    value={newNews.title}
+                    onChange={(e) => setNewNews({ ...newNews, title: e.target.value })}
+                    className="input-primary w-full"
+                    placeholder="Enter news title"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Content
+                  </label>
+                  <textarea
+                    value={newNews.content}
+                    onChange={(e) => setNewNews({ ...newNews, content: e.target.value })}
+                    className="input-primary w-full resize-none"
+                    rows={5}
+                    placeholder="Enter news content"
+                  />
+                </div>
+                <div className="flex justify-end space-x-3 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setIsNewsModalOpen(false)}
+                    className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors disabled:opacity-50"
+                    disabled={!newNews.title.trim() || !newNews.content.trim() || loading}
+                  >
+                    {loading ? (
+                      <div className="flex items-center">
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Posting...
+                      </div>
+                    ) : (
+                      "Post News"
+                    )}
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </motion.div>
         )}
