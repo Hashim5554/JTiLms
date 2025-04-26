@@ -215,6 +215,12 @@ export function Users() {
 
   // Add validation for role changes
   const canChangeRole = (currentRole: UserRole, newRole: UserRole) => {
+    // Allow admin and ultra_admin users to assign any role
+    if (user?.role === 'ultra_admin' || user?.role === 'admin') {
+      return true;
+    }
+    
+    // For other users, use role hierarchy
     const roleHierarchy = {
       'ultra_admin': ['admin', 'teacher', 'student'] as UserRole[],
       'admin': ['teacher', 'student'] as UserRole[],
@@ -672,6 +678,51 @@ export function Users() {
         transition={{ delay: 0.2 }}
         className="space-y-4"
       >
+        {/* Error and Success Messages */}
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl p-4 flex items-start gap-3"
+            >
+              <AlertCircle className="w-5 h-5 text-red-500 dark:text-red-400 mt-0.5" />
+              <div>
+                <h3 className="font-medium text-red-800 dark:text-red-300">Error</h3>
+                <p className="text-red-700 dark:text-red-400 text-sm">{error}</p>
+              </div>
+              <button 
+                onClick={() => setError(null)}
+                className="ml-auto p-1 rounded-lg hover:bg-red-100 dark:hover:bg-red-800/50"
+              >
+                <X className="w-4 h-4 text-red-500 dark:text-red-400" />
+              </button>
+            </motion.div>
+          )}
+          
+          {success && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-xl p-4 flex items-start gap-3"
+            >
+              <CheckCircle className="w-5 h-5 text-green-500 dark:text-green-400 mt-0.5" />
+              <div>
+                <h3 className="font-medium text-green-800 dark:text-green-300">Success</h3>
+                <p className="text-green-700 dark:text-green-400 text-sm">{success}</p>
+              </div>
+              <button 
+                onClick={() => setSuccess(null)}
+                className="ml-auto p-1 rounded-lg hover:bg-green-100 dark:hover:bg-green-800/50"
+              >
+                <X className="w-4 h-4 text-green-500 dark:text-green-400" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        
         {loading ? (
           <div className="flex justify-center items-center h-64">
             <Loader2 className="w-8 h-8 text-primary animate-spin" />
@@ -737,12 +788,12 @@ export function Users() {
                                 value={user.role}
                                 onChange={(e) => handleRoleChange(user.id, e.target.value as UserRole)}
                                 className="flex-1 px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
-                                disabled={user.role === 'admin' || user.role === 'ultra_admin'}
+                                disabled={user.role === 'ultra_admin'}
                               >
                                 <option value="admin">Admin</option>
                                 <option value="teacher">Teacher</option>
-                                <option value="student">Student</option>
-                              </select>
+              <option value="student">Student</option>
+            </select>
           </div>
                           </div>
           <div>
@@ -1140,32 +1191,6 @@ export function Users() {
       </div>
     </div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Error and Success Messages */}
-      <AnimatePresence>
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="fixed bottom-4 right-4 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 p-4 rounded-2xl shadow-lg flex items-center gap-2"
-          >
-            <AlertTriangle className="w-5 h-5" />
-            <p>{error}</p>
-          </motion.div>
-        )}
-        {success && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="fixed bottom-4 right-4 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200 p-4 rounded-2xl shadow-lg flex items-center gap-2"
-          >
-            <Check className="w-5 h-5" />
-            <p>{success}</p>
           </motion.div>
         )}
       </AnimatePresence>
