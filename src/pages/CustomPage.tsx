@@ -139,7 +139,7 @@ export function CustomPage() {
                   {page.title}
                 </h1>
               </div>
-              {user?.role === 'ultra_admin' && (
+              {(user?.role === 'ultra_admin' || user?.role === 'admin') && (
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}

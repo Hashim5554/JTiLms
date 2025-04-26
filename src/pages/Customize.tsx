@@ -115,7 +115,7 @@ export function Customize() {
     }
   };
 
-  if (user?.role !== 'ultra_admin') {
+  if (user?.role !== 'ultra_admin' && user?.role !== 'admin') {
     return (
       <motion.div
         initial={{ opacity: 0 }}
@@ -128,7 +128,7 @@ export function Customize() {
             Access Denied
           </h2>
           <p className="text-gray-600 dark:text-gray-300">
-            Only ultra admins can customize the system.
+            Only administrators can customize the system.
           </p>
         </div>
       </motion.div>
