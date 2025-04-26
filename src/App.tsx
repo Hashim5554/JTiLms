@@ -48,7 +48,36 @@ function App() {
 
       if (session?.user) {
         try {
-          // Try to get user profile
+          // First try to use our new get_user_profile function
+          const { data: profileData, error: funcError } = await supabase.rpc(
+            'get_user_profile', 
+            { user_id: session.user.id }
+          );
+
+          if (!funcError && profileData && !profileData.error) {
+            console.log('Profile retrieved using function');
+            setUser(profileData);
+            return;
+          }
+          
+          console.warn('Function approach failed, trying view:', funcError || profileData?.error);
+          
+          // Next try the view
+          const { data: viewData, error: viewError } = await supabase
+            .from('user_profiles_complete')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+            
+          if (!viewError && viewData) {
+            console.log('Profile retrieved using view');
+            setUser(viewData);
+            return;
+          }
+          
+          console.warn('View approach failed, trying direct query:', viewError);
+          
+          // Try to get user profile directly
           const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('*')
@@ -56,38 +85,8 @@ function App() {
             .single();
           
           if (profileError) {
-            console.warn('Profile fetch error, trying to refresh schema:', profileError);
-            
-            // Try to refresh schema cache if there's a schema error
-            if (profileError.message.includes('schema') || profileError.message.includes('column')) {
-              try {
-                await supabase.rpc('refresh_schema_cache');
-                console.log('Schema cache refreshed, retrying profile fetch');
-                
-                // Try again after refreshing schema
-                const { data: refreshedProfile, error: retryError } = await supabase
-                  .from('profiles')
-                  .select('*')
-                  .eq('id', session.user.id)
-                  .single();
-                
-                if (retryError) {
-                  console.error('Retry failed after schema refresh:', retryError);
-                  throw retryError;
-                }
-                
-                if (refreshedProfile) {
-                  console.log('Profile fetched successfully after schema refresh');
-                  setUser(refreshedProfile);
-                  return;
-                }
-              } catch (refreshError) {
-                console.error('Schema refresh failed:', refreshError);
-                throw profileError; // Throw the original error
-              }
-            } else {
-              throw profileError;
-            }
+            console.warn('Direct profile fetch error:', profileError);
+            throw profileError;
           }
           
           if (profile) {
@@ -96,8 +95,8 @@ function App() {
             throw new Error('Profile not found for current user');
           }
         } catch (error: any) {
-          // If we still have errors, try a more direct approach
-          console.warn('Using fallback method to get user data');
+          // If all else fails, try a more direct approach
+          console.warn('All regular methods failed, using emergency fallback');
           
           try {
             // Get user email from session
@@ -116,7 +115,50 @@ function App() {
               
             if (emailError) {
               console.error('Failed to get profile by email:', emailError);
-              throw emailError;
+              
+              // Final emergency: create a basic profile
+              const userId = session.user.id;
+              const username = userEmail.split('@')[0];
+              const role = 'student';
+              
+              console.log('Creating emergency profile for:', userId);
+              
+              const { error: createError } = await supabase
+                .from('profiles')
+                .insert([
+                  { 
+                    id: userId,
+                    username,
+                    email: userEmail,
+                    role,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                  }
+                ]);
+                
+              if (createError) {
+                console.error('Failed to create emergency profile:', createError);
+                throw createError;
+              }
+              
+              // Now fetch the profile we just created
+              const { data: newProfile, error: newProfileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', userId)
+                .single();
+                
+              if (newProfileError) {
+                throw newProfileError;
+              }
+              
+              if (newProfile) {
+                console.log('Using emergency created profile');
+                setUser(newProfile);
+                return;
+              }
+              
+              throw new Error('Failed to create or retrieve profile');
             }
             
             if (profileByEmail) {
@@ -127,7 +169,7 @@ function App() {
               throw new Error('Profile not found by email');
             }
           } catch (fallbackError) {
-            console.error('Fallback approach failed:', fallbackError);
+            console.error('All fallback approaches failed:', fallbackError);
             throw error; // Throw the original error
           }
         }
