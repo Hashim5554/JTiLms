@@ -100,7 +100,7 @@ function App() {
   // 1. ultra_admin doesn't need a class
   // 2. If we're explicitly on the select-class path, show that
   // 3. Otherwise, show class select only if no class is selected
-  if (user.role !== 'ultra_admin') {
+  if (user.role !== 'ultra_admin' && user.role !== 'admin') {
     // If we're explicitly trying to select a class, show the selector
     if (window.location.pathname === '/select-class') {
       return <ClassSelect />;
@@ -125,7 +125,7 @@ function App() {
         <Route path="afternoon-clubs" element={<AfternoonClubs />} />
         <Route path="settings" element={<Settings />} />
         <Route path="custom/:path" element={<CustomPage />} />
-        {user.role === 'ultra_admin' && (
+        {(user.role === 'ultra_admin' || user.role === 'admin') && (
           <>
             <Route path="users" element={<Users />} />
             <Route path="customize" element={<Customize />} />

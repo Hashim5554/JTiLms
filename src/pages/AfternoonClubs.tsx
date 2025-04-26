@@ -91,7 +91,7 @@ export function AfternoonClubs() {
   });
   const [userClubs, setUserClubs] = useState<ClubMember[]>([]);
 
-  const isAdmin = user?.role === 'ultra_admin';
+  const isAdmin = user?.role === 'ultra_admin' || user?.role === 'admin';
   const isTeacher = user?.role === 'teacher';
   const canManageClubs = isAdmin || isTeacher;
 

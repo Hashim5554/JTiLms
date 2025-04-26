@@ -265,7 +265,7 @@ export function Layout() {
               label="Clubs" 
               notificationCount={notifications.clubs} 
             />
-            {user?.role === 'ultra_admin' && (
+            {(user?.role === 'ultra_admin' || user?.role === 'admin') && (
               <>
                 <NavLink to="/users" icon={Users2} label="Users" />
                 <NavLink to="/customize" icon={Palette} label="Customize" />

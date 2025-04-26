@@ -13,7 +13,7 @@ export function Library() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const user = useAuthStore((state) => state.user);
-  const isAdmin = user?.role === 'ultra_admin' || user?.role === 'teacher';
+  const isAdmin = user?.role === 'ultra_admin' || user?.role === 'admin' || user?.role === 'teacher';
 
   useEffect(() => {
     loadResources();
