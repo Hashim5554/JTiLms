@@ -72,8 +72,24 @@ export async function createUser({
   role?: UserRole;
 }) {
   try {
+    // Validate inputs
+    if (!email || !password || !username) {
+      throw new Error('Email, password, and username are required');
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      throw new Error('Please enter a valid email address');
+    }
+
+    // Validate password length
+    if (password.length < 6) {
+      throw new Error('Password must be at least 6 characters long');
+    }
+
     // First check if username is taken
-    const { data: existingUser } = await supabase
+    const { data: existingUser, error: checkError } = await supabase
       .from('profiles')
       .select('username')
       .eq('username', username)
@@ -83,43 +99,75 @@ export async function createUser({
       throw new Error('Username already taken');
     }
 
-    // Create auth user
-    const { data: authData, error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          username,
-          role,
+    // Use the create_new_user RPC function if available
+    try {
+      const { data: userData, error: rpcError } = await supabase.rpc('create_new_user', {
+        email,
+        password,
+        role,
+        username
+      });
+
+      if (rpcError) throw rpcError;
+      if (userData && userData.error) throw new Error(userData.error);
+
+      // Success using RPC method
+      return { 
+        user: { 
+          id: userData.id, 
+          email: userData.email 
+        }, 
+        profile: userData 
+      };
+    } catch (rpcError) {
+      console.warn('Failed to create user with RPC, falling back to direct method:', rpcError);
+      
+      // Fallback to direct method if RPC fails
+      // Create auth user
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            username,
+            role,
+          },
         },
-      },
-    });
+      });
 
-    if (signUpError || !authData.user) {
-      throw signUpError || new Error('Failed to create user');
+      if (signUpError || !authData.user) {
+        throw signUpError || new Error('Failed to create user');
+      }
+
+      // Create profile
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .insert([
+          {
+            id: authData.user.id,
+            email,
+            username,
+            role,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          },
+        ])
+        .select()
+        .single();
+
+      if (profileError) {
+        // Cleanup auth user if profile creation fails
+        console.error('Failed to create profile, attempting to clean up auth user:', profileError);
+        try {
+          await supabase.auth.admin.deleteUser(authData.user.id);
+        } catch (cleanupError) {
+          console.error('Failed to clean up auth user:', cleanupError);
+        }
+        throw profileError;
+      }
+
+      return { user: authData.user, profile };
     }
-
-    // Create profile
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .insert([
-        {
-          id: authData.user.id,
-          email,
-          username,
-          role,
-        },
-      ])
-      .select()
-      .single();
-
-    if (profileError) {
-      // Cleanup auth user if profile creation fails
-      await supabase.auth.admin.deleteUser(authData.user.id);
-      throw profileError;
-    }
-
-    return { user: authData.user, profile };
   } catch (error) {
     console.error('Create user error:', error);
     throw error;
