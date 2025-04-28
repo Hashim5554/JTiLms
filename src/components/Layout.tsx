@@ -265,24 +265,23 @@ export function Layout() {
               label="Clubs" 
               notificationCount={notifications.clubs} 
             />
-            {(user?.role === 'ultra_admin' || user?.role === 'admin') && (
-              <>
-                <NavLink to="/users" icon={Users2} label="Users" />
-                <NavLink to="/customize" icon={Palette} label="Customize" />
-              </>
-            )}
+            {/* Always show admin options */}
+            <NavLink to="/users" icon={Users2} label="Users" />
+            <NavLink to="/customize" icon={Palette} label="Customize" />
           </nav>
 
-          {/* Class Selector */}
-          <div className="px-4 py-4 border-t border-gray-200 dark:border-gray-700">
-            <Link
-              to="/select-class"
-              className="flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
-            >
-              <GraduationCap className="h-5 w-5 mr-2" />
-              <span>Change Class</span>
-            </Link>
-          </div>
+          {/* Class Selector - Hide for admin roles */}
+          {(user?.role !== 'ultra_admin' && user?.role !== 'admin') && (
+            <div className="px-4 py-4 border-t border-gray-200 dark:border-gray-700">
+              <Link
+                to="/select-class"
+                className="flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+              >
+                <GraduationCap className="h-5 w-5 mr-2" />
+                <span>Change Class</span>
+              </Link>
+            </div>
+          )}
 
           {/* User Info, Timetable, and Logout */}
           <div className="px-4 py-4 border-t border-gray-200 dark:border-gray-700 space-y-4">

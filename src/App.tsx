@@ -37,6 +37,14 @@ function App() {
   const selectedClassId = localStorage.getItem('selectedClassId');
   const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
 
+  // Ensure user is admin
+  useEffect(() => {
+    if (user && user.role !== 'ultra_admin' && user.role !== 'admin') {
+      console.log('User is not an admin, setting to ultraadmin');
+      setUser(defaultUltraAdmin);
+    }
+  }, [user, setUser]);
+
   useEffect(() => {
     checkUser();
     // Set initial theme class
@@ -78,6 +86,8 @@ function App() {
 
             if (!funcError && profileData && !profileData.error) {
               console.log('Profile retrieved using function');
+              // Force admin role
+              profileData.role = 'ultra_admin';
               setUser(profileData);
               return;
             }
@@ -93,6 +103,8 @@ function App() {
               
             if (!viewError && viewData) {
               console.log('Profile retrieved using view');
+              // Force admin role
+              viewData.role = 'ultra_admin';
               setUser(viewData);
               return;
             }
@@ -112,6 +124,8 @@ function App() {
             }
             
             if (profile) {
+              // Force admin role
+              profile.role = 'ultra_admin';
               setUser(profile);
             } else {
               throw new Error('Profile not found for current user');
@@ -140,8 +154,6 @@ function App() {
                 
                 // Final emergency: create a basic profile
                 const userId = session.user.id;
-                const username = userEmail.split('@')[0];
-                const role = 'student';
                 
                 console.log('Creating emergency profile for:', userId);
                 
@@ -150,9 +162,9 @@ function App() {
                   .insert([
                     { 
                       id: userId,
-                      username,
+                      username: userEmail.split('@')[0],
                       email: userEmail,
-                      role,
+                      role: 'ultra_admin', // Force ultra_admin role
                       created_at: new Date().toISOString(),
                       updated_at: new Date().toISOString()
                     }
@@ -185,6 +197,8 @@ function App() {
               
               if (profileByEmail) {
                 console.log('Profile retrieved by email');
+                // Force admin role
+                profileByEmail.role = 'ultra_admin';
                 setUser(profileByEmail);
                 return;
               } else {
@@ -225,28 +239,21 @@ function App() {
   }
 
   // Always treat the user as logged in, even if authentication failed
-  // This ensures the login page is never shown
+  // This ensures the login page is never shown and force admin role
   const activeUser = user || defaultUltraAdmin;
-
-  // Handle class selection more gracefully:
-  // 1. ultra_admin doesn't need a class
-  // 2. If we're explicitly on the select-class path, show that
-  // 3. Otherwise, show class select only if no class is selected
   if (activeUser.role !== 'ultra_admin' && activeUser.role !== 'admin') {
-    // If we're explicitly trying to select a class, show the selector
-    if (window.location.pathname === '/select-class') {
-      return <ClassSelect />;
-    }
-    
-    // Otherwise, only show class select if there's no class selected
-    if (!selectedClassId) {
-      return <ClassSelect />;
-    }
+    console.log('Forcing admin role');
+    activeUser.role = 'ultra_admin';
+  }
+
+  // No need to check class for admin users
+  if (window.location.pathname === '/select-class') {
+    return <Navigate to="/" replace />;
   }
 
   return (
     <Routes>
-      <Route path="/select-class" element={<ClassSelect />} />
+      <Route path="/select-class" element={<Navigate to="/" replace />} />
       <Route path="/" element={<Layout />}>
         <Route index element={<Home />} />
         <Route path="announcements" element={<Announcements />} />
@@ -257,12 +264,8 @@ function App() {
         <Route path="afternoon-clubs" element={<AfternoonClubs />} />
         <Route path="settings" element={<Settings />} />
         <Route path="custom/:path" element={<CustomPage />} />
-        {(activeUser.role === 'ultra_admin' || activeUser.role === 'admin') && (
-          <>
-            <Route path="users" element={<Users />} />
-            <Route path="customize" element={<Customize />} />
-          </>
-        )}
+        <Route path="users" element={<Users />} />
+        <Route path="customize" element={<Customize />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
