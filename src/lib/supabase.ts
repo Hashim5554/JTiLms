@@ -33,6 +33,8 @@ export const validateConnection = async () => {
 // Enhanced error handling for auth
 export const signInWithEmail = async (email: string, password: string) => {
   try {
+    console.log('Attempting to sign in with email:', email);
+    
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -40,13 +42,22 @@ export const signInWithEmail = async (email: string, password: string) => {
 
     if (error) {
       console.error('Authentication error:', error);
-      throw new Error(error.message || 'Authentication failed');
+      
+      // Provide more specific error messages
+      if (error.message.includes('Invalid login credentials')) {
+        throw new Error('Invalid email or password. Please check your credentials and try again.');
+      } else if (error.message.includes('Email not confirmed')) {
+        throw new Error('Please verify your email address before signing in.');
+      } else {
+        throw new Error(error.message || 'Authentication failed. Please try again.');
+      }
     }
 
+    console.log('Sign in successful:', data?.user?.id);
     return data;
   } catch (error: any) {
     console.error('Sign in error:', error);
-    throw new Error(error.message || 'Failed to sign in');
+    throw error;
   }
 };
 

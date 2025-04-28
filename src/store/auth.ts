@@ -15,24 +15,8 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  // For development, set a default ultra admin user
-  user: {
-    id: '00000000-0000-0000-0000-000000000000',
-    username: 'ultraadmin',
-    email: 'ultraadmin@lgs.edu.pk',
-    role: 'ultra_admin' as const,
-    photo_url: undefined,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  },
-  profile: {
-    id: '00000000-0000-0000-0000-000000000000',
-    username: 'ultraadmin',
-    email: 'ultraadmin@lgs.edu.pk',
-    role: 'ultra_admin' as const,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  },
+  user: null,
+  profile: null,
   loading: false,
   error: null,
   signIn: async (email, password) => {
@@ -51,19 +35,50 @@ export const useAuthStore = create<AuthState>((set) => ({
         .eq('id', session.user.id)
         .single();
 
-      if (profileError || !profile) {
+      if (profileError) {
+        console.error('Profile error:', profileError);
         throw new Error('Error fetching user profile');
       }
-
-      set({ 
-        user: profile, 
-        profile: profile,
-        loading: false, 
-        error: null 
-      });
+      
+      if (!profile) {
+        // Create a profile if it doesn't exist
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert([
+            {
+              id: session.user.id,
+              username: email.split('@')[0],
+              email: email,
+              role: 'student',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }
+          ])
+          .select()
+          .single();
+          
+        if (createError) {
+          console.error('Create profile error:', createError);
+          throw new Error('Error creating user profile');
+        }
+        
+        set({ 
+          user: newProfile, 
+          profile: newProfile,
+          loading: false, 
+          error: null 
+        });
+      } else {
+        set({ 
+          user: profile, 
+          profile: profile,
+          loading: false, 
+          error: null 
+        });
+      }
     } catch (error: any) {
       console.error('Sign in store error:', error);
-      set({ error: error.message, loading: false });
+      set({ error: error.message || 'Authentication failed', loading: false });
     }
   },
   signOut: async () => {

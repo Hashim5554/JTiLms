@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/auth';
 
 export function Login() {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const { signIn, error: authError, clearError } = useAuthStore();
@@ -15,7 +15,9 @@ export function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      await signIn(username, password);
+      await signIn(email, password);
+    } catch (error) {
+      console.error('Login error:', error);
     } finally {
       setLoading(false);
     }
@@ -55,8 +57,8 @@ export function Login() {
                   required
                   className="mt-1 block w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 placeholder-gray-400 text-gray-900 dark:text-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors duration-200"
                   placeholder="Enter your email"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
               <div>
