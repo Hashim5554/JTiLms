@@ -122,6 +122,7 @@ export function ClassSelect() {
         throw new Error('Invalid class selection');
       }
 
+      // Admin users can select any class, only check assignments for students
       if (user?.role === 'student') {
         const { data: assignment, error: assignmentError } = await supabase
           .from('class_assignments')
@@ -137,12 +138,16 @@ export function ClassSelect() {
 
       // Store the selected class ID in localStorage
       localStorage.setItem('selectedClassId', classId);
+      console.log('Selected class ID stored:', classId);
+      
+      // Set as selected in UI
+      setSelectedClass(classData);
       
       // Use a small timeout to ensure localStorage is set before navigation
       setTimeout(() => {
         // Force reload to ensure App component picks up the new class ID
         window.location.href = '/';
-      }, 100);
+      }, 500);
     } catch (error: any) {
       console.error('Error selecting class:', error);
       setError(error.message || 'Failed to select class');
@@ -197,7 +202,7 @@ export function ClassSelect() {
         >
           <div className="w-16 h-16 bg-primary/10 dark:bg-primary/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
             <School className="w-8 h-8 text-primary" />
-          </div>
+        </div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
             {user?.role === 'student' ? 'No Classes Assigned' : 'Error'}
           </h2>
@@ -270,29 +275,37 @@ export function ClassSelect() {
                   // Find class for this grade and section
                   const cls = gradeClasses.find(c => c.section.toUpperCase() === section);
                   const isAvailable = !!cls;
+                  const isSelected = selectedClass?.id === cls?.id;
+                  
+                  // For admin users, all classes are selectable
+                  // For students, only their assigned classes are selectable
+                  const isSelectable = isAvailable && (
+                    user?.role === 'ultra_admin' || 
+                    user?.role === 'admin' || 
+                    studentAssignments.some(c => cls && c.id === cls.id)
+                  );
                   
                   return (
                     <motion.button
                       key={`${grade}-${section}`}
-                      onClick={() => isAvailable && cls && selectClass(cls.id)}
-                      whileHover={isAvailable ? { scale: 1.03 } : { scale: 1 }}
-                      whileTap={isAvailable ? { scale: 0.98 } : { scale: 1 }}
-                      disabled={!isAvailable}
+                      onClick={() => isSelectable && cls && selectClass(cls.id)}
+                      whileHover={isSelectable ? { scale: 1.03 } : { scale: 1 }}
+                      whileTap={isSelectable ? { scale: 0.98 } : { scale: 1 }}
+                      disabled={!isSelectable}
                       className={`
                         p-6 rounded-2xl shadow-md text-center 
-                        ${isAvailable 
-                          ? (selectedClass?.id === cls?.id 
-                              ? 'bg-primary text-white' 
-                              : 'bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white'
-                            )
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                        ${isSelected
+                          ? 'bg-primary text-white'
+                          : isSelectable
+                            ? 'bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                         }
                         transition-all duration-300
                       `}
                     >
                       <div className="flex flex-col items-center justify-center">
                         <div className="text-2xl md:text-3xl font-bold mb-2">{section}</div>
-                        {selectedClass?.id === cls?.id && (
+                        {isSelected ? (
                           <motion.div
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}
@@ -300,6 +313,12 @@ export function ClassSelect() {
                           >
                             <Check className="w-6 h-6" />
                           </motion.div>
+                        ) : isSelectable ? (
+                          <span className="text-xs mt-1">
+                            {user?.role === 'student' ? 'Your class' : 'Select'}
+                          </span>
+                        ) : (
+                          <span className="text-xs mt-1">Not available</span>
                         )}
                       </div>
                     </motion.button>

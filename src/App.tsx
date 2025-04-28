@@ -41,7 +41,10 @@ function App() {
   useEffect(() => {
     if (user && user.role !== 'ultra_admin' && user.role !== 'admin') {
       console.log('User is not an admin, setting to ultraadmin');
-      setUser(defaultUltraAdmin);
+      setUser({
+        ...user,
+        role: 'ultra_admin'
+      });
     }
   }, [user, setUser]);
 
@@ -246,14 +249,10 @@ function App() {
     activeUser.role = 'ultra_admin';
   }
 
-  // No need to check class for admin users
-  if (window.location.pathname === '/select-class') {
-    return <Navigate to="/" replace />;
-  }
-
+  // Don't redirect from class selection page
   return (
     <Routes>
-      <Route path="/select-class" element={<Navigate to="/" replace />} />
+      <Route path="/select-class" element={<ClassSelect />} />
       <Route path="/" element={<Layout />}>
         <Route index element={<Home />} />
         <Route path="announcements" element={<Announcements />} />

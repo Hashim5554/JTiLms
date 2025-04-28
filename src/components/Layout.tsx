@@ -270,18 +270,16 @@ export function Layout() {
             <NavLink to="/customize" icon={Palette} label="Customize" />
           </nav>
 
-          {/* Class Selector - Hide for admin roles */}
-          {(user?.role !== 'ultra_admin' && user?.role !== 'admin') && (
-            <div className="px-4 py-4 border-t border-gray-200 dark:border-gray-700">
-              <Link
-                to="/select-class"
-                className="flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
-              >
-                <GraduationCap className="h-5 w-5 mr-2" />
-                <span>Change Class</span>
-              </Link>
-            </div>
-          )}
+          {/* Class Selector - Always show for all users */}
+          <div className="px-4 py-4 border-t border-gray-200 dark:border-gray-700">
+            <Link
+              to="/select-class"
+              className="flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+            >
+              <GraduationCap className="h-5 w-5 mr-2" />
+              <span>Change Class</span>
+            </Link>
+          </div>
 
           {/* User Info, Timetable, and Logout */}
           <div className="px-4 py-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
@@ -299,12 +297,15 @@ export function Layout() {
             {/* User Info and Logout */}
             <div className="flex items-center justify-between">
               <div className="flex items-center">
+                <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 dark:text-red-400 font-semibold text-sm">
+                  {user?.username?.charAt(0).toUpperCase() || 'U'}
+                </div>
                 <div className="ml-3">
                   <p className="text-sm font-medium text-gray-900 dark:text-white">
-                    {user?.username}
+                    {user?.username || 'Ultra Admin'}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {user?.role}
+                    {user?.role === 'ultra_admin' ? 'Ultra Admin' : user?.role || 'Ultra Admin'}
                   </p>
                 </div>
               </div>
