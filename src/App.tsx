@@ -20,11 +20,12 @@ import { useTheme } from './hooks/useTheme';
 import { setupRLSPolicies } from './lib/rls';
 
 function App() {
-  const { user, setUser } = useAuthStore();
+  const { user, setUser, autoLogin } = useAuthStore();
   const { theme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const selectedClassId = localStorage.getItem('selectedClassId');
+  const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
 
   useEffect(() => {
     checkUser();
@@ -173,6 +174,11 @@ function App() {
             throw error; // Throw the original error
           }
         }
+      } else if (!autoLoginAttempted) {
+        // If no user is logged in and we haven't tried auto-login yet, try it
+        console.log('No user logged in, attempting auto-login with ultraadmin');
+        setAutoLoginAttempted(true);
+        await autoLogin();
       }
     } catch (error: any) {
       console.error('Error checking auth state:', error);

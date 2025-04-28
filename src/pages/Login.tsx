@@ -5,7 +5,7 @@ export function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn, error: authError, clearError } = useAuthStore();
+  const { signIn, error: authError, clearError, autoLogin } = useAuthStore();
 
   useEffect(() => {
     clearError();
@@ -18,6 +18,17 @@ export function Login() {
       await signIn(email, password);
     } catch (error) {
       console.error('Login error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAutoLogin = async () => {
+    setLoading(true);
+    try {
+      await autoLogin();
+    } catch (error) {
+      console.error('Auto-login error:', error);
     } finally {
       setLoading(false);
     }
@@ -85,20 +96,38 @@ export function Login() {
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full flex justify-center py-3 px-4 rounded-xl text-white bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] text-sm font-semibold"
-            >
-              {loading ? (
-                <div className="flex items-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-                  Signing in...
-                </div>
-              ) : (
-                'Sign in'
-              )}
-            </button>
+            <div className="space-y-3">
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full flex justify-center py-3 px-4 rounded-xl text-white bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] text-sm font-semibold"
+              >
+                {loading ? (
+                  <div className="flex items-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                    Signing in...
+                  </div>
+                ) : (
+                  'Sign in'
+                )}
+              </button>
+              
+              <button
+                type="button"
+                onClick={handleAutoLogin}
+                disabled={loading}
+                className="w-full flex justify-center py-3 px-4 rounded-xl text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] text-sm font-semibold"
+              >
+                {loading ? (
+                  <div className="flex items-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                    Auto-login...
+                  </div>
+                ) : (
+                  'Auto-login as Ultra Admin'
+                )}
+              </button>
+            </div>
           </form>
         </div>
       </div>
