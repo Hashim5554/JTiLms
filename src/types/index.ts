@@ -3,6 +3,8 @@ export interface Class {
   id: string;
   grade: number;
   section: string;
+  name?: string; // Added for class name display
+  class_name?: string; // Alternative property for class name
   subject_id?: string;
   teacher_id?: string;
   academic_year?: string;
@@ -73,12 +75,14 @@ export interface Discussion {
   id: string;
   content: string;
   created_by: string;
+  user_id?: string; // Added for user ID reference
   class_id: string;
   created_at: string;
   updated_at: string;
   profiles?: {
     username: string;
   };
+  username?: string; // Added for direct username access
 }
 
 export interface LibraryResource {

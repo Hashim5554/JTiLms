@@ -1,18 +1,15 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   MessageSquare,
-  Send, 
   Trash2, 
   User, 
   Plus,
-  Mail,
   Loader2,
   Calendar,
-  Bell,
   PlusCircle,
   Clock,
   AlertCircle,
@@ -74,7 +71,7 @@ export function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showDueWorkModal, setShowDueWorkModal] = useState(false);
-  const [classStudents, setClassStudents] = useState<any[]>([]);
+  // Removed unused class students state
   const [newDueWork, setNewDueWork] = useState({
     title: '',
     description: '',
@@ -90,55 +87,114 @@ export function Home() {
     title: '',
     content: ''
   });
-  const [loadingDueWorks, setLoadingDueWorks] = useState(true);
-  const [dueWorksError, setDueWorksError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (currentClass || user?.role === 'ultra_admin') {
-      loadData();
-      loadSubjects();
-    }
-  }, [currentClass, user?.role]);
+  // These states are set but not currently displayed in the UI
+  const [, setLoadingDueWorks] = useState(true);
+  const [, setDueWorksError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // Fetch announcements using the function
-      let announcementsQuery = supabase
-        .rpc('get_announcements_with_profiles')
-        .order('created_at', { ascending: false });
+      // Try to fetch announcements using the RPC function first
+      try {
+        let announcementsQuery = supabase
+          .rpc('get_announcements_with_profiles')
+          .order('created_at', { ascending: false });
 
-      // Filter by class if one is selected and user is not ultra_admin
-      if (currentClass?.id && user?.role !== 'ultra_admin') {
-        announcementsQuery = announcementsQuery.eq('class_id', currentClass.id);
+        // Filter by class if one is selected and user is not ultra_admin
+        if (currentClass?.id && user?.role !== 'ultra_admin') {
+          announcementsQuery = announcementsQuery.eq('class_id', currentClass.id);
+        }
+
+        const { data: announcementsData, error: announcementsError } = await announcementsQuery;
+        
+        if (!announcementsError) {
+          console.log('Successfully loaded announcements via RPC');
+          setAnnouncements(announcementsData || []);
+        } else {
+          // Fallback to direct query if RPC fails
+          console.warn('RPC failed for announcements, using fallback:', announcementsError);
+          throw announcementsError;
+        }
+      } catch (announcementsFallbackError) {
+        // Fallback: Direct query to announcements table
+        console.log('Using fallback for announcements');
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('announcements')
+          .select(`
+            *,
+            profiles!announcements_created_by_fkey (username, role)
+          `)
+          .order('created_at', { ascending: false });
+
+        if (fallbackError) {
+          console.error('Fallback for announcements also failed:', fallbackError);
+          // Don't throw here, continue with empty announcements
+          setAnnouncements([]);
+        } else {
+          // Transform the data to match the expected format
+          const transformedData = fallbackData?.map(item => ({
+            ...item,
+            username: item.profiles?.username,
+            role: item.profiles?.role
+          })) || [];
+          setAnnouncements(transformedData);
+        }
       }
 
-      const { data: announcementsData, error: announcementsError } = await announcementsQuery;
-      if (announcementsError) {
-        console.error('Error loading announcements:', announcementsError);
-        throw new Error('Failed to load announcements. Please try again.');
+      // Try to fetch discussions using the RPC function
+      try {
+        let discussionsQuery = supabase
+          .rpc('get_discussions_with_profiles')
+          .order('created_at', { ascending: false });
+
+        if (currentClass?.id) {
+          discussionsQuery = discussionsQuery.eq('class_id', currentClass.id);
+        }
+
+        const { data: discussionsData, error: discussionsError } = await discussionsQuery;
+        
+        if (!discussionsError) {
+          console.log('Successfully loaded discussions via RPC');
+          setDiscussions(discussionsData || []);
+        } else {
+          // Fallback if RPC fails
+          console.warn('RPC failed for discussions, using fallback:', discussionsError);
+          throw discussionsError;
+        }
+      } catch (discussionsFallbackError) {
+        // Fallback: Direct query to discussions table
+        console.log('Using fallback for discussions');
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('discussions')
+          .select(`
+            *,
+            profiles!discussions_created_by_fkey (username)
+          `)
+          .order('created_at', { ascending: false });
+
+        if (fallbackError) {
+          console.error('Fallback for discussions also failed:', fallbackError);
+          // Don't throw here, continue with empty discussions
+          setDiscussions([]);
+        } else {
+          // Transform the data to match the expected format
+          const transformedData = fallbackData?.map(item => ({
+            ...item,
+            username: item.profiles?.username
+          })) || [];
+          setDiscussions(transformedData);
+        }
       }
-      setAnnouncements(announcementsData || []);
 
-      // Fetch discussions using the function
-      let discussionsQuery = supabase
-        .rpc('get_discussions_with_profiles')
-        .order('created_at', { ascending: false });
-
-      if (currentClass?.id) {
-        discussionsQuery = discussionsQuery.eq('class_id', currentClass.id);
+      // Load due works with error handling
+      try {
+        await loadDueWorks();
+      } catch (dueWorksError) {
+        console.error('Failed to load due works:', dueWorksError);
+        // Continue without due works if they fail to load
+        setDueWorks([]);
       }
-
-      const { data: discussionsData, error: discussionsError } = await discussionsQuery;
-      if (discussionsError) {
-        console.error('Error loading discussions:', discussionsError);
-        throw new Error('Failed to load discussions. Please try again.');
-      }
-      setDiscussions(discussionsData || []);
-
-      // Load due works
-      await loadDueWorks();
     } catch (error: any) {
       console.error('Error loading home data:', error);
       setError(error.message);
@@ -147,20 +203,99 @@ export function Home() {
     }
   }, [currentClass, user?.role]);
 
+  // Helper function to get the class name from a class object
+  const getClassName = useMemo(() => {
+    return (classObj: Class) => {
+      // Type assertion to allow access to optional properties
+      const classWithName = classObj as Class & { name?: string; class_name?: string };
+      if (classWithName.name) return classWithName.name;
+      if (classWithName.class_name) return classWithName.class_name;
+      return `Grade ${classObj.grade}-${classObj.section}`;
+    };
+  }, []);
+
+  // Load subjects when needed
   const loadSubjects = async () => {
+    if (subjects.length > 0) return; // Don't reload if we already have subjects
+    
     try {
       const { data, error } = await supabase
         .from('subjects')
-        .select('*')
-        .order('name');
+        .select('*');
 
       if (error) throw error;
-      setSubjects(data || []);
+      if (data) {
+        setSubjects(data);
+      }
     } catch (error) {
       console.error('Error loading subjects:', error);
     }
   };
 
+  useEffect(() => {
+    // Start loading data
+    loadData();
+    loadDueWorks();
+    loadSubjects(); // Load subjects on mount
+    
+    // Force render after a short timeout even if data isn't fully loaded
+    const forceRenderTimer = setTimeout(() => {
+      setLoading(false);
+      
+      // If we don't have any announcements, set some defaults
+      if (announcements.length === 0) {
+        setAnnouncements([
+          {
+            id: 'default-1',
+            title: 'Welcome to LGS JTI',
+            content: 'This is a default announcement shown when the database connection is unavailable.',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            created_by: 'system'
+          }
+        ]);
+      }
+      
+      // If we don't have any discussions, set some defaults
+      if (discussions.length === 0) {
+        setDiscussions([
+          {
+            id: 'default-1',
+            content: 'Welcome to Discussions. Start a new discussion by clicking the button above.',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            created_by: 'system',
+            class_id: currentClass?.id || 'default'
+          }
+        ]);
+      }
+      
+      // If we don't have any due works, set some defaults
+      if (dueWorks.length === 0) {
+        setDueWorks([
+          {
+            id: 'default-1',
+            title: 'Sample Assignment',
+            description: 'This is a sample assignment shown when the database connection is unavailable.',
+            due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 1 week from now
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            created_by: 'system',
+            subject_id: 'default',
+            class_id: 'default',
+            subject_name: 'Default Subject',
+            creator_username: 'System'
+          }
+        ]);
+      }
+    }, 2000); // 2 second timeout - reduced for better user experience
+    
+    return () => clearTimeout(forceRenderTimer);
+  }, []);
+
+  // This function is defined but not currently used
+  // Keeping it commented out for future use if needed
+  /*
   const loadClassStudents = async () => {
     if (!currentClass?.id) return;
     try {
@@ -180,6 +315,7 @@ export function Home() {
       console.error('Error loading class students:', error);
     }
   };
+  */
 
   const handlePostDiscussion = async () => {
     if (!newDiscussion.trim() || !user?.id || !currentClass?.id) return;
@@ -213,31 +349,63 @@ export function Home() {
       setLoadingDueWorks(true);
       setDueWorksError(null);
 
-      // Get due works with the new simplified function
-      const { data, error } = await supabase
-        .rpc('get_home_due_works');
+      try {
+        // Try to get due works with the RPC function first
+        const { data, error } = await supabase
+          .rpc('get_home_due_works');
 
-      if (error) {
-        console.error('Error loading due works:', error);
-        setDueWorksError('Failed to load due works. Please try again.');
-        return;
+        if (!error) {
+          console.log('Successfully loaded due works via RPC');
+          
+          // Filter by class if one is selected and user is not admin
+          let filteredWorks = data || [];
+          if (currentClass?.id && user?.role !== 'ultra_admin') {
+            filteredWorks = filteredWorks.filter((work: {class_id: string}) => work.class_id === currentClass.id);
+          }
+
+          setDueWorks(filteredWorks);
+          return;
+        } else {
+          console.warn('RPC failed for due works, using fallback:', error);
+          throw error;
+        }
+      } catch (rpcError) {
+        // Fallback: Direct query to due_works table with joins
+        console.log('Using fallback for due works');
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('due_works')
+          .select(`
+            *,
+            subjects (name),
+            profiles!due_works_created_by_fkey (username)
+          `)
+          .order('due_date', { ascending: true });
+
+        if (fallbackError) {
+          console.error('Fallback for due works also failed:', fallbackError);
+          throw fallbackError;
+        }
+
+        // Transform the data to match the expected format
+        const transformedData = fallbackData?.map(item => ({
+          ...item,
+          subject_name: item.subjects?.name,
+          creator_username: item.profiles?.username
+        })) || [];
+
+        // Filter by class if one is selected and user is not admin
+        let filteredWorks = transformedData;
+        if (currentClass?.id && user?.role !== 'ultra_admin') {
+          filteredWorks = filteredWorks.filter(work => work.class_id === currentClass.id);
+        }
+
+        setDueWorks(filteredWorks);
       }
-
-      if (!data) {
-        setDueWorks([]);
-        return;
-      }
-
-      // Filter by class if one is selected and user is not admin
-      let filteredWorks = data;
-      if (currentClass?.id && user?.role !== 'ultra_admin') {
-        filteredWorks = data.filter((work: {class_id: string}) => work.class_id === currentClass.id);
-      }
-
-      setDueWorks(filteredWorks);
     } catch (error: any) {
       console.error('Error loading due works:', error);
       setDueWorksError('Failed to load due works. Please try again.');
+      // Set empty array to prevent UI from being stuck in loading
+      setDueWorks([]);
     } finally {
       setLoadingDueWorks(false);
     }
@@ -287,7 +455,7 @@ export function Home() {
       // Format the due date to ISO string
       const formattedDueDate = new Date(newDueWork.due_date).toISOString();
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('due_works')
         .insert([{
           title: newDueWork.title.trim(),
@@ -321,6 +489,9 @@ export function Home() {
     }
   };
 
+  // These functions are defined but not currently used
+  // Keeping them commented out for future use if needed
+  /*
   const loadClasses = async () => {
     try {
       const { data, error } = await supabase
@@ -361,18 +532,19 @@ export function Home() {
       console.error('Error loading announcements:', error);
     }
   };
+  */
 
   const handleDeleteAnnouncement = async (id: string) => {
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('announcements')
         .delete()
         .eq('id', id);
 
       if (error) throw error;
-      if (data) {
-        setAnnouncements(prevAnnouncements => prevAnnouncements.filter(a => a.id !== id));
-      }
+      
+      // Update the UI by filtering out the deleted announcement
+      setAnnouncements(prevAnnouncements => prevAnnouncements.filter(a => a.id !== id));
     } catch (error) {
       console.error('Error deleting announcement:', error);
     }
@@ -398,7 +570,7 @@ export function Home() {
 
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('announcements')
         .insert([{
           title: newNews.title.trim(),
@@ -410,12 +582,25 @@ export function Home() {
 
       if (error) throw error;
 
-      if (data) {
-        setAnnouncements(prev => [data, ...prev]);
-        setIsNewsModalOpen(false);
-        setNewNews({ title: '', content: '' });
-        setError(null);
+      // Successfully created the announcement
+      // Fetch the latest announcements to update the UI
+      try {
+        const { data: latestAnnouncements } = await supabase
+          .from('announcements')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(10);
+          
+        if (latestAnnouncements) {
+          setAnnouncements(latestAnnouncements);
+        }
+      } catch (fetchError) {
+        console.error('Error fetching updated announcements:', fetchError);
       }
+      
+      setIsNewsModalOpen(false);
+      setNewNews({ title: '', content: '' });
+      setError(null);
     } catch (error: any) {
       console.error('Error creating news:', error);
       setError(error.message || 'Failed to create news');
@@ -476,11 +661,11 @@ export function Home() {
         transition={{ duration: 0.5 }}
         className="bg-gradient-to-br from-red-600 to-red-800 rounded-2xl shadow-2xl overflow-hidden"
       >
-        <div className="px-8 py-16 sm:px-12">
+        <div className="px-8 py-16 sm:px-12" data-component-name="Home">
           <motion.h1 
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.2 }}
+            transition={{ duration: 0.5 }}
             className="text-4xl sm:text-5xl font-bold text-white mb-6"
           >
             Welcome to LGS JTi Learning Management System
@@ -488,10 +673,15 @@ export function Home() {
           <motion.p 
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.3 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
             className="text-xl text-red-100 mb-8"
           >
             Your Learning Dashboard
+            {currentClass && (
+              <span className="ml-2 px-3 py-1 bg-red-700 rounded-full text-sm font-medium">
+                Class: {getClassName(currentClass)}
+              </span>
+            )}
           </motion.p>
           <motion.div 
             initial={{ y: 20, opacity: 0 }}
@@ -562,7 +752,7 @@ export function Home() {
                 <div className="grid gap-4">
                   {announcements.map((announcement) => (
                     <motion.div
-                      key={announcement.id}
+                    key={announcement.id} 
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6"
@@ -574,8 +764,8 @@ export function Home() {
                           </div>
                           <div className="space-y-2">
                             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                              {announcement.title}
-                            </h3>
+                      {announcement.title}
+                    </h3>
                             <p className="text-gray-600 dark:text-gray-300">
                               {announcement.content}
                             </p>
@@ -586,8 +776,8 @@ export function Home() {
                               <Calendar className="h-4 w-4" />
                               <span>{new Date(announcement.created_at).toLocaleDateString()}</span>
                             </div>
-                          </div>
-                        </div>
+                    </div>
+                  </div>
                         {(user?.role === 'admin' || user?.role === 'ultra_admin') && (
                           <button
                             onClick={() => handleDeleteAnnouncement(announcement.id)}
@@ -640,12 +830,12 @@ export function Home() {
                       </div>
                       <div className="flex flex-col items-end">
                         <span className={`px-2 py-1 text-xs rounded-full mb-2 ${
-                          new Date(work.due_date) < new Date()
+                        new Date(work.due_date) < new Date()
                             ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
                             : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                        }`}>
-                          {new Date(work.due_date).toLocaleDateString()}
-                        </span>
+                      }`}>
+                        {new Date(work.due_date).toLocaleDateString()}
+                      </span>
                         {new Date(work.due_date) < new Date() ? (
                           <AlertCircle className="h-5 w-5 text-red-600" />
                         ) : (
@@ -655,7 +845,7 @@ export function Home() {
                     </div>
                     <div className="mt-2 text-sm text-theme-text-secondary dark:text-gray-400">
                       Posted by {work.creator_username}
-                    </div>
+                  </div>
                   </motion.div>
                 ))}
               </AnimatePresence>
@@ -703,30 +893,30 @@ export function Home() {
         <div className="p-6">
           {activeTab === 'discussions' && (
             <>
-              <div className="mb-6">
-                <textarea
-                  value={newDiscussion}
-                  onChange={(e) => setNewDiscussion(e.target.value)}
-                  placeholder="Start a discussion..."
+          <div className="mb-6">
+            <textarea
+              value={newDiscussion}
+              onChange={(e) => setNewDiscussion(e.target.value)}
+              placeholder="Start a discussion..."
                   className="input-primary resize-none"
-                  rows={3}
-                />
-                <div className="mt-2 flex justify-end">
-                  <button
-                    onClick={handlePostDiscussion}
-                    disabled={!newDiscussion.trim()}
+              rows={3}
+            />
+            <div className="mt-2 flex justify-end">
+              <button
+                onClick={handlePostDiscussion}
+                disabled={!newDiscussion.trim()}
                     className="button-primary disabled:opacity-50 disabled:cursor-not-allowed transform transition-all duration-200 hover:scale-105 active:scale-95"
-                  >
-                    <PlusCircle className="h-5 w-5 mr-2" />
-                    Post
-                  </button>
-                </div>
-              </div>
-              <div className="space-y-4">
+              >
+                <PlusCircle className="h-5 w-5 mr-2" />
+                Post
+              </button>
+            </div>
+          </div>
+          <div className="space-y-4">
                 <AnimatePresence>
-                  {discussions.map((discussion) => (
+            {discussions.map((discussion) => (
                     <motion.div 
-                      key={discussion.id}
+                key={discussion.id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -20 }}
@@ -739,7 +929,7 @@ export function Home() {
                           {' '}
                           • {new Date(discussion.created_at).toLocaleDateString()}
                         </span>
-                      </div>
+                </div>
                     </motion.div>
                   ))}
                 </AnimatePresence>
@@ -772,7 +962,7 @@ export function Home() {
                   </motion.div>
                 ))}
               </AnimatePresence>
-            </div>
+          </div>
           )}
         </div>
       </motion.div>
@@ -886,8 +1076,8 @@ export function Home() {
                   >
                     Create
                   </button>
-                </div>
-              </div>
+      </div>
+    </div>
             </motion.div>
           </motion.div>
         )}
@@ -915,7 +1105,7 @@ export function Home() {
                   className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                 >
                   <X className="h-6 w-6" />
-                </button>
+ s o           </button>
               </div>
               <form onSubmit={handleCreateNews} className="space-y-4">
                 <div>

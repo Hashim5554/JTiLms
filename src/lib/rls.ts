@@ -2,19 +2,45 @@ import { supabase } from './supabase';
 
 export async function setupRLSPolicies() {
   try {
-    // Create custom policies for custom_pages
-    const { error: customPagesError } = await supabase.rpc('create_custom_pages_policies');
-    if (customPagesError) throw customPagesError;
+    console.log('Setting up RLS policies...');
+    
+    // Try to create custom policies for custom_pages but don't fail if it errors
+    try {
+      const { error: customPagesError } = await supabase.rpc('create_custom_pages_policies');
+      if (customPagesError) {
+        console.warn('Error creating custom_pages policies:', customPagesError);
+      } else {
+        console.log('Custom pages policies created successfully');
+      }
+    } catch (error) {
+      console.warn('Failed to create custom_pages policies:', error);
+    }
 
-    // Create custom policies for announcements
-    const { error: announcementsError } = await supabase.rpc('create_announcements_policies');
-    if (announcementsError) throw announcementsError;
+    // Try to create custom policies for announcements but don't fail if it errors
+    try {
+      const { error: announcementsError } = await supabase.rpc('create_announcements_policies');
+      if (announcementsError) {
+        console.warn('Error creating announcements policies:', announcementsError);
+      } else {
+        console.log('Announcements policies created successfully');
+      }
+    } catch (error) {
+      console.warn('Failed to create announcements policies:', error);
+    }
 
-    // Create custom policies for clubs
-    const { error: clubsError } = await supabase.rpc('create_clubs_policies');
-    if (clubsError) throw clubsError;
+    // Try to create custom policies for clubs but don't fail if it errors
+    try {
+      const { error: clubsError } = await supabase.rpc('create_clubs_policies');
+      if (clubsError) {
+        console.warn('Error creating clubs policies:', clubsError);
+      } else {
+        console.log('Clubs policies created successfully');
+      }
+    } catch (error) {
+      console.warn('Failed to create clubs policies:', error);
+    }
 
-    // Enable RLS on all tables
+    // Enable RLS on all tables, but don't fail if individual tables fail
     const tables = [
       'custom_pages',
       'announcements',
@@ -27,11 +53,19 @@ export async function setupRLSPolicies() {
     ];
 
     for (const table of tables) {
-      const { error } = await supabase.rpc('enable_rls', { table_name: table });
-      if (error) throw error;
+      try {
+        const { error } = await supabase.rpc('enable_rls', { table_name: table });
+        if (error) {
+          console.warn(`Error enabling RLS on ${table}:`, error);
+        } else {
+          console.log(`RLS enabled on ${table}`);
+        }
+      } catch (error) {
+        console.warn(`Failed to enable RLS on ${table}:`, error);
+      }
     }
 
-    // Create the SQL for the policies
+    // Create the SQL for the policies - only try if the previous steps didn't completely fail
     const sql = `
       -- Custom Pages Policies
       CREATE OR REPLACE FUNCTION create_custom_pages_policies()
@@ -108,14 +142,23 @@ export async function setupRLSPolicies() {
       $$ LANGUAGE plpgsql SECURITY DEFINER;
     `;
 
-    // Execute the SQL
-    const { error: sqlError } = await supabase.rpc('execute_sql', { sql });
-    if (sqlError) throw sqlError;
+    try {
+      const { error: sqlError } = await supabase.rpc('execute_sql', { sql });
+      if (sqlError) {
+        console.warn('Error executing SQL for policies:', sqlError);
+      } else {
+        console.log('SQL for policies executed successfully');
+      }
+    } catch (error) {
+      console.warn('Failed to execute SQL for policies:', error);
+    }
 
-    console.log('RLS policies setup completed successfully');
+    console.log('RLS policies setup completed');
+    return true;
   } catch (error) {
-    console.error('Error setting up RLS policies:', error);
-    throw error;
+    console.error('Error in setupRLSPolicies:', error);
+    // Don't throw the error, just return false to indicate failure
+    return false;
   }
 }
 

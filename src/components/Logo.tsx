@@ -1,23 +1,24 @@
 import React from 'react';
 
-interface LogoProps {
-  width?: number;
-  height?: number;
-  className?: string;
-}
-
-export function Logo({ width = 100, height = 100, className = '' }: LogoProps) {
-  // Use a simple text-based fallback to ensure component renders
+export function Logo() {
   return (
-    <div 
-      className={`flex items-center justify-center bg-red-600 text-white font-bold rounded-md ${className}`}
-      style={{ 
-        width: `${width}px`, 
-        height: `${height}px`,
-        fontSize: `${Math.min(width, height) / 3}px` 
-      }}
-    >
-      LGS
-    </div>
+    <svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Background */}
+      <rect width="100" height="100" fill="#FF0000"/>
+      
+      {/* Main diagonal shape */}
+      <path 
+        d="M20 80 L50 20 L80 80 Z" 
+        fill="white"
+      />
+      
+      {/* Circle */}
+      <circle 
+        cx="80" 
+        cy="20" 
+        r="15" 
+        fill="white"
+      />
+    </svg>
   );
 }

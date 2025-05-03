@@ -16,7 +16,7 @@ CREATE TABLE custom_pages (
   title TEXT NOT NULL,
   content TEXT NOT NULL,
   slug TEXT UNIQUE NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   created_by UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   is_published BOOLEAN DEFAULT false,

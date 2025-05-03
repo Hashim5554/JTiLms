@@ -82,43 +82,15 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ error: error.message || 'Authentication failed', loading: false });
     }
   },
+  // Auto-login is disabled to require manual login every time
   autoLogin: async () => {
-    set({ loading: true, error: null });
-    try {
-      // First ensure the ultraadmin account exists
-      await initializeDefaultAdmin();
-      
-      // Now try to sign in with ultraadmin credentials
-      const { session } = await signInWithEmail('ultraadmin@lgs.edu.pk', 'ultraadmin1234');
-      
-      if (!session?.user) {
-        throw new Error('Auto-login failed');
-      }
-
-      // Get full profile data
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
-
-      if (profileError || !profile) {
-        console.error('Profile error:', profileError);
-        throw new Error('Error fetching ultraadmin profile');
-      }
-      
-      set({ 
-        user: profile, 
-        profile: profile,
-        loading: false, 
-        error: null 
-      });
-      
-      console.log('Auto-login successful with ultraadmin account');
-    } catch (error: any) {
-      console.error('Auto-login error:', error);
-      set({ error: error.message || 'Auto-login failed', loading: false });
-    }
+    console.log('Auto-login is disabled - redirecting to login page');
+    set({ 
+      user: null, 
+      profile: null,
+      loading: false, 
+      error: null 
+    });
   },
   signOut: async () => {
     set({ loading: true });

@@ -709,7 +709,7 @@ export function RecordRoom() {
 
   // Admin view components
   const AdminResultsView = () => (
-    <div>
+            <div>
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
           Student Results
@@ -799,61 +799,61 @@ export function RecordRoom() {
         <form className="grid gap-6 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <label htmlFor="student" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Student
-            </label>
-            <select
-              id="student"
-              value={newResult.student_id}
+                Student
+              </label>
+              <select
+                id="student"
+                value={newResult.student_id}
               onChange={(e) => setNewResult({ ...newResult, student_id: e.target.value })}
               className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
-            >
+              >
               <option value="">Select Student</option>
               {students.map((student) => (
-                <option key={student.id} value={student.id}>
-                  {student.username}
-                </option>
-              ))}
-            </select>
-          </div>
+                  <option key={student.id} value={student.id}>
+                    {student.username}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <div>
+            <div>
             <label htmlFor="subject" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Subject
-            </label>
-            <select
-              id="subject"
-              value={newResult.subject_id}
+                Subject
+              </label>
+              <select
+                id="subject"
+                value={newResult.subject_id}
               onChange={(e) => setNewResult({ ...newResult, subject_id: e.target.value })}
               className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
-            >
+              >
               <option value="">Select Subject</option>
               {subjects.map((subject) => (
-                <option key={subject.id} value={subject.id}>
-                  {subject.name}
-                </option>
-              ))}
-            </select>
+                  <option key={subject.id} value={subject.id}>
+                    {subject.name}
+                  </option>
+                ))}
+              </select>
           </div>
-
-          <div>
+          
+            <div>
             <label htmlFor="testName" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Test Name
-            </label>
-            <input
-              type="text"
+                Test Name
+              </label>
+              <input
+                type="text"
               id="testName"
-              value={newResult.test_name}
+                value={newResult.test_name}
               onChange={(e) => setNewResult({ ...newResult, test_name: e.target.value })}
               className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
               placeholder="Midterm, Final, Quiz, etc."
-            />
-          </div>
+              />
+            </div>
 
-          <div>
+            <div>
             <label htmlFor="marks" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Marks Obtained
-            </label>
-            <input
+              </label>
+              <input
               type="number"
               id="marks"
               value={newResult.marks}
@@ -861,14 +861,14 @@ export function RecordRoom() {
               className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
               placeholder="85"
               min="0"
-            />
-          </div>
+              />
+            </div>
 
-          <div>
+            <div>
             <label htmlFor="totalMarks" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Total Marks
-            </label>
-            <input
+              </label>
+              <input
               type="number"
               id="totalMarks"
               value={newResult.total_marks}
@@ -878,11 +878,11 @@ export function RecordRoom() {
               min="0"
             />
           </div>
-
-          <div>
+          
+            <div>
             <label htmlFor="grade" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Grade
-            </label>
+              </label>
             <select
               id="grade"
               value={newResult.grade}
@@ -899,13 +899,13 @@ export function RecordRoom() {
               <option value="D">D</option>
               <option value="F">F</option>
             </select>
-          </div>
+            </div>
 
-          <div>
+            <div>
             <label htmlFor="testDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Test Date
-            </label>
-            <input
+              </label>
+              <input
               type="date"
               id="testDate"
               value={newResult.test_date}
@@ -913,7 +913,7 @@ export function RecordRoom() {
               className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
             />
           </div>
-
+          
           <div className="sm:col-span-2">
             <button
               type="button"
@@ -1042,7 +1042,7 @@ export function RecordRoom() {
   };
 
   const AdminDisciplineView = () => (
-    <div>
+            <div>
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
           Discipline Records
@@ -1123,27 +1123,27 @@ export function RecordRoom() {
         <form className="grid gap-6 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <label htmlFor="disciplineStudent" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Student
-            </label>
-            <select
+                Student
+              </label>
+              <select
               id="disciplineStudent"
-              value={newDiscipline.student_id}
+                value={newDiscipline.student_id}
               onChange={(e) => setNewDiscipline({ ...newDiscipline, student_id: e.target.value })}
               className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
-            >
+              >
               <option value="">Select Student</option>
               {students.map((student) => (
-                <option key={student.id} value={student.id}>
-                  {student.username}
-                </option>
-              ))}
-            </select>
-          </div>
+                  <option key={student.id} value={student.id}>
+                    {student.username}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <div>
+            <div>
             <label htmlFor="warningCount" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Warning Count
-            </label>
+              </label>
             <select
               id="warningCount"
               value={newDiscipline.warning_count}
@@ -1155,7 +1155,7 @@ export function RecordRoom() {
               <option value="3">3 - B Grade</option>
             </select>
           </div>
-
+          
           <div>
             <label htmlFor="date" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Date
@@ -1168,7 +1168,7 @@ export function RecordRoom() {
               className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
             />
           </div>
-
+          
           <div className="sm:col-span-2">
             <label htmlFor="reason" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Reason
@@ -1182,7 +1182,7 @@ export function RecordRoom() {
               placeholder="Describe the incident..."
             />
           </div>
-
+          
           <div className="sm:col-span-2">
             <button
               type="button"
@@ -1204,9 +1204,9 @@ export function RecordRoom() {
         <div className="text-center">
           <Loader2 className="mx-auto h-12 w-12 animate-spin text-red-600" />
           <p className="mt-4 text-gray-600 dark:text-gray-300">Loading...</p>
-        </div>
       </div>
-    );
+    </div>
+  );
   }
 
   return (
@@ -1218,8 +1218,8 @@ export function RecordRoom() {
             Manage student records, attendance, and academic performance
           </p>
         </div>
-
-        {message && (
+      
+      {message && (
           <div className={`mb-4 rounded-lg p-4 ${
             message.type === 'success' 
               ? 'bg-green-50 text-green-800 dark:bg-green-900/50 dark:text-green-200' 
@@ -1227,76 +1227,76 @@ export function RecordRoom() {
           }`}>
             <p className="flex items-center">
               {message.type === 'success' ? <Check className="mr-2 h-5 w-5" /> : <AlertTriangle className="mr-2 h-5 w-5" />}
-              {message.text}
+          {message.text}
             </p>
-          </div>
-        )}
+        </div>
+      )}
 
         <div className="mb-6 flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
           <div className="flex space-x-2 overflow-x-auto rounded-lg bg-white p-1 shadow-sm dark:bg-gray-800">
-            <button
-              onClick={() => setActiveTab('results')}
+          <button
+            onClick={() => setActiveTab('results')}
               className={`flex items-center rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-                activeTab === 'results'
+              activeTab === 'results'
                   ? 'bg-red-600 text-white'
                   : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700'
-              }`}
-            >
+            }`}
+          >
               <FileText className="mr-2 h-4 w-4" />
-              Results
-            </button>
-            <button
-              onClick={() => setActiveTab('schoolAttendance')}
+            Results
+          </button>
+          <button
+            onClick={() => setActiveTab('schoolAttendance')}
               className={`flex items-center rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-                activeTab === 'schoolAttendance'
+              activeTab === 'schoolAttendance'
                   ? 'bg-red-600 text-white'
                   : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700'
-              }`}
-            >
+            }`}
+          >
               <UserCheck className="mr-2 h-4 w-4" />
-              School Attendance
-            </button>
-            <button
-              onClick={() => setActiveTab('onlineAttendance')}
+            School Attendance
+          </button>
+          <button
+            onClick={() => setActiveTab('onlineAttendance')}
               className={`flex items-center rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-                activeTab === 'onlineAttendance'
+              activeTab === 'onlineAttendance'
                   ? 'bg-red-600 text-white'
                   : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700'
-              }`}
-            >
+            }`}
+          >
               <Video className="mr-2 h-4 w-4" />
               Online Attendance
-            </button>
-            <button
-              onClick={() => setActiveTab('discipline')}
+          </button>
+          <button
+            onClick={() => setActiveTab('discipline')}
               className={`flex items-center rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-                activeTab === 'discipline'
+              activeTab === 'discipline'
                   ? 'bg-red-600 text-white'
                   : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700'
-              }`}
-            >
+            }`}
+          >
               <AlertTriangle className="mr-2 h-4 w-4" />
-              Discipline
-            </button>
-          </div>
+            Discipline
+          </button>
+      </div>
 
           {isAdmin && (
             <div className="flex items-center space-x-3">
               <div className="relative">
-                <select
-                  value={selectedClass}
-                  onChange={(e) => setSelectedClass(e.target.value)}
+              <select
+                value={selectedClass}
+                onChange={(e) => setSelectedClass(e.target.value)}
                   className="appearance-none rounded-lg border border-gray-300 bg-white pl-3 pr-10 py-2 text-gray-700 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
                 >
                   <option value="">Select class</option>
                   {classes.map((classItem) => (
                     <option key={classItem.id} value={classItem.id}>
                       Grade {classItem.grade} - Section {classItem.section}
-                    </option>
-                  ))}
-                </select>
+                  </option>
+                ))}
+              </select>
                 <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              </div>
+            </div>
 
               {activeTab === 'schoolAttendance' || activeTab === 'onlineAttendance' ? (
                 <div className="relative">
@@ -1311,8 +1311,8 @@ export function RecordRoom() {
               ) : null}
             </div>
           )}
-        </div>
-        
+          </div>
+
         <div className="rounded-xl bg-white p-6 shadow-sm dark:bg-gray-800">
           {!isAdmin ? (
             <>
@@ -1330,17 +1330,17 @@ export function RecordRoom() {
                   <GraduationCap className="h-16 w-16 text-gray-400 dark:text-gray-600" />
                   <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-white">No Class Selected</h3>
                   <p className="mt-1 text-gray-500 dark:text-gray-400">Please select a class to view and manage records</p>
-                </div>
-              ) : (
-                <>
+        </div>
+      ) : (
+        <>
                   {activeTab === 'results' && <AdminResultsView />}
                   {activeTab === 'schoolAttendance' && <AdminAttendanceView />}
                   {activeTab === 'onlineAttendance' && <AdminAttendanceView />}
                   {activeTab === 'discipline' && <AdminDisciplineView />}
                 </>
               )}
-            </>
-          )}
+        </>
+      )}
         </div>
       </div>
     </div>

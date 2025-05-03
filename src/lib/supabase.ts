@@ -100,7 +100,7 @@ export async function createUser({
     }
 
     // First check if username is taken
-    const { data: existingUser, error: checkError } = await supabase
+    const { data: existingUser, error } = await supabase
       .from('profiles')
       .select('username')
       .eq('username', username)
@@ -109,6 +109,8 @@ export async function createUser({
     if (existingUser) {
       throw new Error('Username already taken');
     }
+    
+    // Ignore not found errors as they're expected
 
     // Use the create_new_user RPC function if available
     try {
@@ -256,57 +258,179 @@ async function assignStudentToClass(userId: string, grade: number, section: stri
   }
 }
 
+// Function to clear any existing sessions
+export async function clearAllSessions() {
+  try {
+    await supabase.auth.signOut({ scope: 'global' });
+    console.log('All sessions cleared');
+    localStorage.removeItem('supabase.auth.token');
+    localStorage.removeItem('selectedClassId');
+    
+    // Clear any other auth-related items in localStorage
+    Object.keys(localStorage).forEach(key => {
+      if (key.includes('supabase') || key.includes('auth') || key.includes('session')) {
+        localStorage.removeItem(key);
+      }
+    });
+  } catch (error) {
+    console.error('Error clearing sessions:', error);
+  }
+}
+
+// Helper function to create admin profile directly
+async function createAdminProfile(email: string, username: string, role: UserRole) {
+  try {
+    // Try to get the auth user ID first
+    const { data: userData } = await supabase.auth.admin.listUsers();
+    const user = userData?.users?.find(u => u.email?.toLowerCase() === email.toLowerCase());
+    
+    if (!user?.id) {
+      throw new Error(`Auth user not found for email: ${email}`);
+    }
+    
+    // Create the profile
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .insert([{
+        id: user.id,
+        email,
+        username,
+        role,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }])
+      .select()
+      .single();
+      
+    if (error) {
+      throw error;
+    }
+    
+    return profile;
+  } catch (error) {
+    console.error(`Failed to create profile for ${email}:`, error);
+    throw error;
+  }
+}
+
 // Initialize default accounts if they don't exist
 export async function initializeDefaultAdmin() {
   try {
-    // Create admin if it doesn't exist
-    const { data: existingAdmin } = await supabase
+    // Check if auth user exists first to avoid user_already_exists errors
+    const { data: authUsers } = await supabase.auth.admin.listUsers();
+    const existingEmails = new Set(
+      authUsers?.users?.map(user => user.email?.toLowerCase()) || []
+    );
+    
+    // Check if admin exists in profiles
+    const { data: existingAdmin, error: adminError } = await supabase
       .from('profiles')
       .select('*')
       .eq('username', 'admin')
-      .single();
+      .maybeSingle();
 
-    if (!existingAdmin) {
-      await createUser({
-        email: 'admin@lgs.edu.pk',
-        password: 'admin1234',
-        username: 'admin',
-        role: 'admin'
-      });
+    if (!existingAdmin && !adminError && !existingEmails.has('admin@lgs.edu.pk')) {
+      try {
+        await createUser({
+          email: 'admin@lgs.edu.pk',
+          password: 'admin1234',
+          username: 'admin',
+          role: 'admin'
+        });
+        console.log('Admin user created successfully');
+      } catch (error: any) {
+        // Ignore user_already_exists errors
+        if (error?.name === 'AuthApiError' && error?.code === 'user_already_exists') {
+          console.log('Admin user already exists in auth but not in profiles');
+          // Try to create just the profile
+          try {
+            await createAdminProfile('admin@lgs.edu.pk', 'admin', 'admin');
+          } catch (profileError) {
+            console.warn('Failed to create admin profile:', profileError);
+          }
+        } else {
+          console.error('Error creating admin user:', error);
+        }
+      }
     }
 
-    // Create ultra admin if it doesn't exist
-    const { data: existingUltraAdmin } = await supabase
+    // Check if ultra admin exists in profiles
+    const { data: existingUltraAdmin, error: ultraAdminError } = await supabase
       .from('profiles')
       .select('*')
       .eq('username', 'ultraadmin')
-      .single();
+      .maybeSingle();
 
-    if (!existingUltraAdmin) {
-      await createUser({
-        email: 'ultraadmin@lgs.edu.pk',
-        password: 'ultraadmin1234',
-        username: 'ultraadmin',
-        role: 'ultra_admin'
-      });
+    if (!existingUltraAdmin && !ultraAdminError && !existingEmails.has('ultraadmin@lgs.edu.pk')) {
+      try {
+        await createUser({
+          email: 'ultraadmin@lgs.edu.pk',
+          password: 'ultraadmin1234',
+          username: 'ultraadmin',
+          role: 'ultra_admin'
+        });
+        console.log('Ultra admin user created successfully');
+      } catch (error: any) {
+        // Ignore user_already_exists errors
+        if (error?.name === 'AuthApiError' && error?.code === 'user_already_exists') {
+          console.log('Ultra admin user already exists in auth but not in profiles');
+          // Try to create just the profile
+          try {
+            await createAdminProfile('ultraadmin@lgs.edu.pk', 'ultraadmin', 'ultra_admin');
+          } catch (profileError) {
+            console.warn('Failed to create ultra admin profile:', profileError);
+          }
+        } else {
+          console.error('Error creating ultra admin user:', error);
+        }
+      }
     }
 
-    // Create student if it doesn't exist
-    const { data: existingStudent } = await supabase
+    // Check if student exists in profiles
+    const { data: existingStudent, error: studentError } = await supabase
       .from('profiles')
       .select('*')
       .eq('username', 'student')
-      .single();
+      .maybeSingle();
 
-    if (!existingStudent) {
-      await createUser({
-        email: 'student@lgs.edu.pk',
-        password: 'student1234',
-        username: 'student',
-        role: 'student'
-      });
+    if (!existingStudent && !studentError && !existingEmails.has('student@lgs.edu.pk')) {
+      try {
+        const studentUser = await createUser({
+          email: 'student@lgs.edu.pk',
+          password: 'student1234',
+          username: 'student',
+          role: 'student'
+        });
+
+        // Assign student to class 7C
+        if (studentUser?.user?.id) {
+          await assignStudentToClass(studentUser.user.id, 7, 'C');
+        }
+        console.log('Student user created successfully');
+      } catch (error: any) {
+        // Ignore user_already_exists errors
+        if (error?.name === 'AuthApiError' && error?.code === 'user_already_exists') {
+          console.log('Student user already exists in auth but not in profiles');
+          // Try to create just the profile
+          try {
+            const profile = await createAdminProfile('student@lgs.edu.pk', 'student', 'student');
+            // Assign student to class 7C if profile was created
+            if (profile?.id) {
+              await assignStudentToClass(profile.id, 7, 'C');
+            }
+          } catch (profileError) {
+            console.warn('Failed to create student profile:', profileError);
+          }
+        } else {
+          console.error('Error creating student user:', error);
+        }
+      }
     }
+
+    console.log('Default accounts initialized');
   } catch (error) {
     console.error('Error initializing accounts:', error);
+    // Don't throw the error to prevent breaking the app
+    return null;
   }
 }

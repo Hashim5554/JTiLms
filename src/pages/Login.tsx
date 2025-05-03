@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/auth';
 
 export function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('ultraadmin@lgs.edu.pk');
+  const [password, setPassword] = useState('ultraadmin1234');
   const [loading, setLoading] = useState(false);
-  const { signIn, error: authError, clearError, autoLogin } = useAuthStore();
+  const { signIn, error: authError, clearError } = useAuthStore();
 
   useEffect(() => {
     clearError();
@@ -23,16 +23,7 @@ export function Login() {
     }
   };
 
-  const handleAutoLogin = async () => {
-    setLoading(true);
-    try {
-      await autoLogin();
-    } catch (error) {
-      console.error('Auto-login error:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Auto-login functionality has been removed to require manual login every time
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 py-12 px-4 sm:px-6 lg:px-8">
@@ -112,21 +103,9 @@ export function Login() {
                 )}
               </button>
               
-              <button
-                type="button"
-                onClick={handleAutoLogin}
-                disabled={loading}
-                className="w-full flex justify-center py-3 px-4 rounded-xl text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] text-sm font-semibold"
-              >
-                {loading ? (
-                  <div className="flex items-center">
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-                    Auto-login...
-                  </div>
-                ) : (
-                  'Auto-login as Ultra Admin'
-                )}
-              </button>
+              <div className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
+                Default credentials: ultraadmin@lgs.edu.pk / ultraadmin1234
+              </div>
             </div>
           </form>
         </div>

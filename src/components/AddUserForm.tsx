@@ -67,74 +67,48 @@ export function AddUserForm({ onSuccess, onCancel }: AddUserFormProps) {
     setError(null);
 
     try {
-      // If creating a student with class assignment, use the special function
-      if (formData.role === 'student' && formData.class_id) {
-        const { data: studentData, error: studentError } = await supabase.rpc('create_student_with_class', {
-          email: formData.email,
-          password: formData.password,
-          username: formData.email.split('@')[0], // Default username from email
-          class_id: formData.class_id
-        });
+      // Create auth user using the direct function
+      const { data: userData, error: userError } = await supabase.rpc('create_new_user', {
+        email: formData.email,
+        password: formData.password,
+        role: formData.role,
+        username: formData.email.split('@')[0] // Default username from email
+      });
 
-        if (studentError) throw studentError;
-        if (!studentData || studentData.error) {
-          throw new Error(studentData?.error || 'Failed to create student account');
-        }
-
-        // If class assignment failed but user was created
-        if (studentData.user_created && !studentData.class_assigned) {
-          console.warn('User created but class assignment failed:', studentData.error);
-        }
-        
-        // Update profile with additional details if needed
-        if (formData.first_name || formData.last_name || formData.phone || formData.address) {
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .update({
-              first_name: formData.first_name,
-              last_name: formData.last_name,
-              phone: formData.phone,
-              address: formData.address,
-            })
-            .eq('id', studentData.id);
-
-          if (profileError) {
-            console.warn('Failed to update profile details:', profileError);
-          }
-        }
-      } else {
-        // For other roles, use the regular function
-        const { data: userData, error: userError } = await supabase.rpc('create_new_user', {
-          email: formData.email,
-          password: formData.password,
-          role: formData.role,
-          username: formData.email.split('@')[0] // Default username from email
-        });
-
-        if (userError) throw userError;
-        if (!userData || userData.error) {
-          throw new Error(userData?.error || 'Failed to create user');
-        }
-
-        const userId = userData.id;
-        
-        // Update profile with additional details if needed
-        if (formData.first_name || formData.last_name || formData.phone || formData.address) {
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .update({
-              first_name: formData.first_name,
-              last_name: formData.last_name,
-              phone: formData.phone,
-              address: formData.address,
-            })
-            .eq('id', userId);
-
-          if (profileError) throw profileError;
-        }
+      if (userError) throw userError;
+      if (!userData || userData.error) {
+        throw new Error(userData?.error || 'Failed to create user');
       }
 
-      // Reset form
+      const userId = userData.id;
+      
+      // Update profile with additional details if needed
+      if (formData.first_name || formData.last_name || formData.phone || formData.address) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({
+            first_name: formData.first_name,
+            last_name: formData.last_name,
+            phone: formData.phone,
+            address: formData.address,
+          })
+          .eq('id', userId);
+
+        if (profileError) throw profileError;
+      }
+
+      // If student, create class assignment
+      if (formData.role === 'student' && formData.class_id) {
+        const { error: assignmentError } = await supabase
+          .from('class_assignments')
+          .insert([{
+            user_id: userId,
+            class_id: formData.class_id,
+          }]);
+
+        if (assignmentError) throw assignmentError;
+      }
+
       setFormData({
         email: '',
         password: '',

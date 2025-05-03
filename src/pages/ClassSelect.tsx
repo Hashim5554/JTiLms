@@ -143,11 +143,10 @@ export function ClassSelect() {
       // Set as selected in UI
       setSelectedClass(classData);
       
-      // Use a small timeout to ensure localStorage is set before navigation
-      setTimeout(() => {
-        // Force reload to ensure App component picks up the new class ID
-        window.location.href = '/';
-      }, 500);
+      // Navigate using React Router instead of full page reload
+      // This prevents losing authentication state
+      navigate('/');
+      console.log('Navigating to home page with class ID:', classId);
     } catch (error: any) {
       console.error('Error selecting class:', error);
       setError(error.message || 'Failed to select class');

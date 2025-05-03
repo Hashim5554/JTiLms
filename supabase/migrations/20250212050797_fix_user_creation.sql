@@ -1,4 +1,4 @@
--- Fix the user creation function to directly create users in auth.users table
+-- Create a simplified user creation function
 CREATE OR REPLACE FUNCTION public.create_new_user(
   email TEXT,
   password TEXT,
@@ -12,69 +12,48 @@ DECLARE
   new_user_id UUID := gen_random_uuid();
   user_username TEXT := username;
   effective_role TEXT := role;
-  instance_id UUID;
 BEGIN
   -- Generate username if not provided
   IF user_username IS NULL THEN
     user_username := split_part(email, '@', 1);
   END IF;
 
-  -- Get the instance_id from an existing user to ensure consistency
-  SELECT auth.users.instance_id INTO instance_id FROM auth.users LIMIT 1;
-  
-  -- If no instance_id found, use a default
-  IF instance_id IS NULL THEN
-    instance_id := '00000000-0000-0000-0000-000000000000'::UUID;
-  END IF;
-
-  -- Insert user into auth.users with proper password encryption
+  -- Create auth user with explicit id specification
   INSERT INTO auth.users (
     id,
-    instance_id,
     email,
     encrypted_password,
     email_confirmed_at,
     raw_app_meta_data,
     raw_user_meta_data,
-    created_at,
-    updated_at,
-    last_sign_in_at,
     role,
-    aud,
-    confirmation_token,
-    recovery_token,
-    email_change_token_current,
-    email_change_token_new
+    aud
   ) VALUES (
     new_user_id,
-    instance_id,
     email,
     crypt(password, gen_salt('bf')),
     now(),
     jsonb_build_object('provider', 'email', 'providers', array['email']),
     jsonb_build_object('role', effective_role),
-    now(),
-    now(),
-    now(),
     'authenticated',
-    'authenticated',
-    '',
-    '',
-    '',
-    ''
+    'authenticated'
   );
 
-  -- Create profile with the same UUID
+  -- Create profile with all required fields
   INSERT INTO public.profiles (
     id,
     email,
     username,
-    role
+    role,
+    created_at,
+    updated_at
   ) VALUES (
     new_user_id,
     email,
     user_username,
-    effective_role
+    effective_role,
+    now(),
+    now()
   );
 
   RETURN jsonb_build_object(

@@ -51,17 +51,17 @@ export function Announcements() {
     try {
       setLoading(true);
       const { data, error } = await supabase
-        .from('announcements')
-        .select(`
-          *,
+      .from('announcements')
+      .select(`
+        *,
           profiles:created_by (
             username
           ),
           classes:class_id (
             name
           )
-        `)
-        .order('created_at', { ascending: false });
+      `)
+      .order('created_at', { ascending: false });
 
       if (error) throw error;
       setAnnouncements(data || []);
@@ -106,7 +106,7 @@ export function Announcements() {
       ]);
 
       if (error) throw error;
-
+      
       setNewAnnouncement({ title: '', content: '', class_id: '' });
       setMessage({ type: 'success', text: 'Announcement created successfully' });
       setIsCreateModalOpen(false);
