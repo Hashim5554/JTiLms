@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Book } from "lucide-react";
@@ -15,6 +15,14 @@ const TodoInput = ({ onAddTodo }: TodoInputProps) => {
   const [showDescription, setShowDescription] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [elevation, setElevation] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-focus the input field when the component mounts
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +33,15 @@ const TodoInput = ({ onAddTodo }: TodoInputProps) => {
       if (showDescription && !description) {
         setShowDescription(false);
       }
+      // Re-focus the input after submission
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
     }
+  };
+
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTitle(e.target.value);
   };
 
   return (
@@ -45,10 +61,11 @@ const TodoInput = ({ onAddTodo }: TodoInputProps) => {
       <div className="flex gap-2">
         <div className="flex-1 relative">
           <Input
+            ref={inputRef}
             type="text"
             placeholder="Write in your notebook..."
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={handleTitleChange}
             onFocus={() => {
               setIsFocused(true);
               setElevation(5);
@@ -62,6 +79,7 @@ const TodoInput = ({ onAddTodo }: TodoInputProps) => {
               isFocused && "ring-2 ring-todo-primary/30 border-todo-primary/40 shadow-lg",
               "transform perspective-1000"
             )}
+            autoComplete="off"
           />
           <Book 
             className={cn(

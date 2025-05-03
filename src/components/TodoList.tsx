@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Todo, TodoFilter } from '@/types';
 import TodoInput from './TodoInput';
@@ -55,6 +54,11 @@ const TodoList = () => {
 
   const addTodo = (title: string, description?: string) => {
     console.log("Adding todo:", title, description);
+    if (!title.trim()) {
+      console.warn("Attempted to add todo with empty title");
+      return;
+    }
+    
     const newTodo: Todo = {
       id: Date.now().toString(),
       title,
@@ -62,7 +66,9 @@ const TodoList = () => {
       completed: false,
       createdAt: Date.now(),
     };
+    
     setTodos(prevTodos => [newTodo, ...prevTodos]);
+    
     toast({
       title: "Task added",
       description: "Your task has been added to the notebook.",
