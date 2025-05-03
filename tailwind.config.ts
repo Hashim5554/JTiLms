@@ -1,4 +1,3 @@
-
 import type { Config } from "tailwindcss";
 
 export default {
@@ -92,15 +91,126 @@ export default {
 				'fade-out': {
 					'0%': { opacity: '1', transform: 'translateY(0)' },
 					'100%': { opacity: '0', transform: 'translateY(10px)' }
+				},
+				'float': {
+					'0%, 100%': { transform: 'translateY(0)' },
+					'50%': { transform: 'translateY(-10px)' }
+				},
+				'rotate-y': {
+					'0%': { transform: 'rotateY(0deg)' },
+					'100%': { transform: 'rotateY(360deg)' }
+				},
+				'paper-lift': {
+					'0%': { transform: 'translateZ(0) translateY(0)', boxShadow: '0 0 0 rgba(0,0,0,0.1)' },
+					'100%': { transform: 'translateZ(20px) translateY(-5px)', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
 				'accordion-up': 'accordion-up 0.2s ease-out',
 				'fade-in': 'fade-in 0.3s ease-out',
-				'fade-out': 'fade-out 0.3s ease-out'
+				'fade-out': 'fade-out 0.3s ease-out',
+				'float': 'float 6s ease-in-out infinite',
+				'rotate-y-slow': 'rotate-y 12s linear infinite',
+				'paper-lift': 'paper-lift 0.3s ease-out forwards'
+			},
+			perspective: {
+				'1000': '1000px',
+				'2000': '2000px'
+			},
+			rotateY: {
+				'1': '1deg',
+				'3': '3deg',
+				'5': '5deg',
+				'-1': '-1deg',
+				'-3': '-3deg',
+				'-5': '-5deg'
+			},
+			translateZ: {
+				'2': '2px',
+				'5': '5px',
+				'10': '10px',
+				'20': '20px'
+			},
+			transformStyle: {
+				'preserve-3d': 'preserve-3d'
+			},
+			backdropFilter: {
+				'none': 'none',
+				'blur': 'blur(4px)'
 			}
 		}
 	},
-	plugins: [require("tailwindcss-animate")],
+	plugins: [
+		require("tailwindcss-animate"),
+		function({ addUtilities, theme, addComponents, e }: any) {
+			const newUtilities = {
+				'.perspective-1000': {
+					perspective: '1000px'
+				},
+				'.perspective-2000': {
+					perspective: '2000px'
+				},
+				'.transform-style-3d': {
+					transformStyle: 'preserve-3d'
+				},
+				'.backface-hidden': {
+					backfaceVisibility: 'hidden'
+				},
+				'.rotate-y-1': {
+					transform: 'rotateY(1deg)'
+				},
+				'.rotate-y-3': {
+					transform: 'rotateY(3deg)'
+				},
+				'.rotate-y-5': {
+					transform: 'rotateY(5deg)'
+				},
+				'.rotate-y-neg-1': {
+					transform: 'rotateY(-1deg)'
+				},
+				'.translate-z-2': {
+					transform: 'translateZ(2px)'
+				},
+				'.translate-z-5': {
+					transform: 'translateZ(5px)'
+				},
+				'.translate-z-10': {
+					transform: 'translateZ(10px)'
+				},
+				'.translate-z-20': {
+					transform: 'translateZ(20px)'
+				}
+			};
+			addUtilities(newUtilities);
+
+			// Add notepad-specific components
+			addComponents({
+				'.notepad-container': {
+					position: 'relative',
+					transformStyle: 'preserve-3d',
+					perspective: '1000px'
+				},
+				'.notepad-paper': {
+					backgroundColor: 'white',
+					borderRadius: '0.5rem',
+					boxShadow: '0 5px 15px rgba(0,0,0,0.1)',
+					transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+					position: 'relative',
+					overflow: 'hidden',
+					'&:hover': {
+						transform: 'translateZ(10px) translateY(-5px)',
+						boxShadow: '0 15px 30px rgba(0,0,0,0.15)'
+					}
+				},
+				'.notepad-line': {
+					backgroundColor: 'rgba(159, 122, 234, 0.1)',
+					height: '1px',
+					width: '100%',
+					marginTop: '1.5rem',
+					marginBottom: '1.5rem'
+				}
+			});
+		}
+	],
 } satisfies Config;

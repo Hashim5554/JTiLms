@@ -22,29 +22,35 @@ const TodoFilterComponent = ({ activeFilter, onFilterChange, todoCount }: TodoFi
 
   return (
     <div className="flex justify-center mb-6">
-      <div className="inline-flex p-1 bg-gray-100 rounded-lg">
+      <div className="inline-flex p-1 bg-gray-100 rounded-lg shadow-inner overflow-hidden perspective-1000">
         {filters.map((filter) => (
           <Button
             key={filter.value}
             variant="ghost"
             className={cn(
-              "text-sm px-4 py-2 rounded-md transition-colors",
+              "text-sm px-4 py-2 rounded-md transition-all duration-300 relative overflow-hidden",
               activeFilter === filter.value
-                ? "bg-white text-todo-primary shadow-sm"
-                : "text-gray-600 hover:text-todo-primary"
+                ? "bg-white text-todo-primary shadow-sm transform translate-y-[-1px]"
+                : "text-gray-600 hover:text-todo-primary hover:bg-white/50"
             )}
             onClick={() => onFilterChange(filter.value)}
           >
-            {filter.label}
-            {filter.count > 0 && (
-              <span className={cn(
-                "ml-2 px-2 py-0.5 text-xs rounded-full",
-                activeFilter === filter.value
-                  ? "bg-todo-primary text-white"
-                  : "bg-gray-200 text-gray-700"
-              )}>
-                {filter.count}
-              </span>
+            <div className="relative z-10">
+              {filter.label}
+              {filter.count > 0 && (
+                <span className={cn(
+                  "ml-2 px-2 py-0.5 text-xs rounded-full transition-all duration-300",
+                  activeFilter === filter.value
+                    ? "bg-todo-primary text-white"
+                    : "bg-gray-200 text-gray-700",
+                  "transform hover:scale-105"
+                )}>
+                  {filter.count}
+                </span>
+              )}
+            </div>
+            {activeFilter === filter.value && (
+              <div className="absolute bottom-0 left-0 w-full h-[2px] bg-todo-primary" />
             )}
           </Button>
         ))}
