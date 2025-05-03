@@ -19,7 +19,7 @@ const TodoInput = ({ onAddTodo }: TodoInputProps) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (title.trim()) {
-      onAddTodo(title, description || undefined);
+      onAddTodo(title.trim(), description.trim() || undefined);
       setTitle('');
       setDescription('');
       if (showDescription && !description) {

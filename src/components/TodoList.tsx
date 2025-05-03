@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Todo, TodoFilter } from '@/types';
 import TodoInput from './TodoInput';
@@ -53,6 +54,7 @@ const TodoList = () => {
   }, [todos]);
 
   const addTodo = (title: string, description?: string) => {
+    console.log("Adding todo:", title, description);
     const newTodo: Todo = {
       id: Date.now().toString(),
       title,
@@ -60,7 +62,7 @@ const TodoList = () => {
       completed: false,
       createdAt: Date.now(),
     };
-    setTodos([newTodo, ...todos]);
+    setTodos(prevTodos => [newTodo, ...prevTodos]);
     toast({
       title: "Task added",
       description: "Your task has been added to the notebook.",
@@ -131,20 +133,7 @@ const TodoList = () => {
         <div className="bg-gradient-to-r from-todo-primary/10 via-todo-primary/20 to-todo-primary/10 h-2 rounded-t-lg"></div>
         
         <div className="p-6 space-y-4 bg-white/95 min-h-[500px]">
-          <TodoInput onAddTodo={(title, description) => {
-            const newTodo: Todo = {
-              id: Date.now().toString(),
-              title,
-              description,
-              completed: false,
-              createdAt: Date.now(),
-            };
-            setTodos([newTodo, ...todos]);
-            toast({
-              title: "Task added",
-              description: "Your task has been added to the notebook.",
-            });
-          }} />
+          <TodoInput onAddTodo={addTodo} />
           
           {todos.length > 0 ? (
             <>
@@ -162,31 +151,9 @@ const TodoList = () => {
                         <TodoItem
                           key={todo.id}
                           todo={todo}
-                          onToggleComplete={(id) => {
-                            setTodos(
-                              todos.map((todo) =>
-                                todo.id === id ? { ...todo, completed: !todo.completed } : todo
-                              )
-                            );
-                          }}
-                          onDelete={(id) => {
-                            setTodos(todos.filter((todo) => todo.id !== id));
-                            toast({
-                              title: "Task deleted",
-                              description: "Your task has been removed from the notebook.",
-                            });
-                          }}
-                          onEdit={(id, title, description) => {
-                            setTodos(
-                              todos.map((todo) =>
-                                todo.id === id ? { ...todo, title, description } : todo
-                              )
-                            );
-                            toast({
-                              title: "Task updated",
-                              description: "Your task has been updated in the notebook.",
-                            });
-                          }}
+                          onToggleComplete={toggleComplete}
+                          onDelete={deleteTodo}
+                          onEdit={editTodo}
                         />
                       ))
                     ) : (
