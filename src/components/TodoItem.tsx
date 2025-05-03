@@ -18,6 +18,7 @@ const TodoItem = ({ todo, onToggleComplete, onDelete, onEdit }: TodoItemProps) =
   const [editTitle, setEditTitle] = useState(todo.title);
   const [editDescription, setEditDescription] = useState(todo.description || '');
   const [isHovering, setIsHovering] = useState(false);
+  const [elevation, setElevation] = useState(0);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,7 +39,11 @@ const TodoItem = ({ todo, onToggleComplete, onDelete, onEdit }: TodoItemProps) =
 
   if (isEditing) {
     return (
-      <form onSubmit={handleSubmit} className="mb-2 p-4 bg-white rounded-lg shadow-md border border-gray-100 animate-fade-in transform transition-all duration-300 hover:translate-y-[-2px]">
+      <form 
+        onSubmit={handleSubmit} 
+        className="mb-2 p-4 bg-white rounded-lg shadow-md border border-gray-100 animate-fade-in transform transition-all duration-300 hover:translate-z-5 hover:shadow-lg"
+        style={{ transformStyle: 'preserve-3d' }}
+      >
         <div className="space-y-3">
           <input
             type="text"
@@ -78,14 +83,22 @@ const TodoItem = ({ todo, onToggleComplete, onDelete, onEdit }: TodoItemProps) =
       className={cn(
         "mb-2 p-4 bg-white rounded-lg border border-gray-100 transition-all duration-300 group",
         todo.completed && "bg-gray-50 opacity-80",
-        "hover:shadow-lg hover:translate-y-[-2px] transform perspective-1000"
       )}
-      onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={() => setIsHovering(false)}
+      onMouseEnter={() => {
+        setIsHovering(true);
+        setElevation(10);
+      }}
+      onMouseLeave={() => {
+        setIsHovering(false);
+        setElevation(0);
+      }}
       style={{
+        transform: `translateZ(${elevation}px)`,
         boxShadow: isHovering 
           ? '0 5px 15px rgba(155, 135, 245, 0.15), 0 3px 6px rgba(0, 0, 0, 0.1)' 
-          : '0 1px 3px rgba(0, 0, 0, 0.05)'
+          : '0 1px 3px rgba(0, 0, 0, 0.05)',
+        transformStyle: 'preserve-3d',
+        transition: 'transform 0.3s ease, box-shadow 0.3s ease'
       }}
     >
       <div className="flex items-start gap-3">
@@ -115,6 +128,7 @@ const TodoItem = ({ todo, onToggleComplete, onDelete, onEdit }: TodoItemProps) =
                 size="sm"
                 className="h-8 w-8 p-0 text-gray-400 hover:text-todo-primary hover:bg-gray-100/80 transition-transform duration-200 hover:scale-110"
                 onClick={() => setIsEditing(true)}
+                style={{ transform: 'translateZ(5px)' }}
               >
                 <Edit className="h-4 w-4" />
                 <span className="sr-only">Edit</span>
@@ -124,6 +138,7 @@ const TodoItem = ({ todo, onToggleComplete, onDelete, onEdit }: TodoItemProps) =
                 size="sm"
                 className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 hover:bg-gray-100/80 transition-transform duration-200 hover:scale-110"
                 onClick={() => onDelete(todo.id)}
+                style={{ transform: 'translateZ(5px)' }}
               >
                 <Trash2 className="h-4 w-4" />
                 <span className="sr-only">Delete</span>
