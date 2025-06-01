@@ -1,299 +1,936 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Bell, X, Loader2 } from 'lucide-react';
+import { useNavigate, useOutletContext } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/auth';
-import { AnnouncementCard } from '../components/AnnouncementCard';
-import { motion, AnimatePresence } from 'framer-motion';
-import '../styles/animations.css';
+import { useTheme } from '../hooks/useTheme';
+import { 
+  Megaphone, Plus, Trash2, Edit, ChevronLeft, ChevronRight as ChevronRightIcon,
+  Search, Sparkles, Trophy, User, Calendar, X
+} from 'lucide-react';
+import type { Class } from '../types';
 
-interface Message {
-  type: 'success' | 'error';
-  text: string;
+interface ContextType {
+  currentClass: Class | null;
+  classes: Class[];
 }
 
-interface Announcement {
+interface Achiever {
   id: string;
-  title: string;
-  content: string;
+  student_id: string;
+  achievement: string;
+  description: string;
+  date: string;
   created_at: string;
-  created_by: string;
-  class_id: string | null;
-  profiles: {
+  profiles?: {
     username: string;
+    photo_url: string | null;
   };
-  classes: {
-    name: string;
-  } | null;
 }
 
 export function Announcements() {
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const { user } = useAuthStore();
+  const { theme } = useTheme();
+  const navigate = useNavigate();
+  const context = useOutletContext<ContextType>();
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [message, setMessage] = useState<Message | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
   const [newAnnouncement, setNewAnnouncement] = useState({
     title: '',
     content: '',
-    class_id: '',
   });
-  const [classes, setClasses] = useState<{ id: string; name: string }[]>([]);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const user = useAuthStore((state) => state.user);
-  const isAdmin = user?.role === 'ultra_admin' || user?.role === 'teacher';
+  const [achievers, setAchievers] = useState<Achiever[]>([]);
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [showAchieverModal, setShowAchieverModal] = useState(false);
+  const [newAchiever, setNewAchiever] = useState({
+    student_id: '',
+    achievement: '',
+    description: '',
+    date: new Date().toISOString().split('T')[0]
+  });
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<any | null>(null);
 
+  // Optimized animations with reduced complexity
+  const pageVariants = {
+    initial: { opacity: 0 },
+    animate: { 
+      opacity: 1,
+      transition: {
+        duration: 0.4,
+        staggerChildren: 0.1
+      }
+    },
+    exit: { 
+      opacity: 0,
+      transition: { duration: 0.2 }
+    }
+  };
+
+  const cardVariants = {
+    initial: { opacity: 0, y: 20 },
+    animate: { 
+      opacity: 1, 
+      y: 0,
+      transition: {
+        type: "spring",
+        stiffness: 150,
+        damping: 20
+      }
+    },
+    hover: { 
+      y: -5,
+      transition: {
+        type: "spring",
+        stiffness: 400,
+        damping: 10
+      }
+    }
+  };
+
+  // Optimized slide animation
+  const slideVariants = {
+    enter: (direction: number) => ({
+      x: direction > 0 ? 300 : -300,
+      opacity: 0
+    }),
+    center: {
+      x: 0,
+      opacity: 1
+    },
+    exit: (direction: number) => ({
+      x: direction < 0 ? 300 : -300,
+      opacity: 0
+    })
+  };
+
+  // Memoize expensive computations
+  const memoizedAchievers = React.useMemo(() => achievers, [achievers]);
+  const memoizedAnnouncements = React.useMemo(() => announcements, [announcements]);
+
+  // Optimize auto-advance slideshow
   useEffect(() => {
-    loadAnnouncements();
-    loadClasses();
-  }, []);
+    if (achievers.length <= 1) return;
+    
+    const timer = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % achievers.length);
+    }, 4000);
 
+    return () => clearInterval(timer);
+  }, [achievers.length]);
+
+  // Load announcements
+  useEffect(() => {
   const loadAnnouncements = async () => {
     try {
-      setLoading(true);
       const { data, error } = await supabase
       .from('announcements')
       .select(`
         *,
-          profiles:created_by (
-            username
-          ),
-          classes:class_id (
-            name
+            profiles!announcements_created_by_fkey (
+              username,
+              photo_url
           )
       `)
       .order('created_at', { ascending: false });
 
       if (error) throw error;
       setAnnouncements(data || []);
-    } catch (error) {
-      console.error('Error loading announcements:', error);
-      setMessage({ type: 'error', text: 'Failed to load announcements' });
+      } catch (err: any) {
+        console.error(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const loadClasses = async () => {
+    loadAnnouncements();
+  }, []);
+
+  // Load achievers
+  useEffect(() => {
+    const loadAchievers = async () => {
     try {
       const { data, error } = await supabase
-        .from('classes')
-        .select('id, name')
-        .order('name');
+          .from('achievers')
+          .select(`
+            *,
+            profiles:student_id (
+              username,
+              photo_url
+            )
+          `)
+          .order('date', { ascending: false });
 
       if (error) throw error;
-      setClasses(data || []);
-    } catch (error) {
-      console.error('Error loading classes:', error);
-    }
-  };
+        setAchievers(data || []);
+      } catch (err: any) {
+        console.error(err.message);
+      }
+    };
 
-  const handleCreateAnnouncement = async (e: React.FormEvent) => {
-    e.preventDefault();
+    loadAchievers();
+  }, []);
+
+  // Handle create announcement
+  const handleCreateAnnouncement = async () => {
     if (!newAnnouncement.title.trim() || !newAnnouncement.content.trim()) {
-      setMessage({ type: 'error', text: 'Please fill in all required fields' });
+      console.error('Please fill in all fields');
       return;
     }
 
     try {
-      setIsSubmitting(true);
-      const { error } = await supabase.from('announcements').insert([
-        {
+      const { data, error } = await supabase
+        .from('announcements')
+        .insert([{
           title: newAnnouncement.title.trim(),
           content: newAnnouncement.content.trim(),
-          class_id: newAnnouncement.class_id || null,
-          created_by: user?.id,
-        },
-      ]);
+        }])
+        .select()
+        .single();
 
       if (error) throw error;
       
-      setNewAnnouncement({ title: '', content: '', class_id: '' });
-      setMessage({ type: 'success', text: 'Announcement created successfully' });
-      setIsCreateModalOpen(false);
-      await loadAnnouncements();
-    } catch (error) {
-      console.error('Error creating announcement:', error);
-      setMessage({ type: 'error', text: 'Failed to create announcement' });
-    } finally {
-      setIsSubmitting(false);
+      setAnnouncements(prev => [data, ...prev]);
+      console.log('Announcement created successfully!');
+      setTimeout(() => {
+        setShowCreateModal(false);
+        setNewAnnouncement({ title: '', content: '' });
+      }, 3000);
+    } catch (err: any) {
+      console.error(err.message);
     }
   };
 
-  const filteredAnnouncements = announcements.filter((announcement) =>
-    announcement.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    announcement.content.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Handle delete announcement
+  const handleDeleteAnnouncement = async () => {
+    if (!selectedAnnouncement) return;
+
+    try {
+      const { error } = await supabase
+        .from('announcements')
+        .delete()
+        .eq('id', selectedAnnouncement.id);
+
+      if (error) throw error;
+
+      setAnnouncements(prev => prev.filter(a => a.id !== selectedAnnouncement.id));
+      console.log('Announcement deleted successfully!');
+      setTimeout(() => {
+        setShowDeleteModal(false);
+      }, 3000);
+    } catch (err: any) {
+      console.error(err.message);
+    }
+  };
+
+  // Handle student search
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, username, photo_url')
+        .ilike('username', `%${searchQuery}%`)
+        .limit(5);
+
+      if (error) throw error;
+      setSearchResults(data || []);
+    } catch (err: any) {
+      console.error(err.message);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Handle create achiever
+  const handleCreateAchiever = async () => {
+    if (!newAchiever.student_id || !newAchiever.achievement) {
+      console.error('Please fill in all required fields');
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('achievers')
+        .insert([{
+          student_id: newAchiever.student_id,
+          achievement: newAchiever.achievement,
+          description: newAchiever.description,
+          date: newAchiever.date
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setAchievers(prev => [data, ...prev]);
+      console.log('Achievement added successfully!');
+      setTimeout(() => {
+        setShowAchieverModal(false);
+        setNewAchiever({
+          student_id: '',
+          achievement: '',
+          description: '',
+          date: new Date().toISOString().split('T')[0]
+        });
+      }, 3000);
+    } catch (err: any) {
+      console.error(err.message);
+    }
+  };
 
   return (
-    <div className="container mx-auto px-4 py-4 sm:py-8">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Announcements</h1>
-      {isAdmin && (
+    <motion.div 
+      initial="initial"
+      animate="animate"
+      exit="exit"
+      variants={pageVariants}
+      className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 py-4 sm:py-8 px-2 sm:px-6 lg:px-8"
+    >
+      {/* Hero Section with Optimized Animation */}
+      <motion.div 
+        variants={cardVariants}
+        className="max-w-7xl mx-auto mb-4 sm:mb-8"
+      >
+        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-r from-red-600 to-red-800 shadow-2xl">
+          <div className="absolute inset-0 bg-grid-white/10 [mask-image:linear-gradient(0deg,white,transparent)]" />
+          <div className="relative px-4 sm:px-8 py-6 sm:py-10">
+            <div className="flex flex-col items-center text-center">
+              <motion.div
+                initial={{ scale: 0, rotate: -180 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                className="mb-3 sm:mb-4 p-2 sm:p-3 bg-white/10 rounded-xl sm:rounded-2xl backdrop-blur-sm"
+              >
+                <Megaphone className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
+              </motion.div>
+              <motion.h1 
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.1 }}
+                className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-2 sm:mb-3"
+              >
+                Announcements
+              </motion.h1>
+              <motion.p 
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.2 }}
+                className="text-sm sm:text-base text-white/90 max-w-2xl mb-4 sm:mb-6"
+              >
+                Stay updated with the latest news and important information from your school.
+              </motion.p>
+              {(user?.role === 'admin' || user?.role === 'ultra_admin') && (
           <motion.button
-            whileHover={{ scale: 1.05 }}
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                  whileHover={{ scale: 1.05, y: -2 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => setIsCreateModalOpen(true)}
-            className="button-primary flex items-center gap-2 w-full sm:w-auto justify-center"
+                  onClick={() => setShowCreateModal(true)}
+                  className="inline-flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 bg-white text-red-600 rounded-lg sm:rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all text-sm sm:text-base"
           >
             <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-            New Announcement
+                  Create New Announcement
+                </motion.button>
+              )}
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Optimized Outstanding Achievers Section */}
+      <motion.div 
+        variants={cardVariants}
+        className="max-w-7xl mx-auto mb-4 sm:mb-8"
+      >
+        <div className="bg-white dark:bg-gray-800 rounded-2xl sm:rounded-3xl shadow-xl overflow-hidden">
+          <div className="p-4 sm:p-6">
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <motion.div 
+                  whileHover={{ rotate: 15, scale: 1.1 }}
+                  className="p-2 sm:p-2.5 bg-gradient-to-br from-red-500 to-red-600 rounded-lg sm:rounded-xl shadow-lg"
+                >
+                  <Trophy className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                </motion.div>
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
+                    Outstanding Achievers
+                  </h2>
+                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                    Celebrating student excellence
+                  </p>
+                </div>
+              </div>
+              {(user?.role === 'admin' || user?.role === 'ultra_admin') && (
+                <motion.button
+                  whileHover={{ scale: 1.05, y: -2 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowAchieverModal(true)}
+                  className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg sm:rounded-xl font-medium shadow-lg hover:shadow-xl transition-all text-xs sm:text-sm"
+                >
+                  <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  Add Achievement
           </motion.button>
         )}
       </div>
 
-      <div className="mb-4 sm:mb-6">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
-          <input
-            type="text"
-            placeholder="Search announcements..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 sm:pl-10 pr-4 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+            {/* Optimized Slideshow */}
+            <div className="relative h-[280px] sm:h-[320px] overflow-hidden rounded-xl sm:rounded-2xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+              <AnimatePresence mode="wait" custom={currentSlide}>
+                {memoizedAchievers.length > 0 && (
+                  <motion.div
+                    key={currentSlide}
+                    custom={currentSlide}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{
+                      x: { type: "spring", stiffness: 300, damping: 30 },
+                      opacity: { duration: 0.2 }
+                    }}
+                    className="absolute inset-0 flex items-center justify-center p-4 sm:p-6"
+                  >
+                    <motion.div 
+                      whileHover={{ scale: 1.02 }}
+                      className="w-full max-w-2xl"
+                    >
+                      <div className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-xl overflow-hidden">
+                        <div className="p-4 sm:p-6">
+                          <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
+                            <motion.div 
+                              whileHover={{ rotate: 360 }}
+                              transition={{ duration: 0.5 }}
+                              className="relative"
+                            >
+                              <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full overflow-hidden ring-2 sm:ring-3 ring-red-500/20">
+                                <img
+                                  src={memoizedAchievers[currentSlide].profiles?.photo_url || '/default-avatar.png'}
+                                  alt={memoizedAchievers[currentSlide].profiles?.username}
+                                  className="w-full h-full object-cover"
           />
         </div>
-      </div>
-
-      <AnimatePresence>
-        {message && (
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className={`p-3 sm:p-4 rounded-lg mb-4 sm:mb-6 text-sm sm:text-base ${
-              message.type === 'success' 
-                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-            }`}
-          >
-            {message.text}
+                                animate={{ 
+                                  scale: [1, 1.2, 1],
+                                  rotate: [0, 10, -10, 0]
+                                }}
+                                transition={{ 
+                                  duration: 2,
+                                  repeat: Infinity,
+                                  repeatType: "reverse"
+                                }}
+                                className="absolute -bottom-1 -right-1 p-1 sm:p-1.5 bg-gradient-to-br from-red-500 to-red-600 rounded-full shadow-lg"
+                              >
+                                <Sparkles className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" />
+                              </motion.div>
+                            </motion.div>
+                            <div>
+                              <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">
+                                {memoizedAchievers[currentSlide].profiles?.username}
+                              </h3>
+                              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                                {new Date(memoizedAchievers[currentSlide].date).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="space-y-1.5 sm:space-y-2">
+                            <h4 className="text-base sm:text-lg font-semibold text-red-600 dark:text-red-400">
+                              {memoizedAchievers[currentSlide].achievement}
+                            </h4>
+                            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">
+                              {memoizedAchievers[currentSlide].description}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {loading ? (
-        <div className="flex justify-center items-center h-48 sm:h-64">
-          <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin text-primary-500" />
+              {/* Enhanced Navigation */}
+              {memoizedAchievers.length > 1 && (
+                <>
+                  <motion.button
+                    whileHover={{ scale: 1.1, x: -2 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setCurrentSlide((prev) => (prev - 1 + memoizedAchievers.length) % memoizedAchievers.length)}
+                    className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 p-1.5 sm:p-2 rounded-full bg-white/90 dark:bg-gray-800/90 text-gray-900 dark:text-white hover:bg-white dark:hover:bg-gray-800 shadow-lg hover:shadow-xl transition-all"
+                  >
+                    <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.1, x: 2 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setCurrentSlide((prev) => (prev + 1) % memoizedAchievers.length)}
+                    className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 p-1.5 sm:p-2 rounded-full bg-white/90 dark:bg-gray-800/90 text-gray-900 dark:text-white hover:bg-white dark:hover:bg-gray-800 shadow-lg hover:shadow-xl transition-all"
+                  >
+                    <ChevronRightIcon className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </motion.button>
+                </>
+              )}
+
+              {/* Enhanced Dots */}
+              {memoizedAchievers.length > 1 && (
+                <div className="absolute bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 flex gap-1 sm:gap-1.5">
+                  {memoizedAchievers.map((_, index) => (
+                    <motion.button
+                      key={index}
+                      whileHover={{ scale: 1.2 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => setCurrentSlide(index)}
+                      className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full transition-all ${
+                        index === currentSlide
+                          ? 'bg-red-500 scale-125'
+                          : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      ) : filteredAnnouncements.length === 0 ? (
+      </motion.div>
+
+      {/* Optimized Announcements Grid */}
+      <motion.div 
+        variants={cardVariants}
+        className="max-w-7xl mx-auto"
+      >
+        {loading ? (
+          <div className="flex items-center justify-center py-12 sm:py-16">
+            <div className="text-center">
         <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="text-center py-8 sm:py-12"
-        >
-          <Bell className="w-10 h-10 sm:w-12 sm:h-12 mx-auto text-gray-400 mb-3 sm:mb-4" />
-          <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">No announcements found</p>
+                animate={{ 
+                  rotate: 360,
+                  scale: [1, 1.2, 1]
+                }}
+                transition={{ 
+                  rotate: { repeat: Infinity, duration: 1, ease: "linear" },
+                  scale: { repeat: Infinity, duration: 1.5, ease: "easeInOut" }
+                }}
+                className="inline-block"
+              >
+                <Megaphone className="w-10 h-10 sm:w-12 sm:h-12 text-red-500 mx-auto mb-3 sm:mb-4" />
         </motion.div>
-      ) : (
-        <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredAnnouncements.map((announcement) => (
+              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">Loading announcements...</p>
+            </div>
+          </div>
+        ) : memoizedAnnouncements.length === 0 ? (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: "spring", stiffness: 100, damping: 15 }}
+            className="text-center py-12 sm:py-16 bg-white dark:bg-gray-800 rounded-2xl sm:rounded-3xl shadow-xl"
+          >
             <motion.div
-              key={announcement.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
+              animate={{ 
+                scale: [1, 1.1, 1],
+                rotate: [0, 5, -5, 0]
+              }}
+              transition={{ 
+                duration: 2,
+                repeat: Infinity,
+                repeatType: "reverse"
+              }}
+              className="p-3 sm:p-4 bg-red-50 dark:bg-red-900/20 rounded-full w-14 h-14 sm:w-16 sm:h-16 mx-auto mb-4 sm:mb-6 flex items-center justify-center"
             >
-              <AnnouncementCard announcement={announcement} onDelete={loadAnnouncements} />
+              <Megaphone className="w-7 h-7 sm:w-8 sm:h-8 text-red-500" />
+            </motion.div>
+            <h3 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-2 sm:mb-3">
+              No Announcements Yet
+            </h3>
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mb-6 sm:mb-8 max-w-md mx-auto">
+              Be the first to create an announcement and keep everyone informed.
+            </p>
+            {(user?.role === 'admin' || user?.role === 'ultra_admin') && (
+              <motion.button
+                whileHover={{ scale: 1.05, y: -2 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowCreateModal(true)}
+                className="inline-flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg sm:rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all text-sm sm:text-base"
+              >
+                <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                Create New Announcement
+              </motion.button>
+            )}
+          </motion.div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+            <AnimatePresence mode="wait">
+              {memoizedAnnouncements.map((announcement) => (
+                <motion.div
+                  key={announcement.id}
+                  variants={cardVariants}
+                  whileHover="hover"
+                  className="group relative bg-white dark:bg-gray-800 rounded-2xl sm:rounded-3xl shadow-xl overflow-hidden"
+                >
+                  {/* Card Header */}
+                  <motion.div 
+                    whileHover={{ scale: 1.02 }}
+                    className="h-24 sm:h-28 bg-gradient-to-r from-red-500 to-red-600 p-4 sm:p-5 flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <motion.div 
+                        whileHover={{ rotate: 15, scale: 1.1 }}
+                        className="p-2 sm:p-2.5 bg-white/10 rounded-lg sm:rounded-xl backdrop-blur-sm"
+                      >
+                        <Megaphone className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                      </motion.div>
+                      <h3 className="text-base sm:text-lg font-semibold text-white truncate max-w-[180px] sm:max-w-[200px]">
+                        {announcement.title}
+                      </h3>
+                    </div>
+                    <motion.div 
+                      whileHover={{ rotate: 15, scale: 1.1 }}
+                      className="p-2 sm:p-2.5 bg-white/10 rounded-lg sm:rounded-xl backdrop-blur-sm"
+                    >
+                      <User className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                    </motion.div>
+                  </motion.div>
+
+                  {/* Card Content */}
+                  <div className="p-4 sm:p-5">
+                    <div className="mb-3 sm:mb-4">
+                      <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-1.5 sm:mb-2">
+                        Content
+                      </div>
+                      <div className="text-sm sm:text-base text-gray-900 dark:text-white">
+                        {announcement.content}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                      <div className="flex items-center gap-1.5 sm:gap-2">
+                        <User className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        <span>{announcement.profiles?.username || 'Unknown User'}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 sm:gap-2">
+                        <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        <span>{new Date(announcement.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  {(user?.role === 'admin' || user?.role === 'ultra_admin') && (
+                    <div className="p-3 sm:p-4 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-2 sm:gap-3">
+                      <motion.button
+                        whileHover={{ scale: 1.1, y: -2 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => { setSelectedAnnouncement(announcement); setShowDeleteModal(true); }}
+                        className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.1, y: -2 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => navigate(`/announcements/${announcement.id}/edit`)}
+                        className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                      >
+                        <Edit className="w-4 h-4 sm:w-5 sm:h-5" />
+                      </motion.button>
+                    </div>
+                  )}
             </motion.div>
           ))}
+            </AnimatePresence>
         </div>
       )}
+      </motion.div>
 
+      {/* Enhanced Create Announcement Modal */}
       <AnimatePresence>
-        {isCreateModalOpen && (
+        {showCreateModal && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4"
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto"
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ type: "spring", stiffness: 200, damping: 20 }}
+              className="bg-white dark:bg-gray-800 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-lg p-5 sm:p-8 relative"
             >
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Create New Announcement</h3>
                 <button
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                onClick={() => setShowCreateModal(false)}
+                className="absolute top-3 sm:top-4 right-3 sm:right-4 p-1.5 sm:p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                 >
-                  <X className="w-5 h-5" />
+                <X className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 dark:text-gray-400" />
                 </button>
-              </div>
-              <form onSubmit={handleCreateAnnouncement} className="space-y-3 sm:space-y-4">
+
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-4 sm:mb-6">
+                Create New Announcement
+              </h2>
+
+              <div className="space-y-3 sm:space-y-4">
             <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
                 Title
               </label>
               <input
                 type="text"
                     value={newAnnouncement.title}
-                    onChange={(e) => setNewAnnouncement({ ...newAnnouncement, title: e.target.value })}
-                    className="w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                    required
+                    onChange={e => setNewAnnouncement({ ...newAnnouncement, title: e.target.value })}
+                    className="w-full px-3 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all text-sm sm:text-base"
+                    placeholder="Enter announcement title"
               />
             </div>
+
             <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
                 Content
               </label>
               <textarea
                     value={newAnnouncement.content}
-                    onChange={(e) => setNewAnnouncement({ ...newAnnouncement, content: e.target.value })}
-                    className="w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white h-24 sm:h-32"
-                    required
+                    onChange={e => setNewAnnouncement({ ...newAnnouncement, content: e.target.value })}
+                    className="w-full px-3 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all text-sm sm:text-base"
+                    placeholder="Enter announcement content"
+                    rows={4}
               />
             </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Class (Optional)
-                  </label>
-                  <select
-                    value={newAnnouncement.class_id}
-                    onChange={(e) => setNewAnnouncement({ ...newAnnouncement, class_id: e.target.value })}
-                    className="w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  >
-                    <option value="">All Classes</option>
-                    {classes.map((class_) => (
-                      <option key={class_.id} value={class_.id}>
-                        {class_.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex justify-end gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsCreateModalOpen(false)}
-                    className="px-3 sm:px-4 py-2 text-sm sm:text-base text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="button-primary flex items-center gap-2 text-sm sm:text-base"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Creating...
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="w-4 h-4" />
-                        Create
-                      </>
-                    )}
-                  </button>
+
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleCreateAnnouncement}
+                  className="w-full mt-4 sm:mt-6 py-2.5 sm:py-3 rounded-lg sm:rounded-xl bg-gradient-to-r from-red-500 to-red-600 text-white font-semibold text-base sm:text-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2"
+                >
+                  <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                  Create Announcement
+                </motion.button>
               </div>
-              </form>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+
+      {/* Enhanced Delete Modal */}
+      <AnimatePresence>
+        {showDeleteModal && selectedAnnouncement && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ type: "spring", stiffness: 200, damping: 20 }}
+              className="bg-white dark:bg-gray-800 rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-md p-5 sm:p-8 relative"
+            >
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="absolute top-3 sm:top-4 right-3 sm:right-4 p-1.5 sm:p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <X className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 dark:text-gray-400" />
+              </button>
+
+              <div className="text-center">
+                <div className="mx-auto w-12 h-12 sm:w-16 sm:h-16 mb-4 sm:mb-6 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
+                  <Trash2 className="w-6 h-6 sm:w-8 sm:h-8 text-red-600 dark:text-red-400" />
+                </div>
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-2 sm:mb-3">
+                  Delete Announcement
+                </h3>
+                <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mb-6 sm:mb-8">
+                  Are you sure you want to delete this announcement? This action cannot be undone.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setShowDeleteModal(false)}
+                    className="flex-1 py-2.5 sm:py-3 rounded-lg sm:rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white font-medium text-sm sm:text-base transition-colors"
+                  >
+                    Cancel
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleDeleteAnnouncement}
+                    className="flex-1 py-2.5 sm:py-3 rounded-lg sm:rounded-xl bg-red-600 text-white font-medium text-sm sm:text-base transition-colors"
+                  >
+                    Delete
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Enhanced Add Achievement Modal */}
+      <AnimatePresence>
+        {showAchieverModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ type: "spring", stiffness: 200, damping: 20 }}
+              className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl w-full max-w-lg p-8 relative"
+            >
+              <button
+                onClick={() => setShowAchieverModal(false)}
+                className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+              </button>
+
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+                Add Achievement
+              </h2>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Search Student
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                        className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                        placeholder="Search by username"
+                      />
+                      <Search className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    </div>
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={handleSearch}
+                      className="px-6 py-3 rounded-xl bg-gradient-to-r from-red-500 to-red-600 text-white font-medium shadow-lg hover:shadow-xl transition-all"
+                    >
+                      Search
+                    </motion.button>
+                  </div>
+
+                  {isSearching && (
+                    <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                      Searching...
+                    </div>
+                  )}
+
+                  {searchResults.length > 0 && (
+                    <div className="mt-4 space-y-2 max-h-48 overflow-y-auto">
+                      {searchResults.map((result) => (
+                        <motion.button
+                          key={result.id}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => {
+                            setNewAchiever(prev => ({ ...prev, student_id: result.id }));
+                            setSearchResults([]);
+                            setSearchQuery(result.username);
+                          }}
+                          className="w-full p-3 flex items-center gap-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                        >
+                          <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700">
+                            <img
+                              src={result.photo_url || '/default-avatar.png'}
+                              alt={result.username}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <span className="text-gray-900 dark:text-white font-medium">
+                            {result.username}
+                          </span>
+                        </motion.button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Achievement *
+                  </label>
+                  <input
+                    type="text"
+                    value={newAchiever.achievement}
+                    onChange={(e) => setNewAchiever(prev => ({ ...prev, achievement: e.target.value }))}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                    placeholder="Enter achievement title"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Description
+                  </label>
+                  <textarea
+                    value={newAchiever.description}
+                    onChange={(e) => setNewAchiever(prev => ({ ...prev, description: e.target.value }))}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                    rows={3}
+                    placeholder="Enter achievement description"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Date
+                  </label>
+                  <input
+                    type="date"
+                    value={newAchiever.date}
+                    onChange={(e) => setNewAchiever(prev => ({ ...prev, date: e.target.value }))}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setShowAchieverModal(false)}
+                  className="px-6 py-3 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white font-medium transition-colors"
+                  >
+                    Cancel
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleCreateAchiever}
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-red-500 to-red-600 text-white font-medium shadow-lg hover:shadow-xl transition-all"
+                >
+                  Add Achievement
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 }
+
+export default Announcements;

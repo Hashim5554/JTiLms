@@ -14,8 +14,7 @@ import {
   X,
   Check,
   ChevronRight,
-  BookOpen,
-  Users
+  BookOpen
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -35,19 +34,13 @@ export function Subjects() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
   const [newSubject, setNewSubject] = useState({ name: '', description: '', image_url: '' });
-  const [isClassModalOpen, setIsClassModalOpen] = useState(false);
-  const [selectedClass, setSelectedClass] = useState<string | null>(null);
-  const [classes, setClasses] = useState<any[]>([]);
 
   const isAdmin = user?.role === 'admin' || user?.role === 'ultra_admin';
   const canManageSubjects = isAdmin;
 
   useEffect(() => {
     loadSubjects();
-    if (isAdmin) {
-      loadClasses();
-    }
-  }, [isAdmin]);
+  }, []);
 
   const loadSubjects = async () => {
     setLoading(true);
@@ -75,24 +68,6 @@ export function Subjects() {
       });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadClasses = async () => {
-    try {
-    const { data, error } = await supabase
-        .from('classes')
-        .select('*')
-        .order('name', { ascending: true });
-
-      if (error) throw error;
-      setClasses(data || []);
-    } catch (error) {
-      console.error('Error loading classes:', error);
-      setMessage({
-        type: 'error',
-        text: 'Failed to load classes. Please try again.'
-      });
     }
   };
 
@@ -209,17 +184,6 @@ export function Subjects() {
       >
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Subjects</h1>
         <div className="flex items-center space-x-4">
-      {isAdmin && (
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setIsClassModalOpen(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-800 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 dark:bg-gray-700 dark:hover:bg-gray-600"
-            >
-              <Users className="h-5 w-5 mr-2" />
-              Change Class
-            </motion.button>
-          )}
           {canManageSubjects && (
             <motion.button
               whileHover={{ scale: 1.05 }}
@@ -574,79 +538,6 @@ export function Subjects() {
               </button>
             </div>
           </form>
-        </div>
-                  </div>
-                </div>
-              </motion.div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Class Selection Modal */}
-      <AnimatePresence>
-        {isClassModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 overflow-y-auto"
-            onClick={(e) => {
-              // Close modal when clicking outside
-              if (e.target === e.currentTarget) {
-                setIsClassModalOpen(false);
-              }
-            }}
-          >
-            <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-                aria-hidden="true"
-                onClick={() => setIsClassModalOpen(false)}
-              />
-              <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 20 }}
-                className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6 relative"
-              >
-                <div className="absolute top-0 right-0 pt-4 pr-4">
-                  <button
-                    onClick={() => setIsClassModalOpen(false)}
-                    className="bg-white dark:bg-gray-800 rounded-md text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                  >
-                    <X className="h-6 w-6" />
-                  </button>
-                </div>
-                <div className="sm:flex sm:items-start">
-                  <div className="mt-3 text-center sm:mt-0 sm:text-left w-full">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">Select Class</h3>
-                    <div className="mt-6 space-y-4">
-                      {classes.map((classItem) => (
-              <button
-                          key={classItem.id}
-                          onClick={() => {
-                            setSelectedClass(classItem.id);
-                            setIsClassModalOpen(false);
-                            // Here you would typically update the current class context or state
-                            setMessage({
-                              type: 'success',
-                              text: `Switched to ${classItem.name} class`
-                            });
-                          }}
-                          className={`w-full text-left px-4 py-2 rounded-md ${
-                            selectedClass === classItem.id
-                              ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300'
-                              : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-white'
-                          }`}
-                        >
-                          {classItem.name}
-              </button>
-        ))}
       </div>
                   </div>
                 </div>

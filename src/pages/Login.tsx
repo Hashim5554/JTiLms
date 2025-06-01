@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/auth';
 
 export function Login() {
-  const [email, setEmail] = useState('ultraadmin@lgs.edu.pk');
-  const [password, setPassword] = useState('ultraadmin1234');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const { signIn, error: authError, clearError } = useAuthStore();
 
@@ -30,9 +30,7 @@ export function Login() {
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 flex items-center justify-center bg-red-600 dark:bg-red-500 rounded-full text-white font-bold text-xl">
-              LGS
-            </div>
+            <img src="/theofficialfinallogo.png" alt="LGS JTi Logo" className="h-20 w-auto rounded-2xl" />
           </div>
           <h1 className="text-4xl font-bold text-red-600 dark:text-red-500 mb-2 animate-fade-in">
             LGS JTi
@@ -102,10 +100,6 @@ export function Login() {
                   'Sign in'
                 )}
               </button>
-              
-              <div className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
-                Default credentials: ultraadmin@lgs.edu.pk / ultraadmin1234
-              </div>
             </div>
           </form>
         </div>

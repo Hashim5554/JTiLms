@@ -223,12 +223,10 @@ export function Layout() {
         <div className="flex flex-col h-full">
           {/* Logo and Title */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center">
-              <div className="w-8 h-8 flex items-center justify-center bg-red-600 text-white font-bold text-xs rounded-full mr-2">
-                LGS
-              </div>
-              <span className="text-xl font-bold text-gray-800 dark:text-white">LGS JTi</span>
-            </div>
+            <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <img src="/theofficialfinallogo.png" alt="LGS JTi Logo" className="h-9 w-auto mr-2 rounded-2xl object-center object-contain mb-[-4px]" />
+              <span className="text-xl font-bold text-gray-900 dark:text-white">LGS JTi</span>
+            </Link>
             <ThemeToggle />
           </div>
 

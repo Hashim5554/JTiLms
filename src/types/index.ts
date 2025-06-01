@@ -1,15 +1,11 @@
 // Add to existing types.ts
 export interface Class {
   id: string;
-  grade: number;
+  name: string;
+  grade: string;
   section: string;
-  name?: string; // Added for class name display
-  class_name?: string; // Alternative property for class name
-  subject_id?: string;
-  teacher_id?: string;
-  academic_year?: string;
-  semester?: string;
-  max_students?: number;
+  subject: string;
+  teacher: string;
   created_at: string;
   updated_at: string;
 }
@@ -158,6 +154,6 @@ export interface ExtendedProfile extends Profile {
 }
 
 export interface ExtendedClass extends Class {
-  grade: number;
+  grade: string;
   section: string;
 }

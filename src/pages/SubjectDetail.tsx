@@ -2,9 +2,32 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useOutletContext, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/auth';
-import { motion, AnimatePresence } from 'framer-motion';
-import type { Subject, Class, SubjectMaterial } from '../types';
-import { PlusCircle, Trash2, Link as LinkIcon, Image, Edit, Plus, BookOpen, Calendar, Clock, Users, FileText, Edit2, Loader2, X } from 'lucide-react';
+import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
+import type { Subject, Class, SubjectMaterial, Folder } from '../types';
+import { 
+  PlusCircle, 
+  Trash2, 
+  Link as LinkIcon, 
+  Image, 
+  Edit, 
+  Plus, 
+  BookOpen, 
+  Calendar, 
+  Clock, 
+  Users, 
+  FileText, 
+  Edit2, 
+  Loader2, 
+  X,
+  Folder as FolderIcon,
+  ChevronRight,
+  ChevronDown,
+  FolderPlus,
+  Sparkles,
+  Star,
+  Bookmark,
+  Share2
+} from 'lucide-react';
 
 interface SubjectLink {
   id: string;
@@ -26,12 +49,41 @@ interface Message {
   text: string;
 }
 
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1
+    }
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0 }
+};
+
+const folderVariants = {
+  hidden: { opacity: 0, x: -20 },
+  show: { opacity: 1, x: 0 },
+  exit: { opacity: 0, x: -20 }
+};
+
+const materialVariants = {
+  hidden: { opacity: 0, scale: 0.8 },
+  show: { opacity: 1, scale: 1 },
+  exit: { opacity: 0, scale: 0.8 }
+};
+
 export function SubjectDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [subject, setSubject] = useState<Subject | null>(null);
   const [links, setLinks] = useState<SubjectLink[]>([]);
   const [materials, setMaterials] = useState<SubjectMaterial[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [newTitle, setNewTitle] = useState('');
   const [newUrl, setNewUrl] = useState('');
   const [loading, setLoading] = useState(true);
@@ -45,17 +97,21 @@ export function SubjectDetail() {
   const isAdmin = user?.role === 'admin' || user?.role === 'ultra_admin';
   const [message, setMessage] = useState<Message | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const [newFolder, setNewFolder] = useState({ name: '', description: '', parent_folder_id: null as string | null });
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     file_url: '',
-    due_date: ''
+    due_date: '',
+    folder_id: null as string | null
   });
 
   useEffect(() => {
     loadSubject();
     loadLinks();
     loadMaterials();
+    loadFolders();
   }, [id]);
 
   const loadSubject = async () => {
@@ -93,16 +149,37 @@ export function SubjectDetail() {
     }
   };
 
+  const loadFolders = async () => {
+    if (!id) return;
+    try {
+      const { data, error } = await supabase
+        .from('folders')
+        .select('*')
+        .eq('subject_id', id)
+        .order('name');
+
+      if (error) throw error;
+      if (data) setFolders(data);
+    } catch (error) {
+      console.error('Error loading folders:', error);
+      setMessage({ type: 'error', text: 'Failed to load folders' });
+    }
+  };
+
   const loadMaterials = async () => {
+    if (!id) return;
     try {
       const { data, error } = await supabase
         .from('subject_materials')
-        .select('*')
+        .select(`
+          *,
+          folder:folders(*)
+        `)
         .eq('subject_id', id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setMaterials(data || []);
+      if (data) setMaterials(data);
     } catch (error) {
       console.error('Error loading materials:', error);
       setMessage({ type: 'error', text: 'Failed to load materials' });
@@ -193,7 +270,8 @@ export function SubjectDetail() {
         title: '',
         description: '',
         file_url: '',
-        due_date: ''
+        due_date: '',
+        folder_id: null
       });
       loadMaterials();
     } catch (error) {
@@ -239,7 +317,8 @@ export function SubjectDetail() {
         title: '',
         description: '',
         file_url: '',
-        due_date: ''
+        due_date: '',
+        folder_id: null
       });
       loadMaterials();
     } catch (error) {
@@ -254,8 +333,160 @@ export function SubjectDetail() {
       title: material.title,
       description: material.description,
       file_url: material.file_url || '',
-      due_date: material.due_date || ''
+      due_date: material.due_date || '',
+      folder_id: material.folder_id || null
     });
+  };
+
+  const handleCreateFolder = async () => {
+    if (!newFolder.name || !id || !user?.id) return;
+
+    try {
+      const { error } = await supabase
+        .from('folders')
+        .insert([{
+          ...newFolder,
+          subject_id: id,
+          created_by: user.id
+        }]);
+
+      if (error) throw error;
+
+      setMessage({ type: 'success', text: 'Folder created successfully' });
+      setIsCreatingFolder(false);
+      setNewFolder({ name: '', description: '', parent_folder_id: null });
+      loadFolders();
+    } catch (error) {
+      console.error('Error creating folder:', error);
+      setMessage({ type: 'error', text: 'Failed to create folder' });
+    }
+  };
+
+  const handleDeleteFolder = async (folderId: string) => {
+    if (!confirm('Are you sure you want to delete this folder? All materials inside will be moved to the root level.')) return;
+
+    try {
+      const { error } = await supabase
+        .from('folders')
+        .delete()
+        .eq('id', folderId);
+
+      if (error) throw error;
+
+      // Move materials to root level
+      const { error: updateError } = await supabase
+        .from('subject_materials')
+        .update({ folder_id: null })
+        .eq('folder_id', folderId);
+
+      if (updateError) throw updateError;
+
+      setMessage({ type: 'success', text: 'Folder deleted successfully' });
+      loadFolders();
+      loadMaterials();
+    } catch (error) {
+      console.error('Error deleting folder:', error);
+      setMessage({ type: 'error', text: 'Failed to delete folder' });
+    }
+  };
+
+  const toggleFolder = (folderId: string) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(folderId)) {
+        next.delete(folderId);
+      } else {
+        next.add(folderId);
+      }
+      return next;
+    });
+  };
+
+  const getFolderPath = (folderId: string): Folder[] => {
+    const path: Folder[] = [];
+    let currentFolder = folders.find(f => f.id === folderId);
+    
+    while (currentFolder) {
+      path.unshift(currentFolder);
+      currentFolder = folders.find(f => f.id === currentFolder?.parent_folder_id);
+    }
+    
+    return path;
+  };
+
+  const renderFolderTree = (parentId: string | null = null, level: number = 0) => {
+    const childFolders = folders.filter(f => f.parent_folder_id === parentId);
+    
+    return childFolders.map(folder => (
+      <div key={folder.id} style={{ marginLeft: `${level * 20}px` }}>
+        <motion.div 
+          variants={folderVariants}
+          className="group flex items-center py-2 px-3 rounded-xl mb-1 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-all cursor-pointer"
+          onClick={() => toggleFolder(folder.id)}
+        >
+          <div className="flex items-center flex-grow">
+            <div className="p-2 rounded-lg bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/30 dark:to-red-800/30 mr-3">
+              <FolderIcon className="h-5 w-5 text-red-500 dark:text-red-400" />
+            </div>
+            <span className="text-gray-900 dark:text-white font-medium">{folder.name}</span>
+          </div>
+          {isAdmin && (
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteFolder(folder.id);
+              }}
+              className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <Trash2 className="h-4 w-4" />
+            </motion.button>
+          )}
+        </motion.div>
+        {expandedFolders.has(folder.id) && (
+          <>
+            {renderFolderTree(folder.id, level + 1)}
+            {materials
+              .filter(m => m.folder_id === folder.id)
+              .map(material => (
+                <motion.div
+                  key={material.id}
+                  variants={materialVariants}
+                  layout
+                  className="group flex items-center py-2 px-3 ml-8 rounded-xl mb-1 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-all"
+                  style={{ marginLeft: `${(level + 1) * 20}px` }}
+                >
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 mr-3">
+                    <FileText className="h-5 w-5 text-blue-500 dark:text-blue-400" />
+                  </div>
+                  <span className="text-gray-700 dark:text-gray-300">{material.title}</span>
+                  {isAdmin && (
+                    <div className="flex items-center space-x-2 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => startEditing(material)}
+                        className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => handleDeleteMaterial(material.id)}
+                        className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </motion.button>
+                    </div>
+                  )}
+                </motion.div>
+              ))}
+          </>
+        )}
+      </div>
+    ));
   };
 
   if (loading) {
@@ -281,22 +512,65 @@ export function SubjectDetail() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
-            <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{subject.name}</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-300">{subject.description}</p>
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 py-8 px-4 sm:px-6 lg:px-8"
+    >
+      <div className="max-w-7xl mx-auto">
+        {/* Hero Section */}
+        <motion.div 
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-red-600 to-red-800 p-8 mb-8 shadow-xl"
+        >
+          <div className="absolute inset-0 bg-grid-white/10 [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.6))]" />
+          <div className="relative">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+              <div className="flex-1">
+                <motion.h1 
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  className="text-4xl font-bold text-white mb-2"
+                >
+                  {subject.name}
+                </motion.h1>
+                <motion.p 
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.1 }}
+                  className="text-red-100 text-lg"
+                >
+                  {subject.description}
+                </motion.p>
         </div>
+              <div className="flex items-center gap-4">
+                {isAdmin && (
+                  <>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setIsCreatingFolder(true)}
+                      className="flex items-center px-4 py-2 bg-white/10 backdrop-blur-sm text-white rounded-xl hover:bg-white/20 transition-all"
+                    >
+                      <FolderPlus className="h-5 w-5 mr-2" />
+                      New Folder
+                    </motion.button>
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => setIsCreating(true)}
-          className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                      className="flex items-center px-4 py-2 bg-white text-red-600 rounded-xl hover:bg-red-50 transition-all"
         >
           <Plus className="h-5 w-5 mr-2" />
           Add Material
         </motion.button>
+                  </>
+                )}
+              </div>
+            </div>
       </div>
+        </motion.div>
 
       <AnimatePresence>
         {message && (
@@ -304,10 +578,10 @@ export function SubjectDetail() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className={`p-4 rounded-lg mb-6 ${
+              className={`p-4 rounded-xl mb-6 backdrop-blur-sm ${
               message.type === 'success' 
-                ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200' 
-                : 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200'
+                  ? 'bg-green-100/80 dark:bg-green-900/50 text-green-800 dark:text-green-200' 
+                  : 'bg-red-100/80 dark:bg-red-900/50 text-red-800 dark:text-red-200'
             }`}
           >
             {message.text}
@@ -315,166 +589,415 @@ export function SubjectDetail() {
         )}
       </AnimatePresence>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {materials.map((material) => (
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Folders Card */}
+          <motion.div 
+            variants={itemVariants}
+            className="lg:col-span-1 bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden"
+          >
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
+                <FolderIcon className="h-5 w-5 mr-2 text-red-500" />
+                Folders
+              </h2>
+            </div>
+            <div className="p-4">
+              <LayoutGroup>
+                {renderFolderTree()}
+                {materials
+                  .filter(m => !m.folder_id)
+                  .map(material => (
           <motion.div
             key={material.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow duration-200"
+                      variants={materialVariants}
+                      layout
+                      className="group flex items-center py-2 px-3 rounded-xl mb-1 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-all"
+                    >
+                      <div className="p-2 rounded-lg bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 mr-3">
+                        <FileText className="h-5 w-5 text-blue-500 dark:text-blue-400" />
+                      </div>
+                      <span className="text-gray-700 dark:text-gray-300">{material.title}</span>
+                      {isAdmin && (
+                        <div className="flex items-center space-x-2 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => startEditing(material)}
+                            className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </motion.button>
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => handleDeleteMaterial(material.id)}
+                            className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </motion.button>
+                        </div>
+                      )}
+                    </motion.div>
+                  ))}
+              </LayoutGroup>
+            </div>
+          </motion.div>
+
+          {/* Materials Card */}
+          <motion.div 
+            variants={itemVariants}
+            className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden"
           >
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center">
+                <BookOpen className="h-5 w-5 mr-2 text-red-500" />
+                Materials
+              </h2>
+            </div>
             <div className="p-6">
-              <div className="flex justify-between items-start mb-4">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{material.title}</h2>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => startEditing(material)}
-                    className="p-2 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 transition-colors"
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {materials.map(material => (
+                  <motion.div
+                    key={material.id}
+                    variants={materialVariants}
+                    layout
+                    className="group relative bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 hover:shadow-lg transition-all"
                   >
-                    <Edit2 className="h-5 w-5" />
-                  </button>
-                  <button
+                    <div className="absolute inset-0 bg-gradient-to-r from-red-500/10 to-red-600/10 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="relative">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                            {material.title}
+                          </h3>
+                          <p className="text-gray-600 dark:text-gray-300 text-sm mb-4">
+                            {material.description}
+                          </p>
+                        </div>
+                        {isAdmin && (
+                          <div className="flex items-center space-x-2">
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={() => startEditing(material)}
+                              className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </motion.button>
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
                     onClick={() => handleDeleteMaterial(material.id)}
-                    className="p-2 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 transition-colors"
+                              className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
                   >
-                    <Trash2 className="h-5 w-5" />
-                  </button>
+                              <Trash2 className="h-4 w-4" />
+                            </motion.button>
                 </div>
+                        )}
               </div>
-              <p className="text-gray-600 dark:text-gray-300 mb-4">{material.description}</p>
-              <div className="space-y-2">
+                      <div className="flex items-center justify-between mt-4">
+                        <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
                 {material.file_url && (
                   <a
                     href={material.file_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                              className="flex items-center hover:text-red-500 transition-colors"
                   >
-                    <FileText className="h-4 w-4 mr-2" />
-                    <span>View File</span>
+                              <FileText className="h-4 w-4 mr-1" />
+                              View File
                   </a>
                 )}
                 {material.due_date && (
-                  <div className="flex items-center text-gray-600 dark:text-gray-300">
-                    <Calendar className="h-4 w-4 mr-2" />
-                    <span>Due: {new Date(material.due_date).toLocaleDateString()}</span>
+                            <div className="flex items-center">
+                              <Calendar className="h-4 w-4 mr-1" />
+                              {new Date(material.due_date).toLocaleDateString()}
                   </div>
                 )}
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            className="p-1 text-gray-400 hover:text-yellow-500 dark:hover:text-yellow-400"
+                          >
+                            <Star className="h-4 w-4" />
+                          </motion.button>
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            className="p-1 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400"
+                          >
+                            <Share2 className="h-4 w-4" />
+                          </motion.button>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
               </div>
             </div>
           </motion.div>
-        ))}
             </div>
 
-      {/* Create/Edit Modal */}
+        {/* Create Folder Modal */}
       <AnimatePresence>
-        {(isCreating || isEditing) && (
+          {isCreatingFolder && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 overflow-y-auto"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  setIsCreatingFolder(false);
+                }
+              }}
+            >
+              <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-6"
-            >
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  {isEditing ? 'Edit Material' : 'Add Material'}
-                </h2>
-                <button
-                  onClick={() => {
-                    setIsCreating(false);
-                    setIsEditing(null);
-                    setFormData({
-                      title: '',
-                      description: '',
-                      file_url: '',
-                      due_date: ''
-                    });
-                  }}
-                  className="p-2 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 transition-colors"
+                  className="fixed inset-0 transition-opacity"
+                  aria-hidden="true"
                 >
-                  <X className="h-5 w-5" />
+                  <div className="absolute inset-0 bg-gray-500 dark:bg-gray-900 opacity-75"></div>
+                </motion.div>
+                <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full relative"
+                >
+                  <div className="absolute top-0 right-0 pt-4 pr-4">
+                    <button
+                      type="button"
+                      onClick={() => setIsCreatingFolder(false)}
+                      className="bg-white dark:bg-gray-800 rounded-md text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    >
+                      <span className="sr-only">Close</span>
+                      <X className="h-6 w-6" />
+                    </button>
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div className="sm:flex sm:items-start">
+                      <div className="mt-3 text-center sm:mt-0 sm:text-left w-full">
+                        <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">
+                          Create New Folder
+                        </h3>
+                        <form onSubmit={(e) => { e.preventDefault(); handleCreateFolder(); }} className="mt-4 space-y-4">
+                          <div>
+                            <label htmlFor="folder_name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                              Folder Name
+                            </label>
+                            <input
+                              type="text"
+                              id="folder_name"
+                              value={newFolder.name}
+                              onChange={(e) => setNewFolder({ ...newFolder, name: e.target.value })}
+                              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label htmlFor="folder_description" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                              Description (optional)
+                            </label>
+                            <textarea
+                              id="folder_description"
+                              value={newFolder.description}
+                              onChange={(e) => setNewFolder({ ...newFolder, description: e.target.value })}
+                              rows={3}
+                              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            />
+                          </div>
+                          <div>
+                            <label htmlFor="parent_folder" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                              Parent Folder (optional)
+                            </label>
+                            <select
+                              id="parent_folder"
+                              value={newFolder.parent_folder_id || ''}
+                              onChange={(e) => setNewFolder({ ...newFolder, parent_folder_id: e.target.value || null })}
+                              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            >
+                              <option value="">None (Root Level)</option>
+                              {folders.map(folder => (
+                                <option key={folder.id} value={folder.id}>
+                                  {folder.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+                            <button
+                              type="submit"
+                              className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm"
+                            >
+                              Create Folder
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setIsCreatingFolder(false)}
+                              className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Create Material Modal */}
+        <AnimatePresence>
+          {isCreating && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 overflow-y-auto"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  setIsCreating(false);
+                }
+              }}
+            >
+              <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 transition-opacity"
+                  aria-hidden="true"
+                >
+                  <div className="absolute inset-0 bg-gray-500 dark:bg-gray-900 opacity-75"></div>
+                </motion.div>
+                <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full relative"
+                >
+                  <div className="absolute top-0 right-0 pt-4 pr-4">
+                    <button
+                      type="button"
+                      onClick={() => setIsCreating(false)}
+                      className="bg-white dark:bg-gray-800 rounded-md text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    >
+                      <span className="sr-only">Close</span>
+                      <X className="h-6 w-6" />
                 </button>
               </div>
-              <div className="space-y-4">
+                  <div className="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div className="sm:flex sm:items-start">
+                      <div className="mt-3 text-center sm:mt-0 sm:text-left w-full">
+                        <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">
+                          Add New Material
+                        </h3>
+                        <form onSubmit={(e) => { e.preventDefault(); handleCreate(); }} className="mt-4 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label htmlFor="title" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Title
                   </label>
                   <input
                     type="text"
+                              id="title"
                     value={formData.title}
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
+                              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                              required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Description
                   </label>
                   <textarea
+                              id="description"
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
                     rows={3}
+                              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                              required
           />
         </div>
             <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    File URL
+                            <label htmlFor="file_url" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                              File URL (optional)
               </label>
               <input
-                type="text"
+                              type="url"
+                              id="file_url"
                     value={formData.file_url}
                     onChange={(e) => setFormData({ ...formData, file_url: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
+                              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
               />
             </div>
             <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Due Date
+                            <label htmlFor="due_date" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                              Due Date (optional)
               </label>
               <input
-                    type="date"
+                              type="datetime-local"
+                              id="due_date"
                     value={formData.due_date}
                     onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
+                              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
               />
             </div>
-                <div className="flex justify-end space-x-3">
+                          <div>
+                            <label htmlFor="folder" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                              Folder (optional)
+                            </label>
+                            <select
+                              id="folder"
+                              value={formData.folder_id || ''}
+                              onChange={(e) => setFormData({ ...formData, folder_id: e.target.value || null })}
+                              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            >
+                              <option value="">None (Root Level)</option>
+                              {folders.map(folder => (
+                                <option key={folder.id} value={folder.id}>
+                                  {folder.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+                            <button
+                              type="submit"
+                              className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm"
+                            >
+                              Create Material
+                            </button>
               <button
-                    onClick={() => {
-                      setIsCreating(false);
-                      setIsEditing(null);
-                      setFormData({
-                        title: '',
-                        description: '',
-                        file_url: '',
-                        due_date: ''
-                      });
-                    }}
-                    className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                              type="button"
+                              onClick={() => setIsCreating(false)}
+                              className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm"
                   >
                     Cancel
               </button>
-                  <button
-                    onClick={() => isEditing ? handleUpdateMaterial(isEditing) : handleCreate()}
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                  >
-                    {isEditing ? 'Update' : 'Create'}
-                  </button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
                 </div>
+                </motion.div>
               </div>
-            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
     </div>
+    </motion.div>
   );
 }

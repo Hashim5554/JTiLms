@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/auth';
 import { motion, AnimatePresence } from 'framer-motion';
+import { createPortal } from 'react-dom';
 import { 
   MessageSquare,
   Trash2, 
-  User, 
   Plus,
   Loader2,
   Calendar,
@@ -14,10 +14,17 @@ import {
   Clock,
   AlertCircle,
   X,
-  Megaphone
+  Users,
+  Target,
+  Upload,
+  Download,
+  FileText,
+  Settings,
+  Newspaper
 } from 'lucide-react';
 import { Class } from '../types';
 import '../styles/cards.css';
+import { useTheme } from '../hooks/useTheme';
 
 interface HomeContextType {
   currentClass: Class | null;
@@ -62,16 +69,42 @@ interface Discussion {
   };
 }
 
+interface NewsItem {
+  id: string;
+  title: string;
+  content: string;
+  created_by: string;
+  created_at: string;
+  is_deleted?: boolean;
+  updated_at?: string;
+}
+
+const HERO_BG = '/Screenshot 2025-05-03 164632.png';
+
+function useParallax(offset = 0.4) {
+  const [parallax, setParallax] = useState(0);
+  useEffect(() => {
+    const handleScroll = () => {
+      setParallax(window.scrollY * offset);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [offset]);
+  return parallax;
+}
+
 export function Home() {
+  const navigate = useNavigate();
+  console.log('Home component rendering'); // Debug log
+
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
   const [newDiscussion, setNewDiscussion] = useState('');
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [dueWorks, setDueWorks] = useState<DueWork[]>([]);
-  const [activeTab, setActiveTab] = useState<'discussions' | 'due'>('discussions');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showDueWorkModal, setShowDueWorkModal] = useState(false);
-  // Removed unused class students state
+  const [selectedDueWork, setSelectedDueWork] = useState<DueWork | null>(null);
   const [newDueWork, setNewDueWork] = useState({
     title: '',
     description: '',
@@ -82,68 +115,95 @@ export function Home() {
   const [subjects, setSubjects] = useState<any[]>([]);
   const user = useAuthStore((state) => state.user);
   const { currentClass, classes } = useOutletContext<HomeContextType>();
-  const [isNewsModalOpen, setIsNewsModalOpen] = useState(false);
   const [newNews, setNewNews] = useState({
     title: '',
     content: ''
   });
-  // These states are set but not currently displayed in the UI
-  const [, setLoadingDueWorks] = useState(true);
-  const [, setDueWorksError] = useState<string | null>(null);
+  const [news, setNews] = useState<NewsItem[]>([]);
+  const [showOldNews, setShowOldNews] = useState(false);
+  const [isCreateNewsModalOpen, setIsCreateNewsModalOpen] = useState(false);
+  const [newNewsTitle, setNewNewsTitle] = useState('');
+  const [newNewsContent, setNewNewsContent] = useState('');
+  const [creatingNews, setCreatingNews] = useState(false);
+  const [deletingNews, setDeletingNews] = useState<string | null>(null);
+  const [creatingDueWork, setCreatingDueWork] = useState(false);
+  const [showDueWorkDetailsModal, setShowDueWorkDetailsModal] = useState(false);
+  const [showCreateDueWorkModal, setShowCreateDueWorkModal] = useState(false);
+  const [showNewsDetailsModal, setShowNewsDetailsModal] = useState(false);
+  const [selectedNews, setSelectedNews] = useState<NewsItem | null>(null);
+  const [showDiscussionsModal, setShowDiscussionsModal] = useState(false);
+  const [showPrivateDiscussions, setShowPrivateDiscussions] = useState(false);
+  const [showOpenDiscussions, setShowOpenDiscussions] = useState(false);
+  const [selectedDiscussionType, setSelectedDiscussionType] = useState<'private' | 'open' | null>(null);
+  const [newMessage, setNewMessage] = useState('');
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [users, setUsers] = useState<any[]>([]);
+  const [showTargetsModal, setShowTargetsModal] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  const [targetFiles, setTargetFiles] = useState<{ [key: string]: any[] }>({});
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [deletingFile, setDeletingFile] = useState<string | null>(null);
+  const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [isHeroHovered, setIsHeroHovered] = useState(false);
+  const [lightPos, setLightPos] = useState<{ x: number; y: number } | null>(null);
+  const [showNewsModal, setShowNewsModal] = useState(false);
+  const parallax = useParallax(0.4);
+
+  const months = [
+    { name: 'August', value: 'august' },
+    { name: 'September', value: 'september' },
+    { name: 'October', value: 'october' },
+    { name: 'November', value: 'november' },
+    { name: 'December', value: 'december' },
+    { name: 'January', value: 'january' },
+    { name: 'February', value: 'february' },
+    { name: 'March', value: 'march' },
+    { name: 'April', value: 'april' },
+    { name: 'May', value: 'may' },
+    { name: 'June', value: 'june' }
+  ];
+
+  // --- 3D/Scroll Animations ---
+  const cardVariants = {
+    initial: { opacity: 0, y: 40, rotateY: -10 },
+    animate: { opacity: 1, y: 0, rotateY: 0, transition: { type: 'spring', stiffness: 80, damping: 18 } },
+    whileHover: { scale: 1.04, rotateY: 8, boxShadow: '0 12px 32px rgba(0,0,0,0.18)' },
+  };
 
   const loadData = useCallback(async () => {
+    console.log('Starting loadData'); // Debug log
     setLoading(true);
     setError(null);
     try {
-      // Try to fetch announcements using the RPC function first
+      // Load announcements
       try {
+        console.log('Loading announcements'); // Debug log
         let announcementsQuery = supabase
           .rpc('get_announcements_with_profiles')
           .order('created_at', { ascending: false });
 
-        // Filter by class if one is selected and user is not ultra_admin
         if (currentClass?.id && user?.role !== 'ultra_admin') {
           announcementsQuery = announcementsQuery.eq('class_id', currentClass.id);
         }
 
         const { data: announcementsData, error: announcementsError } = await announcementsQuery;
+        console.log('Announcements loaded:', announcementsData, announcementsError); // Debug log
         
         if (!announcementsError) {
-          console.log('Successfully loaded announcements via RPC');
           setAnnouncements(announcementsData || []);
         } else {
-          // Fallback to direct query if RPC fails
-          console.warn('RPC failed for announcements, using fallback:', announcementsError);
-          throw announcementsError;
+          console.warn('Error loading announcements:', announcementsError);
+          setAnnouncements([]);
         }
       } catch (announcementsFallbackError) {
-        // Fallback: Direct query to announcements table
-        console.log('Using fallback for announcements');
-        const { data: fallbackData, error: fallbackError } = await supabase
-          .from('announcements')
-          .select(`
-            *,
-            profiles!announcements_created_by_fkey (username, role)
-          `)
-          .order('created_at', { ascending: false });
-
-        if (fallbackError) {
-          console.error('Fallback for announcements also failed:', fallbackError);
-          // Don't throw here, continue with empty announcements
+        console.warn('Fallback for announcements:', announcementsFallbackError);
           setAnnouncements([]);
-        } else {
-          // Transform the data to match the expected format
-          const transformedData = fallbackData?.map(item => ({
-            ...item,
-            username: item.profiles?.username,
-            role: item.profiles?.role
-          })) || [];
-          setAnnouncements(transformedData);
-        }
       }
 
-      // Try to fetch discussions using the RPC function
+      // Load discussions
       try {
+        console.log('Loading discussions'); // Debug log
         let discussionsQuery = supabase
           .rpc('get_discussions_with_profiles')
           .order('created_at', { ascending: false });
@@ -153,66 +213,85 @@ export function Home() {
         }
 
         const { data: discussionsData, error: discussionsError } = await discussionsQuery;
+        console.log('Discussions loaded:', discussionsData, discussionsError); // Debug log
         
         if (!discussionsError) {
-          console.log('Successfully loaded discussions via RPC');
           setDiscussions(discussionsData || []);
         } else {
-          // Fallback if RPC fails
-          console.warn('RPC failed for discussions, using fallback:', discussionsError);
-          throw discussionsError;
+          console.warn('Error loading discussions:', discussionsError);
+          setDiscussions([]);
         }
       } catch (discussionsFallbackError) {
-        // Fallback: Direct query to discussions table
-        console.log('Using fallback for discussions');
-        const { data: fallbackData, error: fallbackError } = await supabase
-          .from('discussions')
-          .select(`
-            *,
-            profiles!discussions_created_by_fkey (username)
-          `)
-          .order('created_at', { ascending: false });
-
-        if (fallbackError) {
-          console.error('Fallback for discussions also failed:', fallbackError);
-          // Don't throw here, continue with empty discussions
+        console.warn('Fallback for discussions:', discussionsFallbackError);
           setDiscussions([]);
-        } else {
-          // Transform the data to match the expected format
-          const transformedData = fallbackData?.map(item => ({
-            ...item,
-            username: item.profiles?.username
-          })) || [];
-          setDiscussions(transformedData);
-        }
       }
 
-      // Load due works with error handling
+      // Load due works
       try {
+        console.log('Loading due works'); // Debug log
         await loadDueWorks();
       } catch (dueWorksError) {
-        console.error('Failed to load due works:', dueWorksError);
-        // Continue without due works if they fail to load
+        console.warn('Error loading due works:', dueWorksError);
         setDueWorks([]);
       }
+
+      // Create recent activity from existing data
+      const recentActivity = [
+        ...announcements.slice(0, 3).map(a => ({
+          id: a.id,
+          type: 'announcement',
+          title: a.title,
+          created_at: a.created_at,
+          description: `New announcement: ${a.title}`
+        })),
+        ...discussions.slice(0, 3).map(d => ({
+          id: d.id,
+          type: 'discussion',
+          title: d.content,
+          created_at: d.created_at,
+          description: `New discussion: ${d.content.substring(0, 50)}...`
+        })),
+        ...dueWorks.slice(0, 3).map(w => ({
+          id: w.id,
+          type: 'due_work',
+          title: w.title,
+          created_at: w.created_at,
+          description: `New assignment: ${w.title}`
+        }))
+      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 5);
+
+      setRecentActivity(recentActivity);
+      console.log('Data loading completed successfully'); // Debug log
     } catch (error: any) {
-      console.error('Error loading home data:', error);
-      setError(error.message);
+      console.error('Error in loadData:', error);
+      setError(error.message || 'Failed to load data');
     } finally {
       setLoading(false);
     }
   }, [currentClass, user?.role]);
 
-  // Helper function to get the class name from a class object
-  const getClassName = useMemo(() => {
-    return (classObj: Class) => {
-      // Type assertion to allow access to optional properties
-      const classWithName = classObj as Class & { name?: string; class_name?: string };
-      if (classWithName.name) return classWithName.name;
-      if (classWithName.class_name) return classWithName.class_name;
-      return `Grade ${classObj.grade}-${classObj.section}`;
+  useEffect(() => {
+    console.log('Initial useEffect running'); // Debug log
+    console.log('Current user:', user); // Debug log
+    console.log('Current class:', currentClass); // Debug log
+
+    // Start loading data
+    loadData();
+    loadDueWorks();
+    loadSubjects(); // Load subjects on mount
+    
+    // Force render after a short timeout even if data isn't fully loaded
+    const forceRenderTimer = setTimeout(() => {
+      console.log('Force render timeout reached'); // Debug log
+      setLoading(false);
+    }, 2000); // 2 second timeout
+    
+    return () => {
+      console.log('Cleanup running'); // Debug log
+      clearTimeout(forceRenderTimer);
     };
-  }, []);
+  }, [loadData]);
 
   // Load subjects when needed
   const loadSubjects = async () => {
@@ -231,91 +310,6 @@ export function Home() {
       console.error('Error loading subjects:', error);
     }
   };
-
-  useEffect(() => {
-    // Start loading data
-    loadData();
-    loadDueWorks();
-    loadSubjects(); // Load subjects on mount
-    
-    // Force render after a short timeout even if data isn't fully loaded
-    const forceRenderTimer = setTimeout(() => {
-      setLoading(false);
-      
-      // If we don't have any announcements, set some defaults
-      if (announcements.length === 0) {
-        setAnnouncements([
-          {
-            id: 'default-1',
-            title: 'Welcome to LGS JTI',
-            content: 'This is a default announcement shown when the database connection is unavailable.',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            created_by: 'system'
-          }
-        ]);
-      }
-      
-      // If we don't have any discussions, set some defaults
-      if (discussions.length === 0) {
-        setDiscussions([
-          {
-            id: 'default-1',
-            content: 'Welcome to Discussions. Start a new discussion by clicking the button above.',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            created_by: 'system',
-            class_id: currentClass?.id || 'default'
-          }
-        ]);
-      }
-      
-      // If we don't have any due works, set some defaults
-      if (dueWorks.length === 0) {
-        setDueWorks([
-          {
-            id: 'default-1',
-            title: 'Sample Assignment',
-            description: 'This is a sample assignment shown when the database connection is unavailable.',
-            due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 1 week from now
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            created_by: 'system',
-            subject_id: 'default',
-            class_id: 'default',
-            subject_name: 'Default Subject',
-            creator_username: 'System'
-          }
-        ]);
-      }
-    }, 2000); // 2 second timeout - reduced for better user experience
-    
-    return () => clearTimeout(forceRenderTimer);
-  }, []);
-
-  // This function is defined but not currently used
-  // Keeping it commented out for future use if needed
-  /*
-  const loadClassStudents = async () => {
-    if (!currentClass?.id) return;
-    try {
-      const { data, error } = await supabase
-        .from('class_assignments')
-        .select(`
-          profiles (
-            id,
-            username
-          )
-        `)
-        .eq('class_id', currentClass.id);
-
-      if (error) throw error;
-      setClassStudents(data?.map(d => d.profiles) || []);
-    } catch (error) {
-      console.error('Error loading class students:', error);
-    }
-  };
-  */
 
   const handlePostDiscussion = async () => {
     if (!newDiscussion.trim() || !user?.id || !currentClass?.id) return;
@@ -346,8 +340,8 @@ export function Home() {
 
   const loadDueWorks = async () => {
     try {
-      setLoadingDueWorks(true);
-      setDueWorksError(null);
+      setLoading(true);
+      setError(null);
 
       try {
         // Try to get due works with the RPC function first
@@ -403,76 +397,35 @@ export function Home() {
       }
     } catch (error: any) {
       console.error('Error loading due works:', error);
-      setDueWorksError('Failed to load due works. Please try again.');
+      setError('Failed to load due works. Please try again.');
       // Set empty array to prevent UI from being stuck in loading
       setDueWorks([]);
     } finally {
-      setLoadingDueWorks(false);
+      setLoading(false);
     }
   };
 
   const handleCreateDueWork = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Check if user is logged in
-    if (!user) {
-      setError('You must be logged in to create due work');
-      return;
-    }
-
-    // Check if user has permission
-    if (user.role !== 'admin' && user.role !== 'ultra_admin') {
-      setError('You do not have permission to create due work');
-      return;
-    }
-
-    // Check if class is selected
-    if (!currentClass?.id) {
-      setError('Please select a class first');
-      return;
-    }
-
-    // Validate required fields
-    if (!newDueWork.title.trim()) {
-      setError('Title is required');
-      return;
-    }
-    if (!newDueWork.description.trim()) {
-      setError('Description is required');
-      return;
-    }
-    if (!newDueWork.due_date) {
-      setError('Due date is required');
-      return;
-    }
-    if (!newDueWork.subject_id) {
-      setError('Subject is required');
-      return;
-    }
-
+    setCreatingDueWork(true);
     try {
-      setLoading(true);
-      // Format the due date to ISO string
-      const formattedDueDate = new Date(newDueWork.due_date).toISOString();
-
-      const { error } = await supabase
+      // Create due work for each selected class
+      const dueWorkPromises = selectedClasses.map(classId => 
+        supabase
         .from('due_works')
         .insert([{
-          title: newDueWork.title.trim(),
-          description: newDueWork.description.trim(),
-          due_date: formattedDueDate,
+            title: newDueWork.title,
+            description: newDueWork.description,
+            due_date: newDueWork.due_date,
           subject_id: newDueWork.subject_id,
-          created_by: user.id,
-          class_id: currentClass.id
-        }]);
+            class_id: classId,
+            created_by: user?.id
+          }])
+      );
 
-      if (error) throw error;
-
-      // Reload due works to get the updated list
-      loadDueWorks();
-      
-      // Close the modal and reset the form
-      setShowDueWorkModal(false);
+      await Promise.all(dueWorkPromises);
+      await loadDueWorks();
+      setShowCreateDueWorkModal(false);
       setNewDueWork({
         title: '',
         description: '',
@@ -480,73 +433,86 @@ export function Home() {
         subject_id: '',
         class_id: ''
       });
-      setError(null);
-    } catch (error: any) {
+      setSelectedClasses([]);
+    } catch (error) {
       console.error('Error creating due work:', error);
-      setError(error.message || 'Failed to create due work');
+      setError('Failed to create due work');
     } finally {
-      setLoading(false);
+      setCreatingDueWork(false);
     }
   };
 
-  // These functions are defined but not currently used
-  // Keeping them commented out for future use if needed
-  /*
-  const loadClasses = async () => {
+  // Add this new function to clean up deleted items
+  const cleanupDeletedNews = async () => {
     try {
-      const { data, error } = await supabase
-        .from('classes')
+      // First, get all news items marked as deleted
+      const { data: deletedNews, error: fetchError } = await supabase
+        .from('news')
         .select('*')
-        .order('grade')
-        .order('section');
+        .eq('is_deleted', true);
 
-      if (error) throw error;
-      if (data) {
-        // Update the classes state through the context
-        const context = useOutletContext<HomeContextType>();
-        context.classes = data;
+      if (fetchError) {
+        console.error('Error fetching deleted news:', fetchError);
+        return;
+      }
+
+      // If there are deleted items, remove them from the database
+      if (deletedNews && deletedNews.length > 0) {
+        const { error: deleteError } = await supabase
+          .from('news')
+          .delete()
+          .in('id', deletedNews.map(item => item.id));
+
+        if (deleteError) {
+          console.error('Error cleaning up deleted news:', deleteError);
+        }
       }
     } catch (error) {
-      console.error('Error loading classes:', error);
-      setError('Failed to load classes. Please try again.');
+      console.error('Error in cleanupDeletedNews:', error);
     }
   };
 
-  const fetchAnnouncements = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('announcements')
-        .select(`
-          *,
-          profiles!announcements_created_by_fkey (
-            username,
-            photo_url
-          )
-        `)
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      if (error) throw error;
-      setAnnouncements(data || []);
-    } catch (error) {
-      console.error('Error loading announcements:', error);
+  // Update the handleDeleteNews function with more detailed logging
+  const handleDeleteNews = async (newsId: string) => {
+    if (!user) {
+      console.error('No user found');
+      return;
     }
-  };
-  */
 
-  const handleDeleteAnnouncement = async (id: string) => {
+    if (user.role !== 'admin' && user.role !== 'ultra_admin') {
+      console.error('User does not have permission to delete news');
+      return;
+    }
+
     try {
-      const { error } = await supabase
-        .from('announcements')
+      setDeletingNews(newsId);
+      console.log('Starting deletion process for news item:', newsId);
+
+      // Delete the news item directly
+      const { error: deleteError } = await supabase
+        .from('news')
         .delete()
-        .eq('id', id);
+        .eq('id', newsId);
 
-      if (error) throw error;
-      
-      // Update the UI by filtering out the deleted announcement
-      setAnnouncements(prevAnnouncements => prevAnnouncements.filter(a => a.id !== id));
-    } catch (error) {
-      console.error('Error deleting announcement:', error);
+      if (deleteError) {
+        console.error('Error deleting news item:', deleteError);
+        throw deleteError;
+      }
+
+      console.log('Successfully deleted news item from database');
+
+      // Update local state immediately
+      setNews((prevNews) => prevNews.filter((n) => n.id !== newsId));
+
+      // Clear cache
+      localStorage.removeItem('cachedNews');
+      console.log('Cleared news cache');
+
+    } catch (error: any) {
+      console.error('Error in handleDeleteNews:', error);
+      setError(error.message || 'Failed to delete news item');
+    } finally {
+      setDeletingNews(null);
     }
   };
 
@@ -563,60 +529,334 @@ export function Home() {
       return;
     }
 
-    if (!newNews.title.trim() || !newNews.content.trim()) {
+    if (!newNewsTitle.trim() || !newNewsContent.trim()) {
       setError('Title and content are required');
       return;
     }
 
     try {
-      setLoading(true);
-      const { error } = await supabase
-        .from('announcements')
+      setCreatingNews(true);
+      const { data, error } = await supabase
+        .from('news')
         .insert([{
-          title: newNews.title.trim(),
-          content: newNews.content.trim(),
-          created_by: user.id
+          title: newNewsTitle.trim(), 
+          content: newNewsContent.trim(), 
+          created_by: user.id,
+          is_deleted: false,
+          created_at: new Date().toISOString()
         }])
         .select()
         .single();
 
       if (error) throw error;
 
-      // Successfully created the announcement
-      // Fetch the latest announcements to update the UI
-      try {
-        const { data: latestAnnouncements } = await supabase
-          .from('announcements')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(10);
-          
-        if (latestAnnouncements) {
-          setAnnouncements(latestAnnouncements);
-        }
-      } catch (fetchError) {
-        console.error('Error fetching updated announcements:', fetchError);
+      // Update local state with the new news item
+      if (data) {
+        setNews(prevNews => [data, ...prevNews]);
       }
       
-      setIsNewsModalOpen(false);
-      setNewNews({ title: '', content: '' });
+      setIsCreateNewsModalOpen(false);
+      setNewNewsTitle('');
+      setNewNewsContent('');
       setError(null);
     } catch (error: any) {
       console.error('Error creating news:', error);
       setError(error.message || 'Failed to create news');
     } finally {
-      setLoading(false);
+      setCreatingNews(false);
     }
   };
 
-  // Replace the existing useEffect that loads due works
+  // Update the useEffect for news fetching
   useEffect(() => {
-    if (user) {
-      loadDueWorks();
-    }
-  }, [user, currentClass]);
+    const fetchNews = async () => {
+      try {
+        setLoading(true);
+        console.log('Starting news fetch...');
 
+        // Fetch all news items
+        const { data, error } = await supabase
+          .from('news')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error fetching news:', error);
+             setError('Failed to load news. Please try again.');
+          throw error;
+        }
+
+        console.log('Fetched news items:', data);
+
+        if (data) {
+          setNews(data);
+          localStorage.setItem('cachedNews', JSON.stringify(data));
+        }
+      } catch (error) {
+        console.error('Error in fetchNews:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Initial fetch
+    fetchNews();
+
+    // Set up real-time subscription
+    const channel = supabase.channel('news_changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'news' 
+        }, 
+        async (payload) => {
+          console.log('Realtime news change detected:', payload);
+          
+          if (payload.eventType === 'DELETE') {
+            // For deletions, remove from state
+            setNews((prevNews) => prevNews.filter((n) => n.id !== payload.old.id));
+            localStorage.removeItem('cachedNews');
+          } else if (payload.eventType === 'INSERT') {
+            // For new items, add to state
+            setNews((prevNews) => [payload.new, ...prevNews]);
+            localStorage.removeItem('cachedNews');
+          } else if (payload.eventType === 'UPDATE') {
+            // For updates, update the item in state
+            setNews((prevNews) => prevNews.map((n) => 
+                n.id === payload.new.id ? payload.new : n
+              ));
+            localStorage.removeItem('cachedNews');
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, []);
+
+  // Update the recentNews filter with logging
+  const recentNews = useMemo((): NewsItem[] => {
+    const now = new Date();
+    const filtered = news.filter((n: NewsItem) => {
+      const newsDate = new Date(n.created_at);
+      const isRecent = (now.getTime() - newsDate.getTime()) < 7 * 24 * 60 * 60 * 1000;
+      return isRecent;
+    });
+    console.log('Filtered recent news:', filtered);
+    return filtered;
+  }, [news]);
+
+  // Update the oldNews filter with logging
+  const oldNews = useMemo(() => {
+    const now = new Date();
+    const filtered = news.filter(n => {
+      const newsDate = new Date(n.created_at);
+      const isOld = (now.getTime() - newsDate.getTime()) >= 7 * 24 * 60 * 60 * 1000;
+      return isOld;
+    });
+    console.log('Filtered old news:', filtered);
+    return filtered;
+  }, [news]);
+
+  // Calculate time left for due works
+  const getTimeLeft = (dueDate: string) => {
+    const now = new Date();
+    const due = new Date(dueDate);
+    const diff = due.getTime() - now.getTime();
+    
+    if (diff < 0) return 'Overdue';
+    
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    
+    if (days > 0) return `${days}d ${hours}h left`;
+    if (hours > 0) return `${hours}h left`;
+    return 'Due soon';
+  };
+
+  // Load users for private discussions
+  const loadUsers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, username, role')
+        .neq('id', user?.id);
+
+      if (error) throw error;
+      if (data) {
+        setUsers(data);
+      }
+    } catch (error) {
+      console.error('Error loading users:', error);
+    }
+  };
+
+  // Load target files
+  const loadTargetFiles = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('attainment_targets')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      
+      // Group files by month
+      const groupedFiles = data.reduce((acc, file) => {
+        const month = file.month.toLowerCase();
+        if (!acc[month]) acc[month] = [];
+        acc[month].push(file);
+        return acc;
+      }, {} as { [key: string]: any[] });
+
+      setTargetFiles(groupedFiles);
+    } catch (error) {
+      console.error('Error loading target files:', error);
+    }
+  };
+
+  // Handle file upload
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, month: string) => {
+    if (!e.target.files?.length || !user) return;
+
+    const file = e.target.files[0];
+    setUploadingFile(true);
+
+    try {
+      // Upload file to storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('attainment-targets')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      // Add file record to database
+      const { error: dbError } = await supabase
+        .from('attainment_targets')
+        .insert([{
+          name: file.name,
+          url: uploadData.path,
+          month: month,
+          uploaded_by: user.id,
+          uploaded_at: new Date().toISOString()
+        }]);
+
+      if (dbError) throw dbError;
+
+      // Refresh files
+      await loadTargetFiles();
+    } catch (error) {
+      console.error('Error uploading file:', error);
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  // Handle file delete
+  const handleFileDelete = async (fileId: string, fileUrl: string) => {
+    if (!user) return;
+    setDeletingFile(fileId);
+
+    try {
+      // Delete from storage
+      const { error: storageError } = await supabase.storage
+        .from('attainment-targets')
+        .remove([fileUrl]);
+
+      if (storageError) throw storageError;
+
+      // Delete from database
+      const { error: dbError } = await supabase
+        .from('attainment_targets')
+        .delete()
+        .eq('id', fileId);
+
+      if (dbError) throw dbError;
+
+      // Refresh files
+      await loadTargetFiles();
+    } catch (error) {
+      console.error('Error deleting file:', error);
+    } finally {
+      setDeletingFile(null);
+    }
+  };
+
+  const handleMoveToOldNews = async (newsId: string) => {
+    if (!user || (user.role !== 'admin' && user.role !== 'ultra_admin')) return;
+
+    try {
+      // Update the news item's created_at to make it appear in old news
+      const oldDate = new Date();
+      oldDate.setDate(oldDate.getDate() - 8); // Move it 8 days back to ensure it's in old news
+      
+      const { error } = await supabase
+        .from('news')
+        .update({ created_at: oldDate.toISOString() })
+        .eq('id', newsId);
+
+      if (error) throw error;
+
+      // Update local state
+      setNews(prevNews => prevNews.map(n => 
+        n.id === newsId ? { ...n, created_at: oldDate.toISOString() } : n
+      ));
+    } catch (error) {
+      console.error('Error moving news to old:', error);
+    }
+  };
+
+  const handleMoveToRecentNews = async (newsId: string) => {
+    if (!user || (user.role !== 'admin' && user.role !== 'ultra_admin')) return;
+
+    try {
+      // Update the news item's created_at to make it appear in recent news
+      const recentDate = new Date();
+      recentDate.setDate(recentDate.getDate() - 1); // Set to yesterday to ensure it's in recent news
+      
+      const { error } = await supabase
+        .from('news')
+        .update({ created_at: recentDate.toISOString() })
+        .eq('id', newsId);
+
+      if (error) throw error;
+      
+      // Update local state
+      setNews(prevNews => prevNews.map(n => 
+        n.id === newsId ? { ...n, created_at: recentDate.toISOString() } : n
+      ));
+    } catch (error) {
+      console.error('Error moving news to recent:', error);
+    }
+  };
+
+  // Add error boundary
+  if (error) {
+    console.error('Error state:', error); // Debug log
+    return (
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="page-container flex items-center justify-center"
+      >
+        <div className="card p-8 max-w-md">
+          <p className="text-red-600 mb-4">{error}</p>
+          <button onClick={loadData} className="button-primary">
+            Try Again
+          </button>
+      </div>
+      </motion.div>
+    );
+  }
+
+  // Add loading state
   if (loading) {
+    console.log('Loading state active'); // Debug log
     return (
       <motion.div 
         initial={{ opacity: 0 }}
@@ -631,7 +871,9 @@ export function Home() {
     );
   }
 
-  if (error) {
+  // Add a check for required data
+  if (!user || !currentClass) {
+    console.log('Missing required data:', { user, currentClass }); // Debug log
     return (
       <motion.div 
         initial={{ opacity: 0 }}
@@ -639,527 +881,1051 @@ export function Home() {
         className="page-container flex items-center justify-center"
       >
         <div className="card p-8 max-w-md">
-          <p className="text-red-600 mb-4">{error}</p>
-          <button onClick={loadData} className="button-primary">
-            Try Again
+          <p className="text-red-600 mb-4">Missing required data. Please try logging in again.</p>
+          <button onClick={() => navigate('/login')} className="button-primary">
+            Go to Login
           </button>
         </div>
       </motion.div>
     );
   }
 
+  console.log('Rendering main content'); // Debug log
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="content-container"
-    >
-      {/* Hero Banner */}
-      <motion.div 
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 0.5 }}
-        className="bg-gradient-to-br from-red-600 to-red-800 rounded-2xl shadow-2xl overflow-hidden"
-      >
-        <div className="px-8 py-16 sm:px-12" data-component-name="Home">
-          <motion.h1 
-            initial={{ y: -20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.5 }}
-            className="text-4xl sm:text-5xl font-bold text-white mb-6"
+    <div className="min-h-screen bg-white dark:bg-[#181929] flex items-center justify-center py-2 sm:py-6 px-1 sm:px-2 md:py-10 md:px-0 transition-colors duration-300">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-7xl bg-gradient-to-br from-red-700 to-red-900 rounded-[24px] sm:rounded-[40px] md:rounded-[48px] shadow-2xl p-2 sm:p-4 md:p-12 lg:p-16 overflow-hidden">
+        {/* 3D Hero Section with Parallax and Light Hover */}
+        <div className="w-full mb-4 sm:mb-12 md:mb-16">
+          <div
+            className="relative z-10 w-full h-full overflow-hidden"
+            style={{ height: '180px', minHeight: '160px', maxHeight: '380px', ...(window.innerWidth >= 768 ? { height: '380px' } : {}) }}
+            onMouseEnter={() => setIsHeroHovered(true)}
+            onMouseLeave={() => { setIsHeroHovered(false); setLightPos(null); }}
+            onMouseMove={e => {
+              const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+              setLightPos({
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+              });
+            }}
           >
-            Welcome to LGS JTi Learning Management System
-          </motion.h1>
-          <motion.p 
-            initial={{ y: -20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className="text-xl text-red-100 mb-8"
-          >
-            Your Learning Dashboard
-            {currentClass && (
-              <span className="ml-2 px-3 py-1 bg-red-700 rounded-full text-sm font-medium">
-                Class: {getClassName(currentClass)}
-              </span>
+            {/* Always-visible background image with dark gradient overlay */}
+            <div
+              className="absolute inset-0 w-full h-full z-0 rounded-[32px] sm:rounded-[40px] overflow-hidden"
+              style={{
+                backgroundImage: `linear-gradient(90deg, rgba(30,30,30,0.82) 0%, rgba(30,30,30,0.5) 60%, rgba(30,30,30,0.2) 100%), url('${HERO_BG}')`,
+                backgroundSize: 'cover',
+                backgroundPosition: `center ${parallax}px`,
+                transition: 'background-position 0.4s cubic-bezier(.4,0,.2,1)',
+              }}
+            />
+            {/* Localized light effect on hover */}
+            {isHeroHovered && lightPos && (
+              <div className="absolute inset-0 pointer-events-none z-20" style={{ pointerEvents: 'none' }}>
+                {/* Dotted pattern only inside the light area using clipPath */}
+                <svg
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    width: '100%',
+                    height: '100%',
+                    pointerEvents: 'none',
+                    zIndex: 1,
+                  }}
+                  width="100%"
+                  height="100%"
+                >
+                  <defs>
+                    <clipPath id="dotClip">
+                      <circle cx={lightPos.x} cy={lightPos.y} r="160" />
+                    </clipPath>
+                    <pattern id="dotPat" patternUnits="userSpaceOnUse" width="12" height="12">
+                      <circle cx="2" cy="2" r="1" fill="rgba(255,255,255,0.18)" />
+                    </pattern>
+                    <radialGradient id="lightGrad" cx={lightPos.x} cy={lightPos.y} r="320" gradientUnits="userSpaceOnUse">
+                      <stop offset="0%" stopColor="rgba(255,100,100,0.32)" />
+                      <stop offset="25%" stopColor="rgba(255,100,100,0.15)" />
+                      <stop offset="56%" stopColor="rgba(255,255,255,0.08)" />
+                      <stop offset="100%" stopColor="transparent" />
+                    </radialGradient>
+                  </defs>
+                  {/* Dots clipped to the light area */}
+                  <rect x="0" y="0" width="100%" height="100%" fill="url(#dotPat)" clipPath="url(#dotClip)" />
+                  {/* Reddish radial light */}
+                  <rect x="0" y="0" width="100%" height="100%" fill="url(#lightGrad)" style={{mixBlendMode:'lighten'}} />
+                </svg>
+              </div>
             )}
-          </motion.p>
+            {/* Left-aligned content */}
           <motion.div 
-            initial={{ y: 20, opacity: 0 }}
+              initial={{ y: -30, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.4 }}
-            className="flex flex-wrap gap-4"
-          >
-            <button 
-              onClick={() => setActiveTab('discussions')}
-              className="inline-flex items-center px-6 py-3 bg-white text-red-600 rounded-2xl font-medium hover:bg-red-50 transform transition-all duration-300 hover:scale-105 active:scale-95"
+              transition={{ delay: 0.2, duration: 0.7 }}
+              className="relative z-20 flex flex-col justify-center h-full px-3 sm:px-8 md:px-10 py-4 sm:py-10 md:py-12"
             >
-              <MessageSquare className="h-5 w-5 mr-2" />
-              Discussions
-            </button>
-            <button 
-              onClick={() => setActiveTab('due')}
-              className="inline-flex items-center px-6 py-3 bg-white text-red-600 rounded-2xl font-medium hover:bg-red-50 transform transition-all duration-300 hover:scale-105 active:scale-95"
-            >
-              <Calendar className="h-5 w-5 mr-2" />
-              Due Works
-            </button>
-            {(user?.role === 'admin' || user?.role === 'ultra_admin') && (
-              <button 
-                onClick={() => setShowDueWorkModal(true)}
-                className="inline-flex items-center px-6 py-3 bg-white text-red-600 rounded-2xl font-medium hover:bg-red-50 transform transition-all duration-300 hover:scale-105 active:scale-95"
-              >
-                <PlusCircle className="h-5 w-5 mr-2" />
-                Assign Work
-              </button>
-            )}
+              <h1 className="text-xl xs:text-2xl sm:text-4xl md:text-5xl font-extrabold text-white mb-1 sm:mb-2 drop-shadow-2xl tracking-tight text-left">Welcome to LGS JTi Learning Management System</h1>
+              {currentClass && (
+                <div className="text-sm sm:text-lg text-white/90 font-semibold mb-1 sm:mb-2 text-left">
+                  Grade {currentClass.grade} - {currentClass.section}
+                </div>
+              )}
+              <p className="text-sm xs:text-base sm:text-xl md:text-2xl text-white/90 mb-2 sm:mb-6 md:mb-8 font-medium drop-shadow-lg text-left">Your Learning Dashboard</p>
           </motion.div>
         </div>
-      </motion.div>
+        </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
-        {/* Latest News */}
-        <motion.div 
-          initial={{ x: -20, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="lg:col-span-2"
-        >
-          <div className="card">
-            <div className="card-header">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-red-100 dark:bg-red-900/20">
-                    <Megaphone className="h-5 w-5 text-red-500" />
-                  </div>
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Latest News</h2>
-                </div>
-                {(user?.role === 'admin' || user?.role === 'ultra_admin') && (
-                  <button
-                    onClick={() => setIsNewsModalOpen(true)}
-                    className="px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Plus className="h-5 w-5" />
-                      <span>Post News</span>
-                    </div>
-                  </button>
-                )}
+        <div className="px-2 sm:px-6 lg:px-8 mt-4 sm:mt-10">
+          {/* Notifications */}
+          <AnimatePresence mode="wait">
+            {error && (
+              <motion.div key="error" initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="mb-4 sm:mb-6 p-3 sm:p-4 rounded-xl bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-200 flex items-center gap-2 sm:gap-3">
+                <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                <span className="text-sm sm:text-base">{error}</span>
+                <button onClick={() => setError(null)} className="ml-auto p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-800/50"><X className="w-3 h-3 sm:w-4 sm:h-4" /></button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Grid Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8">
+            {/* Latest News Section */}
+            <motion.div variants={cardVariants} initial="initial" animate="animate" whileHover="whileHover" className="relative overflow-visible rounded-2xl sm:rounded-3xl shadow-2xl p-0 border-0">
+              <div className="relative bg-white/30 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl sm:rounded-3xl p-0 overflow-hidden shadow-xl border border-white/20 dark:border-gray-800/30">
+                <div className="flex items-center gap-3 sm:gap-4 px-4 sm:px-8 pt-6 sm:pt-8 pb-2">
+                  <div className="flex items-center justify-center w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-red-500/80 to-red-700/80 shadow-lg">
+                    <Newspaper className="w-5 h-5 sm:w-8 sm:h-8 text-white" />
               </div>
+                  <div>
+                    <h2 className="text-xl sm:text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight mb-0.5 sm:mb-1">Latest News</h2>
+                    <p className="text-xs sm:text-base text-gray-700 dark:text-gray-300">Stay up to date with the latest updates and events.</p>
             </div>
-            <div className="divide-y divide-theme-border-primary dark:divide-gray-700">
-              <div className="space-y-4">
-                <div className="grid gap-4">
-                  {announcements.map((announcement) => (
+                </div>
+                <div className="relative px-4 sm:px-8 pb-6 sm:pb-8 pt-2">
+                  {recentNews.length === 0 ? (
+                    <div className="text-sm sm:text-base text-gray-500 dark:text-gray-400 py-8 sm:py-12 text-center">No news in the last week.</div>
+                  ) : (
+                    <div className="space-y-3 sm:space-y-6 max-h-[18vh] min-h-[80px] sm:min-h-[100px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-red-300 dark:scrollbar-thumb-red-900/60 scrollbar-track-transparent">
+                      {recentNews.map((n: NewsItem, idx: number) => (
                     <motion.div
-                    key={announcement.id} 
+                          key={n.id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-4">
-                          <div className="p-2 rounded-xl bg-red-100 dark:bg-red-900/20">
-                            <Megaphone className="h-5 w-5 text-red-500" />
-                          </div>
-                          <div className="space-y-2">
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                      {announcement.title}
-                    </h3>
-                            <p className="text-gray-600 dark:text-gray-300">
-                              {announcement.content}
-                            </p>
-                            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                              <User className="h-4 w-4" />
-                              <span>{announcement.username}</span>
-                              <span>•</span>
-                              <Calendar className="h-4 w-4" />
-                              <span>{new Date(announcement.created_at).toLocaleDateString()}</span>
-                            </div>
-                    </div>
-                  </div>
+                          transition={{ delay: idx * 0.1 }}
+                          className="group relative bg-white/70 dark:bg-gray-900/70 rounded-xl p-3 sm:p-4 shadow-md border border-white/20 dark:border-gray-800/30 hover:shadow-lg transition-shadow"
+                          onClick={() => {
+                            setSelectedNews(n);
+                            setShowNewsDetailsModal(true);
+                            setShowNewsModal(false);
+                          }}
+                        >
+                          <div className="flex items-center gap-2 mb-1 sm:mb-2">
+                            <span className="font-semibold text-sm sm:text-lg text-gray-900 dark:text-white">{n.title}</span>
+                            <span className="ml-auto text-xs text-gray-500 dark:text-gray-400 bg-white/40 dark:bg-gray-800/40 px-1.5 sm:px-2 py-0.5 rounded-full">
+                              {new Date(n.created_at).toLocaleDateString()}
+                            </span>
                         {(user?.role === 'admin' || user?.role === 'ultra_admin') && (
+                              <div className="flex items-center gap-1 sm:gap-2">
                           <button
-                            onClick={() => handleDeleteAnnouncement(announcement.id)}
-                            className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                  onClick={() => handleMoveToOldNews(n.id)}
+                                  className="p-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                                  title="Move to Old News"
                           >
-                            <Trash2 className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                                  <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400" />
                           </button>
-                        )}
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteNews(n.id);
+                                  }}
+                                  disabled={deletingNews === n.id}
+                                  className="p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                                >
+                                  {deletingNews === n.id ? (
+                                    <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin text-red-600 dark:text-red-400" />
+                                  ) : (
+                                    <Trash2 className="w-3 h-3 sm:w-4 sm:h-4 text-red-600 dark:text-red-400" />
+                                  )}
+                                </button>
                       </div>
+                            )}
+                          </div>
+                          <div className="text-sm sm:text-base text-gray-700 dark:text-gray-200">{n.content}</div>
                     </motion.div>
                   ))}
                 </div>
+                  )}
+                  <div className="flex justify-between items-center mt-4 sm:mt-8">
+                    <button onClick={() => setShowOldNews(true)} className="text-xs sm:text-sm text-red-700 dark:text-red-300 hover:underline font-semibold">View Old News</button>
+                    {(user?.role === 'admin' || user?.role === 'ultra_admin' || user?.role === 'teacher') && (
+                      <button onClick={() => setIsCreateNewsModalOpen(true)} className="fixed bottom-6 sm:bottom-8 right-6 sm:right-8 z-50 bg-gradient-to-br from-red-600 to-red-800 text-white rounded-full shadow-lg w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center text-xl sm:text-2xl hover:scale-105 transition-transform duration-200 focus:outline-none focus:ring-4 focus:ring-red-400">
+                        <span className="sr-only">Create News</span>
+                        <Plus className="w-5 h-5 sm:w-6 sm:h-6" />
+                      </button>
+                    )}
               </div>
             </div>
           </div>
         </motion.div>
 
-        {/* Due Works */}
-        <motion.div
-          initial={{ x: 20, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ delay: 0.6 }}
-        >
-          <div className="card">
-            <div className="card-header">
-              <h2 className="card-title">
-                <Calendar className="h-5 w-5 mr-2 text-red-600" />
-                Upcoming Due Works
-              </h2>
+            {/* Recent Activity Section (now Due Works) */}
+            <motion.div variants={cardVariants} initial="initial" animate="animate" whileHover="whileHover" className="bg-white/90 dark:bg-gray-900/80 rounded-2xl sm:rounded-3xl shadow-xl p-4 sm:p-6 border border-white/30 dark:border-gray-800/40">
+              <div className="flex items-center justify-between mb-4 sm:mb-6">
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">Due Works</h2>
+                {(user?.role === 'admin' || user?.role === 'ultra_admin' || user?.role === 'teacher') && (
+                  <button
+                    onClick={() => {
+                      setSelectedDueWork(null);
+                      setShowDueWorkModal(true);
+                      loadSubjects();
+                    }}
+                    className="p-1.5 sm:p-2 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors"
+                  >
+                    <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </button>
+                )}
             </div>
-            <div className="divide-y divide-theme-border-primary dark:divide-gray-700">
-              <AnimatePresence>
+              <div className="space-y-3 sm:space-y-4">
+                {loading ? (
+                  <div className="flex items-center justify-center py-6 sm:py-8">
+                    <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }} className="inline-block">
+                      <Clock className="w-6 h-6 sm:w-8 sm:h-8 text-red-600 dark:text-red-400 animate-spin" />
+                    </motion.div>
+                  </div>
+                ) : dueWorks.length === 0 ? (
+                  <div className="text-center py-6 sm:py-8">
+                    <Clock className="w-8 h-8 sm:w-12 sm:h-12 text-gray-300 dark:text-gray-600 mx-auto mb-2 sm:mb-4" />
+                    <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">No due works.</p>
+                  </div>
+                ) : (
+                  <AnimatePresence mode="wait">
                 {dueWorks.map((work) => (
                   <motion.div 
                     key={work.id} 
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
-                    className="p-4 hover:bg-theme-tertiary dark:hover:bg-gray-700 transition-colors duration-200"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h3 className="card-title">{work.title}</h3>
-                        <p className="text-sm text-theme-text-secondary dark:text-gray-400">
-                          {work.subject_name}
-                        </p>
-                        <p className="text-sm text-theme-text-secondary dark:text-gray-400 mt-1">
-                          {work.description}
-                        </p>
+                        transition={{ duration: 0.3 }}
+                        className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
+                        onClick={() => {
+                          setSelectedDueWork(work);
+                          setShowDueWorkDetailsModal(true);
+                          setShowDueWorkModal(false);
+                        }}
+                      >
+                        <div className="p-1.5 sm:p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                          <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 dark:text-red-400" />
                       </div>
-                      <div className="flex flex-col items-end">
-                        <span className={`px-2 py-1 text-xs rounded-full mb-2 ${
-                        new Date(work.due_date) < new Date()
-                            ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                            : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                      }`}>
-                        {new Date(work.due_date).toLocaleDateString()}
-                      </span>
-                        {new Date(work.due_date) < new Date() ? (
-                          <AlertCircle className="h-5 w-5 text-red-600" />
-                        ) : (
-                          <Clock className="h-5 w-5 text-green-600" />
-                        )}
-                      </div>
-                    </div>
-                    <div className="mt-2 text-sm text-theme-text-secondary dark:text-gray-400">
-                      Posted by {work.creator_username}
+                        <div className="flex-1">
+                          <p className="text-sm sm:text-base text-gray-900 dark:text-white font-medium">{work.title}</p>
+                          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{work.subject_name}</p>
+                          <p className="text-xs sm:text-sm text-red-600 dark:text-red-400">{getTimeLeft(work.due_date)}</p>
                   </div>
                   </motion.div>
                 ))}
               </AnimatePresence>
-              {dueWorks.length === 0 && (
-                <div className="p-6 text-center text-theme-text-tertiary dark:text-gray-400">
-                  No due works assigned.
-                </div>
               )}
             </div>
+            </motion.div>
+
+            {/* Quick Actions Section */}
+            <motion.div variants={cardVariants} initial="initial" animate="animate" whileHover="whileHover" className="lg:col-span-2 bg-white/90 dark:bg-gray-900/80 rounded-2xl sm:rounded-3xl shadow-xl p-4 sm:p-6 border border-white/30 dark:border-gray-800/40">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4 sm:mb-6">Quick Actions</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+                <motion.button 
+                  whileHover={{ scale: 1.05 }} 
+                  whileTap={{ scale: 0.95 }} 
+                  onClick={() => {
+                    setShowTargetsModal(true);
+                    loadTargetFiles();
+                  }} 
+                  className="flex flex-col items-center gap-1.5 sm:gap-2 p-3 sm:p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
+                >
+                  <Target className="w-5 h-5 sm:w-6 sm:h-6 text-red-600 dark:text-red-400" />
+                  <span className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white">Attainment Targets</span>
+                </motion.button>
+                <motion.button 
+                  whileHover={{ scale: 1.05 }} 
+                  whileTap={{ scale: 0.95 }} 
+                  onClick={() => {
+                    setSelectedDueWork(null);
+                    setShowDueWorkModal(true);
+                    loadSubjects();
+                  }} 
+                  className="flex flex-col items-center gap-1.5 sm:gap-2 p-3 sm:p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
+                >
+                  <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 dark:text-blue-400" />
+                  <span className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white">Due Works</span>
+                </motion.button>
+                <motion.button 
+                  whileHover={{ scale: 1.05 }} 
+                  whileTap={{ scale: 0.95 }} 
+                  onClick={() => {
+                    setShowDiscussionsModal(true);
+                    loadUsers();
+                  }} 
+                  className="flex flex-col items-center gap-1.5 sm:gap-2 p-3 sm:p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
+                >
+                  <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 dark:text-green-400" />
+                  <span className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white">Discussions</span>
+                </motion.button>
+                <motion.button 
+                  whileHover={{ scale: 1.05 }} 
+                  whileTap={{ scale: 0.95 }} 
+                  onClick={() => navigate('/settings')} 
+                  className="flex flex-col items-center gap-1.5 sm:gap-2 p-3 sm:p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
+                >
+                  <Settings className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600 dark:text-purple-400" />
+                  <span className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white">Settings</span>
+                </motion.button>
           </div>
         </motion.div>
       </div>
-
-      {/* Discussion Section */}
-      <motion.div
-        initial={{ y: 20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.7 }}
-        className="card mt-8"
-      >
-        <div className="card-header">
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => setActiveTab('discussions')}
-              className={`px-4 py-2 rounded-2xl transition-colors ${
-                activeTab === 'discussions'
-                  ? 'bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-200'
-                  : 'text-theme-text-secondary dark:text-gray-400 hover:bg-theme-tertiary dark:hover:bg-gray-700'
-              }`}
-            >
-              <MessageSquare className="h-5 w-5" />
-            </button>
-            <button
-              onClick={() => setActiveTab('due')}
-              className={`px-4 py-2 rounded-2xl transition-colors ${
-                activeTab === 'due'
-                  ? 'bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-200'
-                  : 'text-theme-text-secondary dark:text-gray-400 hover:bg-theme-tertiary dark:hover:bg-gray-700'
-              }`}
-            >
-              <Calendar className="h-5 w-5" />
-            </button>
-          </div>
         </div>
-        <div className="p-6">
-          {activeTab === 'discussions' && (
-            <>
-          <div className="mb-6">
-            <textarea
-              value={newDiscussion}
-              onChange={(e) => setNewDiscussion(e.target.value)}
-              placeholder="Start a discussion..."
-                  className="input-primary resize-none"
-              rows={3}
-            />
-            <div className="mt-2 flex justify-end">
-              <button
-                onClick={handlePostDiscussion}
-                disabled={!newDiscussion.trim()}
-                    className="button-primary disabled:opacity-50 disabled:cursor-not-allowed transform transition-all duration-200 hover:scale-105 active:scale-95"
+      </motion.div>
+
+      {/* Due Works Modal */}
+      {showDueWorkModal && createPortal(
+        <div className="fixed inset-0 bg-black/60 z-[9999]">
+          <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4">
+            <div className="bg-white/90 dark:bg-gray-900/90 rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-8 max-w-4xl w-full relative border border-white/30 dark:border-gray-800/40 backdrop-blur-xl max-h-[90vh] overflow-y-auto">
+            <button
+                onClick={() => {
+                  setShowDueWorkModal(false);
+                  setSelectedDueWork(null);
+                }} 
+                className="absolute top-2 sm:top-4 right-2 sm:right-4 p-1.5 sm:p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               >
-                <PlusCircle className="h-5 w-5 mr-2" />
-                Post
-              </button>
-            </div>
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
+            </button>
+              
+              <div className="flex items-center justify-between mb-4 sm:mb-6">
+                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Due Works</h3>
+                {(user?.role === 'admin' || user?.role === 'ultra_admin' || user?.role === 'teacher') && (
+            <button
+                    onClick={() => {
+                      setShowCreateDueWorkModal(true);
+                      setShowDueWorkModal(false);
+                      loadSubjects();
+                    }}
+                    className="p-1.5 sm:p-2 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors"
+                  >
+                    <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+            </button>
+                )}
           </div>
-          <div className="space-y-4">
-                <AnimatePresence>
-            {discussions.map((discussion) => (
+
+              <div className="space-y-3 sm:space-y-4">
+                {loading ? (
+                  <div className="flex items-center justify-center py-6 sm:py-8">
+                    <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }} className="inline-block">
+                      <Clock className="w-6 h-6 sm:w-8 sm:h-8 text-red-600 dark:text-red-400 animate-spin" />
+                    </motion.div>
+        </div>
+                ) : dueWorks.length === 0 ? (
+                  <div className="text-center py-6 sm:py-8">
+                    <Clock className="w-8 h-8 sm:w-12 sm:h-12 text-gray-300 dark:text-gray-600 mx-auto mb-2 sm:mb-4" />
+                    <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">No due works.</p>
+            </div>
+                ) : (
+                  <AnimatePresence mode="wait">
+                    {dueWorks.map((work) => (
                     <motion.div 
-                key={discussion.id}
+                        key={work.id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -20 }}
-                      className="card"
-                    >
-                      <div className="card-content">{discussion.content}</div>
-                      <div className="card-meta">
-                        <span className="card-author">Posted by {discussion.profiles?.username}</span>
-                        <span className="card-date">
-                          {' '}
-                          • {new Date(discussion.created_at).toLocaleDateString()}
-                        </span>
+                        transition={{ duration: 0.3 }}
+                        className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
+                        onClick={() => {
+                          setSelectedDueWork(work);
+                          setShowDueWorkDetailsModal(true);
+                          setShowDueWorkModal(false);
+                        }}
+                      >
+                        <div className="p-1.5 sm:p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                          <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 dark:text-red-400" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm sm:text-base text-gray-900 dark:text-white font-medium">{work.title}</p>
+                          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{work.subject_name}</p>
+                          <p className="text-xs sm:text-sm text-red-600 dark:text-red-400">{getTimeLeft(work.due_date)}</p>
                 </div>
                     </motion.div>
                   ))}
                 </AnimatePresence>
+                )}
               </div>
-            </>
-          )}
-
-          {activeTab === 'due' && (
-            <div className="space-y-4">
-              <AnimatePresence>
-                {dueWorks.map((work) => (
-                  <motion.div 
-                    key={work.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    className="card"
-                  >
-                    <div className="card-header">
-                      <h3 className="card-title">{work.title}</h3>
-                    </div>
-                    <div className="card-content">{work.description}</div>
-                    <div className="card-meta">
-                      <span className="card-author">Posted by {work.creator_username}</span>
-                      <span className="card-date">
-                        {' '}
-                        • Due {new Date(work.due_date).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
+            </div>
           </div>
-          )}
-        </div>
-      </motion.div>
+        </div>,
+        document.body
+      )}
 
-      {/* Due Work Modal */}
-      <AnimatePresence>
-        {showDueWorkModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full mx-4"
-            >
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Assign New Work</h2>
-                <button
-                  onClick={() => setShowDueWorkModal(false)}
-                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                >
-                  <X className="h-6 w-6" />
-                </button>
+      {/* Due Work Details Modal */}
+      {showDueWorkDetailsModal && selectedDueWork && createPortal(
+        <div className="fixed inset-0 bg-black/60 z-[9999]">
+          <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4">
+            <div className="bg-white/90 dark:bg-gray-900/90 rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-8 max-w-4xl w-full relative border border-white/30 dark:border-gray-800/40 backdrop-blur-xl max-h-[90vh] overflow-y-auto">
+              <button
+                onClick={() => {
+                  setShowDueWorkDetailsModal(false);
+                  setSelectedDueWork(null);
+                  setShowDueWorkModal(true);
+                }} 
+                className="absolute top-2 sm:top-4 right-2 sm:right-4 p-1.5 sm:p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+              
+              <div className="space-y-4 sm:space-y-6">
+                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{selectedDueWork.title}</h3>
+                <div className="space-y-3 sm:space-y-4">
+                  <div>
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Subject</p>
+                    <p className="text-sm sm:text-base text-gray-900 dark:text-white">{selectedDueWork.subject_name}</p>
+                    </div>
+                  <div>
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Due Date</p>
+                    <p className="text-sm sm:text-base text-gray-900 dark:text-white">{new Date(selectedDueWork.due_date).toLocaleString()}</p>
+                    </div>
+                  <div>
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">Description</p>
+                    <p className="text-sm sm:text-base text-gray-900 dark:text-white whitespace-pre-wrap">{selectedDueWork.description}</p>
+          </div>
+        </div>
               </div>
-              <div className="space-y-4">
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Create Due Work Modal */}
+      {showCreateDueWorkModal && createPortal(
+        <div className="fixed inset-0 bg-black/60 z-[9999]">
+          <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4">
+            <div className="bg-white/90 dark:bg-gray-900/90 rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-8 max-w-4xl w-full relative border border-white/30 dark:border-gray-800/40 backdrop-blur-xl max-h-[90vh] overflow-y-auto">
+                <button
+                onClick={() => {
+                  setShowCreateDueWorkModal(false);
+                  setNewDueWork({
+                    title: '',
+                    description: '',
+                    due_date: '',
+                    subject_id: '',
+                    class_id: ''
+                  });
+                  setSelectedClasses([]);
+                  setShowDueWorkModal(true);
+                }} 
+                className="absolute top-2 sm:top-4 right-2 sm:right-4 p-1.5 sm:p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                </button>
+              
+              <div className="space-y-4 sm:space-y-6">
+                <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
+                  <div className="p-2 sm:p-3 bg-red-100 dark:bg-red-900/30 rounded-xl">
+                    <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-red-600 dark:text-red-400" />
+              </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Title
-                  </label>
+                    <h3 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Create Due Work</h3>
+                    <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Assign work to one or multiple classes</p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleCreateDueWork} className="space-y-4 sm:space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                    {/* Left Column - Basic Info */}
+                    <div className="space-y-4 sm:space-y-6">
+                      <div>
+                        <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-700 dark:text-gray-200">Title</label>
                   <input
                     type="text"
                     value={newDueWork.title}
-                    onChange={(e) => setNewDueWork({ ...newDueWork, title: e.target.value })}
-                    className="input-primary w-full"
-                    placeholder="Enter work title"
+                          onChange={e => setNewDueWork(prev => ({ ...prev, title: e.target.value }))} 
+                          className="w-full px-3 py-1.5 sm:py-2 text-sm sm:text-base rounded-xl border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all" 
+                          placeholder="Enter assignment title"
+                          required 
                   />
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Description
-                  </label>
-                  <textarea
-                    value={newDueWork.description}
-                    onChange={(e) => setNewDueWork({ ...newDueWork, description: e.target.value })}
-                    className="input-primary w-full resize-none"
-                    rows={3}
-                    placeholder="Enter work description"
-                  />
+                        <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-700 dark:text-gray-200">Subject</label>
+                        <select
+                          value={newDueWork.subject_id}
+                          onChange={e => setNewDueWork(prev => ({ ...prev, subject_id: e.target.value }))}
+                          className="w-full px-3 py-1.5 sm:py-2 text-sm sm:text-base rounded-xl border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                          required
+                        >
+                          <option value="">Select a subject</option>
+                          {subjects.map(subject => (
+                            <option key={subject.id} value={subject.id}>{subject.name}</option>
+                          ))}
+                        </select>
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Due Date
-                  </label>
+                        <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-700 dark:text-gray-200">Due Date</label>
                   <input
                     type="datetime-local"
                     value={newDueWork.due_date}
-                    onChange={(e) => setNewDueWork({ ...newDueWork, due_date: e.target.value })}
-                    className="input-primary w-full"
-                    min={new Date().toISOString().slice(0, 16)}
+                          onChange={e => setNewDueWork(prev => ({ ...prev, due_date: e.target.value }))} 
+                          className="w-full px-3 py-1.5 sm:py-2 text-sm sm:text-base rounded-xl border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all" 
+                          required 
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Subject
-                  </label>
-                  <select
-                    value={newDueWork.subject_id}
-                    onChange={(e) => setNewDueWork({ ...newDueWork, subject_id: e.target.value })}
-                    className="input-primary w-full"
-                  >
-                    <option value="">Select a subject</option>
-                    {subjects.map((subject) => (
-                      <option key={subject.id} value={subject.id}>
-                        {subject.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Class
-                  </label>
-                  <select
-                    value={newDueWork.class_id}
-                    onChange={(e) => setNewDueWork({ ...newDueWork, class_id: e.target.value })}
-                    className="w-full px-3 py-2 text-sm sm:text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  >
-                    <option value="">All Classes</option>
-                    {classes.map((class_) => (
-                      <option key={class_.id} value={class_.id}>
-                        Grade {class_.grade} - Section {class_.section}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex justify-end space-x-3">
-                  <button
-                    onClick={() => setShowDueWorkModal(false)}
-                    className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleCreateDueWork}
-                    className="button-primary"
-                    disabled={!newDueWork.title.trim() || !newDueWork.description.trim() || !newDueWork.due_date || !newDueWork.subject_id || !newDueWork.class_id}
-                  >
-                    Create
-                  </button>
-      </div>
-    </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                    </div>
 
-      {/* News Modal */}
-      <AnimatePresence>
-        {isNewsModalOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl"
-            >
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Post News</h2>
-                <button
-                  onClick={() => setIsNewsModalOpen(false)}
-                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                >
-                  <X className="h-6 w-6" />
- s o           </button>
-              </div>
-              <form onSubmit={handleCreateNews} className="space-y-4">
+                    {/* Right Column - Class Selection */}
+                    <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Title
+                        <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-700 dark:text-gray-200">Select Classes</label>
+                        <div className="space-y-2 max-h-[200px] overflow-y-auto p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
+                          {classes.length === 0 ? (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No classes available</p>
+                          ) : (
+                            classes.map((classItem: Class) => ( // Explicitly type classItem
+                              <label key={classItem.id} className="flex items-center space-x-3 p-2 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-lg cursor-pointer transition-colors">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedClasses.includes(classItem.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedClasses(prev => [...prev, classItem.id]);
+                                    } else {
+                                      setSelectedClasses(prev => prev.filter(id => id !== classItem.id));
+                                    }
+                                  }}
+                                  className="w-4 h-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                                />
+                                <span className="text-gray-900 dark:text-white">
+                                  Grade {classItem.grade} - {classItem.section}
+                                </span>
                   </label>
+                            ))
+                          )}
+                </div>
+                        {classes.length > 0 && selectedClasses.length === 0 && (
+                          <p className="text-sm text-red-500 mt-2">Please select at least one class</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Description - Full Width */}
+                <div>
+                    <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-700 dark:text-gray-200">Description</label>
+                    <textarea 
+                      value={newDueWork.description} 
+                      onChange={e => setNewDueWork(prev => ({ ...prev, description: e.target.value }))} 
+                      className="w-full px-3 py-1.5 sm:py-2 text-sm sm:text-base rounded-xl border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all" 
+                      rows={6} 
+                      placeholder="Enter assignment description"
+                      required 
+                    />
+                </div>
+
+                  <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      {selectedClasses.length} {selectedClasses.length === 1 ? 'class' : 'classes'} selected
+                    </div>
+                  <button
+                      type="submit" 
+                      disabled={creatingDueWork || selectedClasses.length === 0} 
+                      className="px-6 py-2 rounded-xl bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed hover:from-red-700 hover:to-red-800"
+                    >
+                      {creatingDueWork ? (
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Creating...</span>
+                        </div>
+                      ) : (
+                        'Create Due Work'
+                      )}
+                  </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Discussions Modal */}
+      {showDiscussionsModal && createPortal(
+        <div className="fixed inset-0 bg-black/60 z-[9999]">
+          <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4">
+            <div className="bg-white/90 dark:bg-gray-900/90 rounded-2xl sm:rounded-3xl shadow-2xl p-3 sm:p-8 max-w-4xl w-full relative border border-white/30 dark:border-gray-800/40 backdrop-blur-xl max-h-[90vh] overflow-y-auto">
+                  <button
+                onClick={() => {
+                  setShowDiscussionsModal(false);
+                  setSelectedDiscussionType(null);
+                  setShowPrivateDiscussions(false);
+                  setShowOpenDiscussions(false);
+                }} 
+                className="absolute top-2 sm:top-4 right-2 sm:right-4 p-1.5 sm:p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </button>
+
+              {!selectedDiscussionType ? (
+                <div className="space-y-3 sm:space-y-8">
+                  <h3 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white text-center">Choose Discussion Type</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-6">
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        setSelectedDiscussionType('private');
+                        setShowPrivateDiscussions(true);
+                      }}
+                      className="group relative p-3 sm:p-6 rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-500/10 to-blue-600/10 dark:from-blue-500/20 dark:to-blue-600/20 border border-blue-200/50 dark:border-blue-800/50 hover:border-blue-300 dark:hover:border-blue-700 transition-all"
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-blue-600/5 dark:from-blue-500/10 dark:to-blue-600/10 rounded-xl sm:rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <div className="relative flex flex-col items-center gap-2 sm:gap-4">
+                        <div className="p-2 sm:p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg sm:rounded-xl">
+                          <MessageSquare className="w-5 h-5 sm:w-8 sm:h-8 text-blue-600 dark:text-blue-400" />
+      </div>
+                        <div className="text-center">
+                          <h4 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-white mb-1 sm:mb-2">Private Discussions</h4>
+                          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Chat privately with teachers or students</p>
+    </div>
+                      </div>
+                    </motion.button>
+
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        setSelectedDiscussionType('open');
+                        setShowOpenDiscussions(true);
+                      }}
+                      className="group relative p-3 sm:p-6 rounded-xl sm:rounded-2xl bg-gradient-to-br from-green-500/10 to-green-600/10 dark:from-green-500/20 dark:to-green-600/20 border border-green-200/50 dark:border-green-800/50 hover:border-green-300 dark:hover:border-green-700 transition-all"
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-green-600/5 dark:from-green-500/10 dark:to-green-600/10 rounded-xl sm:rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <div className="relative flex flex-col items-center gap-2 sm:gap-4">
+                        <div className="p-2 sm:p-3 bg-green-100 dark:bg-green-900/30 rounded-lg sm:rounded-xl">
+                          <Users className="w-5 h-5 sm:w-8 sm:h-8 text-green-600 dark:text-green-400" />
+                        </div>
+                        <div className="text-center">
+                          <h4 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-white mb-1 sm:mb-2">Open Discussions</h4>
+                          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Join open discussions with everyone</p>
+                        </div>
+                      </div>
+                    </motion.button>
+                  </div>
+                </div>
+              ) : selectedDiscussionType === 'private' ? (
+                <div className="space-y-3 sm:space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">Private Discussions</h3>
+                    <button
+                      onClick={() => {
+                        setSelectedDiscussionType(null);
+                        setShowPrivateDiscussions(false);
+                      }}
+                      className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                    >
+                      Back to Discussion Types
+                    </button>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-6">
+                    <div className="md:col-span-1 space-y-2 sm:space-y-4">
+                      <div className="p-2 sm:p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50">
+                        <h4 className="font-semibold text-sm sm:text-base text-gray-900 dark:text-white mb-2 sm:mb-4">Select User</h4>
+                        <div className="space-y-1 sm:space-y-2 max-h-[40vh] sm:max-h-[60vh] overflow-y-auto">
+                          {users.map((u) => (
+                <button
+                              key={u.id}
+                              onClick={() => setSelectedUser(u)}
+                              className={`w-full p-2 sm:p-3 rounded-lg text-left transition-colors ${
+                                selectedUser?.id === u.id
+                                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                                  : 'hover:bg-gray-100 dark:hover:bg-gray-700/50'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 sm:gap-3">
+                                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold text-xs sm:text-base">
+                                  {u.username.charAt(0).toUpperCase()}
+              </div>
+                <div>
+                                  <p className="font-medium text-xs sm:text-base text-gray-900 dark:text-white">{u.username}</p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{u.role}</p>
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                </div>
+                      </div>
+                    </div>
+                    
+                    <div className="md:col-span-2">
+                      {selectedUser ? (
+                        <div className="h-[40vh] sm:h-[60vh] flex flex-col">
+                          <div className="flex-1 p-2 sm:p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 overflow-y-auto space-y-2 sm:space-y-4">
+                            {/* Messages will go here */}
+                            <div className="text-center text-xs sm:text-base text-gray-500 dark:text-gray-400">
+                              No messages yet. Start the conversation!
+                            </div>
+                          </div>
+                          <div className="mt-2 sm:mt-4 flex gap-2">
                   <input
                     type="text"
-                    value={newNews.title}
-                    onChange={(e) => setNewNews({ ...newNews, title: e.target.value })}
-                    className="input-primary w-full"
-                    placeholder="Enter news title"
+                              value={newMessage}
+                              onChange={(e) => setNewMessage(e.target.value)}
+                              placeholder="Type your message..."
+                              className="flex-1 px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-base rounded-xl border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                            />
+                  <button
+                              disabled={!newMessage.trim()}
+                              className="px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-base rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                              Send
+                  </button>
+                </div>
+                </div>
+                      ) : (
+                        <div className="h-[40vh] sm:h-[60vh] flex items-center justify-center">
+                          <div className="text-center">
+                            <MessageSquare className="w-8 h-8 sm:w-12 sm:h-12 text-gray-300 dark:text-gray-600 mx-auto mb-2 sm:mb-4" />
+                            <p className="text-xs sm:text-base text-gray-600 dark:text-gray-400">Select a user to start chatting</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3 sm:space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">Open Discussions</h3>
+                  <button
+                      onClick={() => {
+                        setSelectedDiscussionType(null);
+                        setShowOpenDiscussions(false);
+                      }}
+                      className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                    >
+                      Back to Discussion Types
+                  </button>
+      </div>
+                  
+                  <div className="h-[40vh] sm:h-[60vh] flex flex-col">
+                    <div className="flex-1 p-2 sm:p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 overflow-y-auto space-y-2 sm:space-y-4">
+                      {/* Messages will go here */}
+                      <div className="text-center text-xs sm:text-base text-gray-500 dark:text-gray-400">
+                        No messages yet. Be the first to start the discussion!
+    </div>
+                    </div>
+                    <div className="mt-2 sm:mt-4 flex gap-2">
+                      <input
+                        type="text"
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        placeholder="Type your message..."
+                        className="flex-1 px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-base rounded-xl border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+                      />
+                  <button
+                        disabled={!newMessage.trim()}
+                        className="px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-base rounded-xl bg-gradient-to-r from-green-600 to-green-700 text-white font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        Send
+                      </button>
+                      </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Attainment Targets Modal */}
+      {showTargetsModal && createPortal(
+        <div className="fixed inset-0 bg-black/60 z-[9999]">
+          <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4">
+            <div className="bg-white/90 dark:bg-gray-900/90 rounded-2xl sm:rounded-3xl shadow-2xl p-3 sm:p-8 max-w-6xl w-full relative border border-white/30 dark:border-gray-800/40 backdrop-blur-xl max-h-[90vh] overflow-y-auto">
+              <button 
+                onClick={() => {
+                  setShowTargetsModal(false);
+                  setSelectedMonth(null);
+                }} 
+                className="absolute top-2 sm:top-4 right-2 sm:right-4 p-1.5 sm:p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </button>
+
+              <div className="space-y-3 sm:space-y-8">
+                <h3 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white text-center">Attainment Targets</h3>
+                
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-4">
+                  {months.map((month) => (
+          <motion.div
+                      key={month.value}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => setSelectedMonth(month.value)}
+                      className={`group relative p-2 sm:p-4 rounded-xl sm:rounded-2xl cursor-pointer transition-all ${
+                        selectedMonth === month.value
+                          ? 'bg-red-100 dark:bg-red-900/30 border-red-200 dark:border-red-800/50'
+                          : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700/50 hover:border-red-200 dark:hover:border-red-800/50'
+                      }`}
+                    >
+                      <div className="flex flex-col items-center gap-1 sm:gap-2">
+                        <div className={`p-1.5 sm:p-2 rounded-lg ${
+                          selectedMonth === month.value
+                            ? 'bg-red-200 dark:bg-red-800/50'
+                            : 'bg-gray-100 dark:bg-gray-700/50 group-hover:bg-red-100 dark:group-hover:bg-red-900/30'
+                        }`}>
+                          <Calendar className="w-4 h-4 sm:w-6 sm:h-6 text-red-600 dark:text-red-400" />
+                </div>
+                        <span className="text-xs sm:text-base font-medium text-gray-900 dark:text-white">{month.name}</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {targetFiles[month.value]?.length || 0} files
+                        </span>
+                      </div>
+            </motion.div>
+                  ))}
+                </div>
+
+                {selectedMonth && (
+                  <div className="space-y-3 sm:space-y-6">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-base sm:text-xl font-semibold text-gray-900 dark:text-white">
+                        {months.find(m => m.value === selectedMonth)?.name} Files
+                      </h4>
+                      {(user?.role === 'admin' || user?.role === 'ultra_admin' || user?.role === 'teacher') && (
+                        <label className="relative">
+                          <input
+                            type="file"
+                            onChange={(e) => handleFileUpload(e, selectedMonth)}
+                            className="hidden"
+                            accept=".pdf,.doc,.docx,.xls,.xlsx"
+                          />
+                          <div className="px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-base rounded-xl bg-gradient-to-r from-red-600 to-red-700 text-white font-medium cursor-pointer hover:from-red-700 hover:to-red-800 transition-colors">
+                            {uploadingFile ? (
+                              <div className="flex items-center gap-2">
+                                <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" />
+                                <span>Uploading...</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <Upload className="w-3 h-3 sm:w-4 sm:h-4" />
+                                <span>Upload File</span>
+                              </div>
+                            )}
+                          </div>
+                        </label>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4">
+                      {targetFiles[selectedMonth]?.map((file) => (
+            <motion.div
+                          key={file.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="group relative p-2 sm:p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/50 hover:border-red-200 dark:hover:border-red-800/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            <div className="p-1.5 sm:p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                              <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 dark:text-red-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs sm:text-base font-medium text-gray-900 dark:text-white truncate">{file.name}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                {new Date(file.uploaded_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1 sm:gap-2">
+                              <a
+                                href={`${supabase.storage.from('attainment-targets').getPublicUrl(file.url).data.publicUrl}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
+                              >
+                                <Download className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600 dark:text-gray-400" />
+                              </a>
+                              {(user?.role === 'admin' || user?.role === 'ultra_admin' || user?.role === 'teacher') && (
+                <button
+                                  onClick={() => handleFileDelete(file.id, file.url)}
+                                  disabled={deletingFile === file.id}
+                                  className="p-1 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                                >
+                                  {deletingFile === file.id ? (
+                                    <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin text-red-600 dark:text-red-400" />
+                                  ) : (
+                                    <Trash2 className="w-3 h-3 sm:w-4 sm:h-4 text-red-600 dark:text-red-400" />
+                                  )}
+                                </button>
+                              )}
+              </div>
+                          </div>
+    </motion.div>
+                      ))}
+                    </div>
+
+                    {(!targetFiles[selectedMonth] || targetFiles[selectedMonth].length === 0) && (
+                      <div className="text-center py-6 sm:py-12">
+                        <FileText className="w-8 h-8 sm:w-12 sm:h-12 text-gray-300 dark:text-gray-600 mx-auto mb-2 sm:mb-4" />
+                        <p className="text-xs sm:text-base text-gray-600 dark:text-gray-400">No files uploaded for this month yet.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Create News Modal */}
+      {isCreateNewsModalOpen && createPortal(
+        <div className="fixed inset-0 bg-black/60 z-[9999]">
+          <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4">
+            <div className="bg-white/90 dark:bg-gray-900/90 rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-8 max-w-4xl w-full relative border border-white/30 dark:border-gray-800/40 backdrop-blur-xl max-h-[90vh] overflow-y-auto">
+              <button
+                onClick={() => setIsCreateNewsModalOpen(false)} 
+                className="absolute top-2 sm:top-4 right-2 sm:right-4 p-1.5 sm:p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+              
+              <div className="space-y-4 sm:space-y-6">
+                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Create News</h3>
+              <form onSubmit={handleCreateNews} className="space-y-4">
+                <div>
+                    <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-700 dark:text-gray-200">Title</label>
+                  <input
+                    type="text"
+                      value={newNewsTitle} 
+                      onChange={e => setNewNewsTitle(e.target.value)} 
+                      className="w-full px-3 py-1.5 sm:py-2 text-sm sm:text-base rounded-xl border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all" 
+                      required 
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Content
-                  </label>
+                    <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-700 dark:text-gray-200">Content</label>
                   <textarea
-                    value={newNews.content}
-                    onChange={(e) => setNewNews({ ...newNews, content: e.target.value })}
-                    className="input-primary w-full resize-none"
-                    rows={5}
-                    placeholder="Enter news content"
+                      value={newNewsContent} 
+                      onChange={e => setNewNewsContent(e.target.value)} 
+                      className="w-full px-3 py-1.5 sm:py-2 text-sm sm:text-base rounded-xl border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all" 
+                      rows={8} 
+                      required 
                   />
                 </div>
-                <div className="flex justify-end space-x-3 mt-6">
                   <button
-                    type="button"
-                    onClick={() => setIsNewsModalOpen(false)}
-                    className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    type="submit" 
+                    disabled={creatingNews} 
+                    className="w-full py-2 rounded-xl bg-gradient-to-r from-red-600 to-red-700 text-white font-bold text-sm sm:text-base transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    Cancel
+                    {creatingNews ? 'Creating...' : 'Create News'}
                   </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Old News Modal */}
+      {showOldNews && createPortal(
+        <div className="fixed inset-0 bg-black/60 z-[9999]">
+          <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4">
+            <div className="bg-white/90 dark:bg-gray-900/90 rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-8 max-w-5xl w-full relative border border-white/30 dark:border-gray-800/40 backdrop-blur-xl max-h-[90vh] overflow-y-auto">
                   <button
-                    type="submit"
-                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors disabled:opacity-50"
-                    disabled={!newNews.title.trim() || !newNews.content.trim() || loading}
-                  >
-                    {loading ? (
-                      <div className="flex items-center">
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Posting...
-                      </div>
-                    ) : (
-                      "Post News"
+                onClick={() => setShowOldNews(false)} 
+                className="absolute top-2 sm:top-4 right-2 sm:right-4 p-1.5 sm:p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+              <h3 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-gray-900 dark:text-white">Old News</h3>
+              {oldNews.length === 0 ? (
+                <div className="text-sm sm:text-base text-gray-500 dark:text-gray-400 text-center py-8 sm:py-12">No old news.</div>
+              ) : (
+                <ol className="relative border-l-4 border-red-200 dark:border-red-900/40 ml-6 mt-6 space-y-4 sm:space-y-8 max-h-[70vh] overflow-y-auto">
+                  {oldNews.map((n, idx) => (
+                    <li key={n.id} className="group flex items-start gap-3 sm:gap-4">
+                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-red-400 flex items-center justify-center text-white font-bold shadow-lg border-2 border-white dark:border-gray-900 -ml-8 mt-1">{idx + 1}</span>
+                      <div className="flex-1 bg-white/70 dark:bg-gray-900/70 rounded-xl p-3 sm:p-4 shadow-md border border-white/20 dark:border-gray-800/30">
+                        <div className="flex items-center gap-2 mb-1 sm:mb-2">
+                          <span className="font-semibold text-sm sm:text-lg text-gray-900 dark:text-white">{n.title}</span>
+                          <span className="ml-auto text-xs text-gray-500 dark:text-gray-400 bg-white/40 dark:bg-gray-800/40 px-1.5 sm:px-2 py-0.5 rounded-full">
+                            {new Date(n.created_at).toLocaleDateString()}
+                          </span>
+                          {(user?.role === 'admin' || user?.role === 'ultra_admin') && (
+                            <div className="flex items-center gap-1 sm:gap-2">
+                              <button
+                                onClick={() => handleMoveToRecentNews(n.id)}
+                                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-800/40 transition-colors"
+                                title="Move to Recent News"
+                              >
+                                <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-green-600 dark:text-green-400" />
+                                <span className="text-xs sm:text-sm text-green-600 dark:text-green-400">Move to Recent</span>
+                              </button>
+                              <button
+                                onClick={() => handleDeleteNews(n.id)}
+                                disabled={deletingNews === n.id}
+                                className="p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                              >
+                                {deletingNews === n.id ? (
+                                  <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin text-red-600 dark:text-red-400" />
+                                ) : (
+                                  <Trash2 className="w-3 h-3 sm:w-4 sm:h-4 text-red-600 dark:text-red-400" />
                     )}
                   </button>
                 </div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
+                          )}
+                        </div>
+                        <div className="text-sm sm:text-base text-gray-700 dark:text-gray-200 mb-1">{n.content}</div>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* News Details Modal */}
+      {showNewsDetailsModal && selectedNews && createPortal(
+        <div className="fixed inset-0 bg-black/60 z-[9999]">
+          <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4">
+            <div className="bg-white/90 dark:bg-gray-900/90 rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-8 max-w-4xl w-full relative border border-white/30 dark:border-gray-800/40 backdrop-blur-xl max-h-[90vh] overflow-y-auto">
+              <button 
+                onClick={() => {
+                  setShowNewsDetailsModal(false);
+                  setSelectedNews(null);
+                  setShowNewsModal(true);
+                }} 
+                className="absolute top-2 sm:top-4 right-2 sm:right-4 p-1.5 sm:p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+              
+              <div className="space-y-4 sm:space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">{selectedNews.title}</h3>
+                </div>
+                <div className="text-sm sm:text-base text-gray-700 dark:text-gray-200">{selectedNews.content}</div>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
   );
 }
+
+export default Home;

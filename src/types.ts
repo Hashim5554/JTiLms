@@ -105,3 +105,28 @@ export interface AttainmentTarget {
   created_at: string;
   updated_at: string;
 }
+
+export interface Folder {
+  id: string;
+  name: string;
+  description: string | null;
+  subject_id: string;
+  parent_folder_id: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SubjectMaterial {
+  id: string;
+  title: string;
+  description: string;
+  file_url: string | null;
+  due_date: string | null;
+  subject_id: string;
+  folder_id: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  folder?: Folder;
+}

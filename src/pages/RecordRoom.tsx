@@ -64,6 +64,7 @@ interface Result {
   created_at: string;
   profiles?: {
     username: string;
+    photo_url?: string;
   };
   subjects?: {
     name: string;
@@ -80,6 +81,7 @@ interface Attendance {
   created_at: string;
   profiles?: {
     username: string;
+    photo_url?: string;
   };
 }
 
@@ -93,6 +95,7 @@ interface Discipline {
   created_at: string;
   profiles?: {
     username: string;
+    photo_url?: string;
   };
 }
 
@@ -709,52 +712,61 @@ export function RecordRoom() {
 
   // Admin view components
   const AdminResultsView = () => (
+    <div className="space-y-6">
+      {/* Header Section */}
+      <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
             <div>
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-          Student Results
-        </h2>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Student Results</h2>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Manage and track student academic performance</p>
+        </div>
         <button
-          className="mt-4 inline-flex items-center rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 sm:mt-0"
           onClick={() => document.getElementById('addResultForm')?.scrollIntoView({ behavior: 'smooth' })}
+          className="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
         >
           <Plus className="mr-2 h-4 w-4" /> Add New Result
         </button>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+      {/* Results Table */}
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-800">
+            <thead className="bg-gray-50 dark:bg-gray-800/50">
               <tr>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                <th scope="col" className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                   Student
                 </th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                <th scope="col" className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                   Subject
                 </th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                <th scope="col" className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                   Test
                 </th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                <th scope="col" className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                   Marks
                 </th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                <th scope="col" className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                   Grade
                 </th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                <th scope="col" className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                   Date
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
+            <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800">
               {results.length > 0 ? (
                 results.map((result) => (
-                  <tr key={result.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                    <td className="whitespace-nowrap px-4 py-4 text-sm">
+                  <tr key={result.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <td className="whitespace-nowrap px-6 py-4">
                       <div className="flex items-center">
-                        <div className="h-8 w-8 flex-shrink-0 rounded-full bg-gray-200 dark:bg-gray-700">
-                          {/* User avatar could go here */}
+                        <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
+                          {result.profiles?.photo_url ? (
+                            <img src={result.profiles.photo_url} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center bg-gray-200 text-gray-500 dark:bg-gray-600 dark:text-gray-400">
+                              <UserCheck className="h-5 w-5" />
+                            </div>
+                          )}
                         </div>
                         <div className="ml-4">
                           <div className="font-medium text-gray-900 dark:text-white">
@@ -763,29 +775,38 @@ export function RecordRoom() {
                         </div>
                       </div>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-4 text-sm text-gray-700 dark:text-gray-300">
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
                       {result.subjects?.name || 'Unknown Subject'}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-4 text-sm text-gray-700 dark:text-gray-300">
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
                       {result.test_name}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-4 text-sm text-gray-700 dark:text-gray-300">
-                      <span className="font-medium">{result.marks}</span> / {result.total_marks}
+                    <td className="whitespace-nowrap px-6 py-4 text-sm">
+                      <span className="font-medium text-gray-900 dark:text-white">{result.marks}</span>
+                      <span className="text-gray-500 dark:text-gray-400"> / {result.total_marks}</span>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-4 text-sm">
-                      <span className="inline-flex rounded-full bg-green-100 px-2 text-xs font-semibold leading-5 text-green-800 dark:bg-green-900/30 dark:text-green-200">
+                    <td className="whitespace-nowrap px-6 py-4 text-sm">
+                      <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                        result.grade === 'A+' || result.grade === 'A' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200' :
+                        result.grade === 'B+' || result.grade === 'B' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200' :
+                        result.grade === 'C+' || result.grade === 'C' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200' :
+                        'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200'
+                      }`}>
                         {result.grade}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-4 text-sm text-gray-700 dark:text-gray-300">
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
                       {new Date(result.test_date).toLocaleDateString()}
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                    No results found. Add a new result below.
+                  <td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                    <div className="flex flex-col items-center justify-center space-y-2">
+                      <FileText className="h-12 w-12 text-gray-400 dark:text-gray-600" />
+                      <p>No results found. Add a new result below.</p>
+                    </div>
                   </td>
                 </tr>
               )}
@@ -794,9 +815,16 @@ export function RecordRoom() {
         </div>
       </div>
 
-      <div id="addResultForm" className="mt-10 rounded-xl border border-gray-200 bg-gray-50 p-6 dark:border-gray-700 dark:bg-gray-800/50">
-        <h3 className="mb-4 text-lg font-medium text-gray-900 dark:text-white">Add New Result</h3>
-        <form className="grid gap-6 sm:grid-cols-2">
+      {/* Add Result Form */}
+      <div id="addResultForm" className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white">Add New Result</h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Enter the student's test results</p>
+          </div>
+        </div>
+
+        <div className="grid gap-6 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <label htmlFor="student" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Student
@@ -804,8 +832,8 @@ export function RecordRoom() {
               <select
                 id="student"
                 value={newResult.student_id}
-              onChange={(e) => setNewResult({ ...newResult, student_id: e.target.value })}
-              className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+              onChange={(e) => setNewResult(prev => ({ ...prev, student_id: e.target.value }))}
+              className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
               >
               <option value="">Select Student</option>
               {students.map((student) => (
@@ -823,8 +851,8 @@ export function RecordRoom() {
               <select
                 id="subject"
                 value={newResult.subject_id}
-              onChange={(e) => setNewResult({ ...newResult, subject_id: e.target.value })}
-              className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+              onChange={(e) => setNewResult(prev => ({ ...prev, subject_id: e.target.value }))}
+              className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
               >
               <option value="">Select Subject</option>
               {subjects.map((subject) => (
@@ -843,8 +871,12 @@ export function RecordRoom() {
                 type="text"
               id="testName"
                 value={newResult.test_name}
-              onChange={(e) => setNewResult({ ...newResult, test_name: e.target.value })}
-              className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+              onKeyDown={(e) => e.stopPropagation()}
+              onChange={(e) => {
+                e.stopPropagation();
+                setNewResult(prev => ({ ...prev, test_name: e.target.value }));
+              }}
+              className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
               placeholder="Midterm, Final, Quiz, etc."
               />
             </div>
@@ -854,13 +886,19 @@ export function RecordRoom() {
               Marks Obtained
               </label>
               <input
-              type="number"
+              type="text"
               id="marks"
               value={newResult.marks}
-              onChange={(e) => setNewResult({ ...newResult, marks: e.target.value })}
-              className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+              onKeyDown={(e) => e.stopPropagation()}
+              onChange={(e) => {
+                e.stopPropagation();
+                const value = e.target.value;
+                if (value === '' || /^\d*$/.test(value)) {
+                  setNewResult(prev => ({ ...prev, marks: value }));
+                }
+              }}
+              className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
               placeholder="85"
-              min="0"
               />
             </div>
 
@@ -869,13 +907,19 @@ export function RecordRoom() {
               Total Marks
               </label>
               <input
-              type="number"
+              type="text"
               id="totalMarks"
               value={newResult.total_marks}
-              onChange={(e) => setNewResult({ ...newResult, total_marks: e.target.value })}
-              className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+              onKeyDown={(e) => e.stopPropagation()}
+              onChange={(e) => {
+                e.stopPropagation();
+                const value = e.target.value;
+                if (value === '' || /^\d*$/.test(value)) {
+                  setNewResult(prev => ({ ...prev, total_marks: value }));
+                }
+              }}
+              className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
               placeholder="100"
-              min="0"
             />
           </div>
           
@@ -886,8 +930,8 @@ export function RecordRoom() {
             <select
               id="grade"
               value={newResult.grade}
-              onChange={(e) => setNewResult({ ...newResult, grade: e.target.value })}
-              className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+              onChange={(e) => setNewResult(prev => ({ ...prev, grade: e.target.value }))}
+              className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
             >
               <option value="">Select Grade</option>
               <option value="A+">A+</option>
@@ -909,8 +953,8 @@ export function RecordRoom() {
               type="date"
               id="testDate"
               value={newResult.test_date}
-              onChange={(e) => setNewResult({ ...newResult, test_date: e.target.value })}
-              className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+              onChange={(e) => setNewResult(prev => ({ ...prev, test_date: e.target.value }))}
+              className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
             />
           </div>
           
@@ -918,13 +962,13 @@ export function RecordRoom() {
             <button
               type="button"
               onClick={handleAddResult}
-              className="inline-flex w-full justify-center rounded-md border border-transparent bg-red-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
               disabled={!newResult.student_id || !newResult.subject_id || !newResult.test_name || !newResult.marks || !newResult.total_marks || !newResult.grade}
+              className="inline-flex w-full justify-center rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Add Result
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );
@@ -934,32 +978,51 @@ export function RecordRoom() {
     
     return (
       <div className="space-y-6">
-        <div className="bg-theme-secondary shadow-lg rounded-xl p-6">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4">
-            <h3 className="text-lg font-medium text-theme-text-primary">
+        {/* Header Section */}
+        <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
               {activeTab === 'schoolAttendance' ? 'School Attendance' : 'Online Course Attendance'}
-            </h3>
+            </h2>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {activeTab === 'schoolAttendance' 
+                ? 'Track student attendance in physical classes' 
+                : 'Monitor student participation in online courses'}
+            </p>
+          </div>
+          <div className="flex items-center space-x-3">
+            <div className="relative">
+              <input
+                type="date"
+                value={currentDate}
+                onChange={(e) => setCurrentDate(e.target.value)}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+              />
+              <Calendar className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            </div>
+          </div>
           </div>
           
+        {/* Attendance Table */}
+        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-theme-border-primary">
-              <thead className="bg-theme-tertiary">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-800/50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider rounded-tl-lg">
+                  <th scope="col" className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                     Student
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-theme-secondary divide-y divide-theme-border-primary">
+              <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800">
                 {students.length > 0 ? (
                   students.map((student) => {
-                    // Find attendance record for this student on the current date
                     const attendance = attendances.find(a => 
                       a.student_id === student.id && 
                       a.date === currentDate &&
@@ -967,33 +1030,48 @@ export function RecordRoom() {
                     );
                     
                     return (
-                      <tr key={student.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      <tr key={student.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <td className="whitespace-nowrap px-6 py-4">
+                          <div className="flex items-center">
+                            <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
+                              {student.photo_url ? (
+                                <img src={student.photo_url} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center bg-gray-200 text-gray-500 dark:bg-gray-600 dark:text-gray-400">
+                                  <UserCheck className="h-5 w-5" />
+                                </div>
+                              )}
+                            </div>
+                            <div className="ml-4">
+                              <div className="font-medium text-gray-900 dark:text-white">
                           {student.username}
+                              </div>
+                            </div>
+                          </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="whitespace-nowrap px-6 py-4">
                           {attendance ? (
-                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
                               attendance.status === 'present' 
-                                ? 'bg-green-100 text-green-800' 
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200' 
                                 : attendance.status === 'absent'
-                                  ? 'bg-red-100 text-red-800'
-                                  : 'bg-yellow-100 text-yellow-800'
+                                  ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200'
+                                  : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200'
                             }`}>
                               {attendance.status.charAt(0).toUpperCase() + attendance.status.slice(1)}
                             </span>
                           ) : (
-                            <span className="text-theme-text-secondary">Not marked</span>
+                            <span className="text-gray-500 dark:text-gray-400">Not marked</span>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-theme-text-secondary">
+                        <td className="whitespace-nowrap px-6 py-4">
                           <div className="flex space-x-2">
                             <button
                               onClick={() => handleAttendanceChange(student.id, 'present')}
-                              className={`p-1 rounded-full ${
+                              className={`rounded-lg p-2 transition-colors ${
                                 attendance?.status === 'present' 
-                                  ? 'bg-green-100 text-green-600' 
-                                  : 'bg-theme-tertiary text-theme-text-secondary hover:bg-green-100 hover:text-green-600'
+                                  ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' 
+                                  : 'bg-gray-100 text-gray-600 hover:bg-green-100 hover:text-green-600 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-green-900/30 dark:hover:text-green-400'
                               }`}
                               title="Present"
                             >
@@ -1001,10 +1079,10 @@ export function RecordRoom() {
                             </button>
                             <button
                               onClick={() => handleAttendanceChange(student.id, 'absent')}
-                              className={`p-1 rounded-full ${
+                              className={`rounded-lg p-2 transition-colors ${
                                 attendance?.status === 'absent' 
-                                  ? 'bg-red-100 text-red-600' 
-                                  : 'bg-theme-tertiary text-theme-text-secondary hover:bg-red-100 hover:text-red-600'
+                                  ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' 
+                                  : 'bg-gray-100 text-gray-600 hover:bg-red-100 hover:text-red-600 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-red-900/30 dark:hover:text-red-400'
                               }`}
                               title="Absent"
                             >
@@ -1012,10 +1090,10 @@ export function RecordRoom() {
                             </button>
                             <button
                               onClick={() => handleAttendanceChange(student.id, 'leave')}
-                              className={`p-1 rounded-full ${
+                              className={`rounded-lg p-2 transition-colors ${
                                 attendance?.status === 'leave' 
-                                  ? 'bg-yellow-100 text-yellow-600' 
-                                  : 'bg-theme-tertiary text-theme-text-secondary hover:bg-yellow-100 hover:text-yellow-600'
+                                  ? 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400' 
+                                  : 'bg-gray-100 text-gray-600 hover:bg-yellow-100 hover:text-yellow-600 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-yellow-900/30 dark:hover:text-yellow-400'
                               }`}
                               title="Leave"
                             >
@@ -1028,8 +1106,11 @@ export function RecordRoom() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={3} className="px-6 py-4 text-center text-sm text-theme-text-secondary">
-                      No students found in this class
+                    <td colSpan={3} className="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                      <div className="flex flex-col items-center justify-center space-y-2">
+                        <Users className="h-12 w-12 text-gray-400 dark:text-gray-600" />
+                        <p>No students found in this class</p>
+                      </div>
                     </td>
                   </tr>
                 )}
@@ -1042,49 +1123,65 @@ export function RecordRoom() {
   };
 
   const AdminDisciplineView = () => (
+    <div className="space-y-6">
+      {/* Header Section */}
+      <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
             <div>
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-          Discipline Records
-        </h2>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Discipline Records</h2>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Track and manage student discipline</p>
+        </div>
         <button
-          className="mt-4 inline-flex items-center rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 sm:mt-0"
           onClick={() => document.getElementById('addDisciplineForm')?.scrollIntoView({ behavior: 'smooth' })}
+          className="inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
         >
           <Plus className="mr-2 h-4 w-4" /> Add New Record
         </button>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+      {/* Discipline Records Table */}
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-800">
+            <thead className="bg-gray-50 dark:bg-gray-800/50">
               <tr>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                <th scope="col" className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                   Student
                 </th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                <th scope="col" className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                   Warnings
                 </th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                <th scope="col" className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                   Reason
                 </th>
-                <th scope="col" className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                <th scope="col" className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                   Date
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
+            <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800">
               {disciplines.length > 0 ? (
                 disciplines.map((discipline) => (
-                  <tr key={discipline.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                    <td className="whitespace-nowrap px-4 py-4 text-sm">
+                  <tr key={discipline.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <td className="whitespace-nowrap px-6 py-4">
+                      <div className="flex items-center">
+                        <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
+                          {discipline.profiles?.photo_url ? (
+                            <img src={discipline.profiles.photo_url} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center bg-gray-200 text-gray-500 dark:bg-gray-600 dark:text-gray-400">
+                              <UserCheck className="h-5 w-5" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="ml-4">
                       <div className="font-medium text-gray-900 dark:text-white">
                         {discipline.profiles?.username || 'Unknown Student'}
+                          </div>
+                        </div>
                       </div>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-4 text-sm">
-                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                    <td className="whitespace-nowrap px-6 py-4 text-sm">
+                      <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
                         discipline.warning_count >= 3
                           ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200'
                           : discipline.warning_count === 2
@@ -1098,18 +1195,21 @@ export function RecordRoom() {
                           : 'Tardy'}
                       </span>
                     </td>
-                    <td className="px-4 py-4 text-sm text-gray-700 dark:text-gray-300">
+                    <td className="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
                       {discipline.reason}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-4 text-sm text-gray-700 dark:text-gray-300">
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
                       {new Date(discipline.date).toLocaleDateString()}
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                    No discipline records found. Add a new record below.
+                  <td colSpan={4} className="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                    <div className="flex flex-col items-center justify-center space-y-2">
+                      <AlertTriangle className="h-12 w-12 text-gray-400 dark:text-gray-600" />
+                      <p>No discipline records found. Add a new record below.</p>
+                    </div>
                   </td>
                 </tr>
               )}
@@ -1118,9 +1218,16 @@ export function RecordRoom() {
         </div>
       </div>
 
-      <div id="addDisciplineForm" className="mt-10 rounded-xl border border-gray-200 bg-gray-50 p-6 dark:border-gray-700 dark:bg-gray-800/50">
-        <h3 className="mb-4 text-lg font-medium text-gray-900 dark:text-white">Add New Discipline Record</h3>
-        <form className="grid gap-6 sm:grid-cols-2">
+      {/* Add Discipline Form */}
+      <div id="addDisciplineForm" className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white">Add New Discipline Record</h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Record student discipline incidents</p>
+          </div>
+        </div>
+
+        <div className="grid gap-6 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <label htmlFor="disciplineStudent" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Student
@@ -1128,8 +1235,8 @@ export function RecordRoom() {
               <select
               id="disciplineStudent"
                 value={newDiscipline.student_id}
-              onChange={(e) => setNewDiscipline({ ...newDiscipline, student_id: e.target.value })}
-              className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+              onChange={(e) => setNewDiscipline(prev => ({ ...prev, student_id: e.target.value }))}
+              className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
               >
               <option value="">Select Student</option>
               {students.map((student) => (
@@ -1147,8 +1254,8 @@ export function RecordRoom() {
             <select
               id="warningCount"
               value={newDiscipline.warning_count}
-              onChange={(e) => setNewDiscipline({ ...newDiscipline, warning_count: e.target.value })}
-              className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+              onChange={(e) => setNewDiscipline(prev => ({ ...prev, warning_count: e.target.value }))}
+              className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
             >
               <option value="1">1 - Tardy</option>
               <option value="2">2 - A Grade</option>
@@ -1164,8 +1271,8 @@ export function RecordRoom() {
               type="date"
               id="date"
               value={newDiscipline.date}
-              onChange={(e) => setNewDiscipline({ ...newDiscipline, date: e.target.value })}
-              className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+              onChange={(e) => setNewDiscipline(prev => ({ ...prev, date: e.target.value }))}
+              className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
             />
           </div>
           
@@ -1176,9 +1283,13 @@ export function RecordRoom() {
             <textarea
               id="reason"
               value={newDiscipline.reason}
-              onChange={(e) => setNewDiscipline({ ...newDiscipline, reason: e.target.value })}
+              onKeyDown={(e) => e.stopPropagation()}
+              onChange={(e) => {
+                e.stopPropagation();
+                setNewDiscipline(prev => ({ ...prev, reason: e.target.value }));
+              }}
               rows={3}
-              className="mt-1 block w-full rounded-md border border-gray-300 bg-white py-2 px-3 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+              className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
               placeholder="Describe the incident..."
             />
           </div>
@@ -1187,13 +1298,13 @@ export function RecordRoom() {
             <button
               type="button"
               onClick={handleAddDiscipline}
-              className="inline-flex w-full justify-center rounded-md border border-transparent bg-red-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
               disabled={!newDiscipline.student_id || !newDiscipline.reason.trim()}
+              className="inline-flex w-full justify-center rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Add Discipline Record
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );
@@ -1210,83 +1321,83 @@ export function RecordRoom() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-6">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-2 sm:p-6">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Record Room</h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-300">
+        <div className="mb-4 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Record Room</h1>
+          <p className="mt-1 sm:mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-300">
             Manage student records, attendance, and academic performance
           </p>
         </div>
       
       {message && (
-          <div className={`mb-4 rounded-lg p-4 ${
+          <div className={`mb-3 sm:mb-4 rounded-lg p-3 sm:p-4 ${
             message.type === 'success' 
               ? 'bg-green-50 text-green-800 dark:bg-green-900/50 dark:text-green-200' 
               : 'bg-red-50 text-red-800 dark:bg-red-900/50 dark:text-red-200'
           }`}>
-            <p className="flex items-center">
-              {message.type === 'success' ? <Check className="mr-2 h-5 w-5" /> : <AlertTriangle className="mr-2 h-5 w-5" />}
+            <p className="flex items-center text-sm sm:text-base">
+              {message.type === 'success' ? <Check className="mr-2 h-4 w-4 sm:h-5 sm:w-5" /> : <AlertTriangle className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />}
           {message.text}
             </p>
         </div>
       )}
 
-        <div className="mb-6 flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
-          <div className="flex space-x-2 overflow-x-auto rounded-lg bg-white p-1 shadow-sm dark:bg-gray-800">
+        <div className="mb-4 sm:mb-6 flex flex-col space-y-3 sm:space-y-0 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex space-x-1 sm:space-x-2 overflow-x-auto rounded-lg bg-white p-1 shadow-sm dark:bg-gray-800">
           <button
             onClick={() => setActiveTab('results')}
-              className={`flex items-center rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              className={`flex items-center rounded-md px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-colors ${
               activeTab === 'results'
                   ? 'bg-red-600 text-white'
                   : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700'
             }`}
           >
-              <FileText className="mr-2 h-4 w-4" />
+              <FileText className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
             Results
           </button>
           <button
             onClick={() => setActiveTab('schoolAttendance')}
-              className={`flex items-center rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              className={`flex items-center rounded-md px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-colors ${
               activeTab === 'schoolAttendance'
                   ? 'bg-red-600 text-white'
                   : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700'
             }`}
           >
-              <UserCheck className="mr-2 h-4 w-4" />
-            School Attendance
+              <UserCheck className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+              School
           </button>
           <button
             onClick={() => setActiveTab('onlineAttendance')}
-              className={`flex items-center rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              className={`flex items-center rounded-md px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-colors ${
               activeTab === 'onlineAttendance'
                   ? 'bg-red-600 text-white'
                   : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700'
             }`}
           >
-              <Video className="mr-2 h-4 w-4" />
-              Online Attendance
+              <Video className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+              Online
           </button>
           <button
             onClick={() => setActiveTab('discipline')}
-              className={`flex items-center rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              className={`flex items-center rounded-md px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-colors ${
               activeTab === 'discipline'
                   ? 'bg-red-600 text-white'
                   : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700'
             }`}
           >
-              <AlertTriangle className="mr-2 h-4 w-4" />
+              <AlertTriangle className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
             Discipline
           </button>
       </div>
 
           {isAdmin && (
-            <div className="flex items-center space-x-3">
-              <div className="relative">
+            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
+              <div className="relative w-full sm:w-auto">
               <select
                 value={selectedClass}
                 onChange={(e) => setSelectedClass(e.target.value)}
-                  className="appearance-none rounded-lg border border-gray-300 bg-white pl-3 pr-10 py-2 text-gray-700 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                  className="w-full sm:w-auto appearance-none rounded-lg border border-gray-300 bg-white pl-3 pr-10 py-1.5 sm:py-2 text-sm text-gray-700 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
                 >
                   <option value="">Select class</option>
                   {classes.map((classItem) => (
@@ -1295,25 +1406,25 @@ export function RecordRoom() {
                   </option>
                 ))}
               </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3 w-3 sm:h-4 sm:w-4 -translate-y-1/2 text-gray-400" />
             </div>
 
               {activeTab === 'schoolAttendance' || activeTab === 'onlineAttendance' ? (
-                <div className="relative">
+                <div className="relative w-full sm:w-auto">
                   <input
                     type="date"
                     value={currentDate}
                     onChange={(e) => setCurrentDate(e.target.value)}
-                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-700 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+                    className="w-full sm:w-auto rounded-lg border border-gray-300 bg-white px-3 py-1.5 sm:py-2 text-sm text-gray-700 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                   />
-                  <Calendar className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                  <Calendar className="pointer-events-none absolute right-3 top-1/2 h-3 w-3 sm:h-4 sm:w-4 -translate-y-1/2 text-gray-400" />
                 </div>
               ) : null}
             </div>
           )}
           </div>
 
-        <div className="rounded-xl bg-white p-6 shadow-sm dark:bg-gray-800">
+        <div className="rounded-xl bg-white p-3 sm:p-6 shadow-sm dark:bg-gray-800">
           {!isAdmin ? (
             <>
               {/* Student views */}
