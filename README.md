@@ -1,55 +1,89 @@
-# LGS JTi Learning Management System
+# News Management System
 
-A comprehensive Learning Management System built with React and Supabase, featuring:
-
-- User authentication and role-based access control
-- Class management and student enrollment
-- Afternoon clubs management
-- Attendance tracking
-- Academic records and results management
-- Library resource management
-- Real-time announcements and discussions
+A modern news management system built with Next.js, Supabase, and Tailwind CSS. This application allows users to create, read, update, and delete news articles with real-time updates.
 
 ## Features
 
-- **User Management**: Support for students, teachers, and administrators
-- **Class Management**: Create and manage classes, assign students and teachers
-- **Clubs**: Manage afternoon clubs, memberships, and attendance
-- **Academic Records**: Track student performance, attendance, and discipline records
-- **Library**: Digital resource management system
-- **Announcements**: School-wide and class-specific announcements
-- **Discussions**: Interactive discussion boards for each class
+- Real-time news updates using Supabase subscriptions
+- Modern UI with Tailwind CSS
+- Responsive design
+- CRUD operations for news articles
+- Optimistic updates for better user experience
+- Error handling and loading states
 
 ## Tech Stack
 
-- React
+- Next.js 14
+- Supabase
+- Tailwind CSS
 - TypeScript
-- Supabase (Backend and Database)
-- TailwindCSS
-- Lucide Icons
+- React Query
+
+## Prerequisites
+
+- Node.js 18 or higher
+- npm or yarn
+- Supabase account
+
+## Environment Variables
+
+Create a `.env.local` file in the root directory with the following variables:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
 
 ## Getting Started
 
-1. Clone the repository
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/news-management-system.git
+cd news-management-system
+```
+
 2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Set up environment variables:
-   Create a `.env` file with your Supabase configuration:
-   ```
-   REACT_APP_SUPABASE_URL=your_supabase_url
-   REACT_APP_SUPABASE_ANON_KEY=your_supabase_anon_key
-   ```
-4. Start the development server:
-   ```bash
-   npm start
-   ```
+```bash
+npm install
+# or
+yarn install
+```
+
+3. Run the development server:
+```bash
+npm run dev
+# or
+yarn dev
+```
+
+4. Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+## Project Structure
+
+```
+├── app/
+│   ├── components/
+│   │   ├── NewsCard.tsx
+│   │   ├── NewsForm.tsx
+│   │   └── NewsList.tsx
+│   ├── layout.tsx
+│   └── page.tsx
+├── lib/
+│   └── supabase.ts
+├── types/
+│   └── index.ts
+└── public/
+    └── images/
+```
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## License
 
-This project is licensed under the MIT License.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
