@@ -52,3 +52,38 @@ export async function getUnreadNotificationCount(type: string) {
   if (error) throw error;
   return data?.length || 0;
 }
+
+export async function fetchUnreadNotifications(userId: string) {
+  if (!userId) return [];
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('id, message, created_at')
+    .eq('user_id', userId)
+    .eq('read', false)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function notifyDiscussionParticipants(classId: string, senderId: string, message: string) {
+  const { data: users, error } = await supabase
+    .from('class_assignments')
+    .select('user_id')
+    .eq('class_id', classId)
+    .neq('user_id', senderId);
+
+  if (error) throw error;
+
+  const notifications = users.map(user => ({
+    user_id: user.user_id,
+    type: 'discussion',
+    reference_id: classId,
+    message: `New discussion message: ${message}`
+  }));
+
+  const { error: insertError } = await supabase
+    .from('notifications')
+    .insert(notifications);
+
+  if (insertError) throw insertError;
+}

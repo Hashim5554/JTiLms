@@ -37,31 +37,6 @@ import '../styles/cards.css';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Club } from '../types/index';
 
-interface Club {
-  id: string;
-  name: string;
-  description: string;
-  created_at: string;
-  created_by: string;
-  max_capacity: number;
-  schedule: string;
-  members_count: number;
-  members?: ClubMember[];
-  day?: string;
-  time?: string;
-  location?: string;
-  teacher?: string;
-  image_url?: string;
-  category?: string;
-  difficulty_level?: 'Beginner' | 'Intermediate' | 'Advanced';
-  status?: 'active' | 'inactive' | 'full';
-  requirements?: string;
-  equipment_needed?: string[];
-  achievements?: string[];
-  rating?: number;
-  total_ratings?: number;
-}
-
 interface ClubMember {
   id: string;
   club_id: string;
@@ -301,9 +276,19 @@ export function AfternoonClubs() {
       const { data, error } = await supabase
         .from('clubs')
         .insert([{
-          ...formData,
-          created_by: user?.id,
-          equipment_needed: formData.equipment_needed || []
+          name: formData.name,
+          description: formData.description,
+          day: formData.day,
+          time: formData.time,
+          location: formData.location,
+          capacity: parseInt(formData.capacity) || 30,
+          teacher: formData.teacher,
+          category: formData.category,
+          difficulty_level: formData.difficulty_level,
+          requirements: formData.requirements,
+          equipment_needed: formData.equipment_needed || [],
+          image_url: formData.image_url,
+          created_by: user?.id
         }])
         .select()
         .single();
@@ -448,7 +433,7 @@ export function AfternoonClubs() {
       day: club.day || '',
       time: club.time || '',
       location: club.location || '',
-      capacity: club.max_capacity.toString(),
+      capacity: club.capacity.toString(),
       teacher: club.teacher || '',
       category: club.category || '',
       difficulty_level: club.difficulty_level || 'Beginner',

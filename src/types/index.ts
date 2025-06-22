@@ -108,13 +108,25 @@ export interface Club {
   id: string;
   name: string;
   description: string;
-  day: string;
-  time: string;
-  location: string;
+  day?: string;
+  time?: string;
+  location?: string;
   capacity: number;
-  teacher: string;
+  teacher?: string;
+  created_by?: string;
   created_at: string;
   updated_at: string;
+  image_url?: string;
+  category?: string;
+  difficulty_level?: 'Beginner' | 'Intermediate' | 'Advanced';
+  status?: 'active' | 'inactive' | 'full';
+  requirements?: string;
+  equipment_needed?: string[];
+  achievements?: string[];
+  rating?: number;
+  total_ratings?: number;
+  members_count?: number;
+  members?: any[];
 }
 
 export interface SubjectMaterial {

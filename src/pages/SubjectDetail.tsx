@@ -25,6 +25,7 @@ import {
   FolderPlus,
   Sparkles,
   Star,
+  StarIcon,
   Bookmark,
   Share2
 } from 'lucide-react';
@@ -106,6 +107,9 @@ export function SubjectDetail() {
     due_date: '',
     folder_id: null as string | null
   });
+  const [starredMaterials, setStarredMaterials] = useState<Set<string>>(new Set());
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
 
   useEffect(() => {
     loadSubject();
@@ -255,12 +259,17 @@ export function SubjectDetail() {
         return;
       }
 
-      const { error } = await supabase
+      const dueDateValue = formData.due_date === '' ? null : formData.due_date;
+      const { data, error } = await supabase
         .from('subject_materials')
         .insert([{
           ...formData,
-          subject_id: id
-        }]);
+          due_date: dueDateValue,
+          subject_id: id,
+          created_by: user?.id || null,
+        }])
+        .select()
+        .single();
 
       if (error) throw error;
 
@@ -273,7 +282,7 @@ export function SubjectDetail() {
         due_date: '',
         folder_id: null
       });
-      loadMaterials();
+      setMaterials(prev => [data, ...prev]);
     } catch (error) {
       console.error('Error creating material:', error);
       setMessage({ type: 'error', text: 'Failed to create material' });
@@ -290,7 +299,7 @@ export function SubjectDetail() {
       if (error) throw error;
 
       setMessage({ type: 'success', text: 'Material deleted successfully' });
-      loadMaterials();
+      setMaterials(materials.filter(m => m.id !== materialId));
     } catch (error) {
       console.error('Error deleting material:', error);
       setMessage({ type: 'error', text: 'Failed to delete material' });
@@ -320,7 +329,7 @@ export function SubjectDetail() {
         due_date: '',
         folder_id: null
       });
-      loadMaterials();
+      setMaterials(materials.map(m => m.id === materialId ? { ...m, ...formData } : m));
     } catch (error) {
       console.error('Error updating material:', error);
       setMessage({ type: 'error', text: 'Failed to update material' });
@@ -339,26 +348,23 @@ export function SubjectDetail() {
   };
 
   const handleCreateFolder = async () => {
-    if (!newFolder.name || !id || !user?.id) return;
-
+    setIsCreatingFolder(true);
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('folders')
-        .insert([{
-          ...newFolder,
-          subject_id: id,
-          created_by: user.id
-        }]);
-
+        .insert([{ ...newFolder, subject_id: id, created_by: user?.id }])
+        .select()
+        .single();
       if (error) throw error;
-
-      setMessage({ type: 'success', text: 'Folder created successfully' });
-      setIsCreatingFolder(false);
+      if (data) {
+        setFolders(prev => [...prev, data]);
+      }
       setNewFolder({ name: '', description: '', parent_folder_id: null });
-      loadFolders();
     } catch (error) {
       console.error('Error creating folder:', error);
       setMessage({ type: 'error', text: 'Failed to create folder' });
+    } finally {
+      setIsCreatingFolder(false);
     }
   };
 
@@ -382,8 +388,8 @@ export function SubjectDetail() {
       if (updateError) throw updateError;
 
       setMessage({ type: 'success', text: 'Folder deleted successfully' });
-      loadFolders();
-      loadMaterials();
+      setFolders(folders.filter(f => f.id !== folderId));
+      setMaterials(materials.map(m => m.folder_id === folderId ? { ...m, folder_id: null } : m));
     } catch (error) {
       console.error('Error deleting folder:', error);
       setMessage({ type: 'error', text: 'Failed to delete folder' });
@@ -680,22 +686,37 @@ export function SubjectDetail() {
                             <motion.button
                               whileHover={{ scale: 1.1 }}
                               whileTap={{ scale: 0.9 }}
-                              onClick={() => startEditing(material)}
-                              className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                              className={`p-1 ${starredMaterials.has(material.id) ? 'text-yellow-500 dark:text-yellow-400' : 'text-gray-400 hover:text-yellow-500 dark:hover:text-yellow-400'}`}
+                              onClick={() => {
+                                setStarredMaterials(prev => {
+                                  const newSet = new Set(prev);
+                                  if (newSet.has(material.id)) {
+                                    newSet.delete(material.id);
+                                  } else {
+                                    newSet.add(material.id);
+                                  }
+                                  return newSet;
+                                });
+                              }}
+                              title={starredMaterials.has(material.id) ? 'Unstar' : 'Star'}
                             >
-                              <Edit2 className="h-4 w-4" />
+                              {starredMaterials.has(material.id) ? (
+                                <StarIcon className="h-4 w-4 fill-yellow-500 text-yellow-500 dark:fill-yellow-400 dark:text-yellow-400" />
+                              ) : (
+                                <Star className="h-4 w-4" />
+                              )}
                             </motion.button>
                             <motion.button
                               whileHover={{ scale: 1.1 }}
                               whileTap={{ scale: 0.9 }}
-                    onClick={() => handleDeleteMaterial(material.id)}
+                              onClick={() => handleDeleteMaterial(material.id)}
                               className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                  >
+                            >
                               <Trash2 className="h-4 w-4" />
                             </motion.button>
-                </div>
+                          </div>
                         )}
-              </div>
+                      </div>
                       <div className="flex items-center justify-between mt-4">
                         <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
                 {material.file_url && (
@@ -715,22 +736,6 @@ export function SubjectDetail() {
                               {new Date(material.due_date).toLocaleDateString()}
                   </div>
                 )}
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <motion.button
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            className="p-1 text-gray-400 hover:text-yellow-500 dark:hover:text-yellow-400"
-                          >
-                            <Star className="h-4 w-4" />
-                          </motion.button>
-                          <motion.button
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            className="p-1 text-gray-400 hover:text-blue-500 dark:hover:text-blue-400"
-                          >
-                            <Share2 className="h-4 w-4" />
-                          </motion.button>
                         </div>
                       </div>
                     </div>
@@ -942,6 +947,38 @@ export function SubjectDetail() {
                     onChange={(e) => setFormData({ ...formData, file_url: e.target.value })}
                               className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
               />
+            </div>
+            <div>
+                            <label htmlFor="file_upload" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                              Upload File (optional)
+              </label>
+              <input
+                              type="file"
+                              id="file_upload"
+                              accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.zip,.rar,.txt"
+                              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                              onChange={async (e) => {
+                                if (!e.target.files?.length) return;
+                                setUploadingFile(true);
+                                const file = e.target.files[0];
+                                const fileExt = file.name.split('.').pop();
+                                const fileName = `materials/${user?.id || 'anon'}-${Date.now()}.${fileExt}`;
+                                const { data: uploadData, error: uploadError } = await supabase.storage
+                                  .from('subject-materials')
+                                  .upload(fileName, file);
+                                setUploadingFile(false);
+                                if (uploadError) {
+                                  alert('Failed to upload file: ' + uploadError.message);
+                                  return;
+                                }
+                                const publicUrl = supabase.storage.from('subject-materials').getPublicUrl(fileName).data.publicUrl;
+                                setFormData((prev) => ({ ...prev, file_url: publicUrl }));
+                                setUploadedFileName(file.name);
+                              }}
+                              disabled={uploadingFile}
+              />
+              {uploadingFile && <span className="text-xs text-gray-500 ml-2">Uploading...</span>}
+              {uploadedFileName && <span className="text-xs text-green-600 ml-2">Uploaded: {uploadedFileName}</span>}
             </div>
             <div>
                             <label htmlFor="due_date" className="block text-sm font-medium text-gray-700 dark:text-gray-300">

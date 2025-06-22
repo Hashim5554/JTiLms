@@ -12,72 +12,30 @@ AS $$
 DECLARE
   user_username TEXT := username;
   effective_role TEXT := role;
-  new_user_id UUID := gen_random_uuid();
-  user_instance_id UUID;
-  password_hash TEXT;
+  result JSONB;
+  new_user_id UUID;
 BEGIN
   -- Generate username if not provided
   IF user_username IS NULL THEN
     user_username := split_part(email, '@', 1);
   END IF;
 
-  -- Get the instance_id from an existing user to ensure consistency
-  SELECT u.instance_id INTO user_instance_id FROM auth.users u LIMIT 1;
+  -- Use the proper admin API to create users
+  result := auth.admin_create_user(
+    email := email,
+    password := password,
+    email_confirm := TRUE,
+    data := jsonb_build_object('username', user_username, 'role', effective_role)
+  );
+
+  -- Extract the user ID from the result
+  new_user_id := (result ->> 'id')::UUID;
   
-  -- If no instance_id found, use a default
-  IF user_instance_id IS NULL THEN
-    user_instance_id := '00000000-0000-0000-0000-000000000000'::UUID;
+  IF new_user_id IS NULL THEN
+    RAISE EXCEPTION 'Failed to create user: %', result;
   END IF;
 
-  -- Generate the password hash using bcrypt
-  password_hash := crypt(password, gen_salt('bf', 10));
-
-  -- Insert user into auth.users
-  INSERT INTO auth.users (
-    id,
-    instance_id,
-    email,
-    encrypted_password,
-    email_confirmed_at,
-    raw_app_meta_data,
-    raw_user_meta_data,
-    created_at,
-    updated_at,
-    role,
-    aud
-  ) VALUES (
-    new_user_id,
-    user_instance_id,
-    email,
-    password_hash,
-    now(),
-    jsonb_build_object('provider', 'email', 'providers', array['email']),
-    jsonb_build_object('username', user_username, 'role', effective_role),
-    now(),
-    now(),
-    'authenticated',
-    'authenticated'
-  );
-
-  -- Create profile with all required fields
-  INSERT INTO public.profiles (
-    id,
-    email,
-    username,
-    role,
-    created_at,
-    updated_at
-  ) VALUES (
-    new_user_id,
-    email,
-    user_username,
-    effective_role,
-    now(),
-    now()
-  );
-
-  -- Refresh schema cache after user creation
-  PERFORM public.refresh_schema_cache();
+  -- Do NOT insert into profiles here; the trigger will handle it
 
   RETURN jsonb_build_object(
     'id', new_user_id,

@@ -5,7 +5,7 @@ DROP TABLE IF EXISTS discussions CASCADE;
 CREATE TABLE discussions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   content TEXT NOT NULL,
-  created_by UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_by UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   class_id UUID REFERENCES classes(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()

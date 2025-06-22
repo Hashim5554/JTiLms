@@ -25,7 +25,7 @@ import {
   NotebookPen,
   Users2
 } from 'lucide-react';
-import { getUnreadNotificationCount, markNotificationsAsRead } from '../lib/notifications';
+import { getUnreadNotificationCount, markNotificationsAsRead, fetchUnreadNotifications } from '../lib/notifications';
 import type { Class } from '../types/index';
 
 interface NotificationCounts {
@@ -65,6 +65,9 @@ export function Layout() {
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [classes, setClasses] = useState<Class[]>([]);
   const [currentClass, setCurrentClass] = useState<Class | null>(null);
+  const [isNotificationDropdownOpen, setIsNotificationDropdownOpen] = useState(false);
+  const [notificationItems, setNotificationItems] = useState<Array<{ id: string; message: string; created_at: string }>>([]);
+  const [totalUnread, setTotalUnread] = useState(0);
 
   // Close mobile menu when route changes
   useEffect(() => {
@@ -88,6 +91,63 @@ export function Layout() {
       setCurrentClass(null);
     }
   }, [selectedClassId, classes]);
+
+  // Subscribe to real-time notification changes using Supabase channel API
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase.channel('notifications_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          loadNotifications();
+          loadNotificationItems();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [user]);
+
+  // Load notification items (dropdown content)
+  const loadNotificationItems = async () => {
+    if (!user) return;
+    try {
+      const items = await fetchUnreadNotifications(user.id);
+      setNotificationItems(items);
+    } catch (error) {
+      console.error('Error loading notification items:', error);
+    }
+  };
+
+  // Toggle notification dropdown
+  const toggleNotificationDropdown = () => {
+    setIsNotificationDropdownOpen(!isNotificationDropdownOpen);
+    if (!isNotificationDropdownOpen) {
+      loadNotificationItems();
+    }
+  };
+
+  // Mark notification as read
+  const markNotificationAsRead = async (id: string) => {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('id', id);
+    if (error) {
+      console.error('Error marking notification as read:', error);
+      return;
+    }
+    loadNotificationItems();
+    loadNotifications();
+  };
 
   const loadNotifications = async () => {
     try {
@@ -295,8 +355,17 @@ export function Layout() {
             {/* User Info and Logout */}
             <div className="flex items-center justify-between">
               <div className="flex items-center">
-                <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 dark:text-red-400 font-semibold text-sm">
-                  {user?.username?.charAt(0).toUpperCase() || 'U'}
+                <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 dark:text-red-400 font-semibold text-sm overflow-hidden">
+                  {user?.photo_url ? (
+                    <img
+                      src={user.photo_url}
+                      alt="Profile"
+                      className="w-full h-full object-cover"
+                      onError={e => { e.currentTarget.src = 'https://via.placeholder.com/100?text=No+Image'; }}
+                    />
+                  ) : (
+                    user?.username?.charAt(0).toUpperCase() || 'U'
+                  )}
                 </div>
                 <div className="ml-3">
                   <p className="text-sm font-medium text-gray-900 dark:text-white">
@@ -306,6 +375,57 @@ export function Layout() {
                     {user?.role === 'ultra_admin' ? 'Ultra Admin' : user?.role || 'Ultra Admin'}
                   </p>
                 </div>
+              </div>
+              <div className="relative">
+                <button
+                  onClick={toggleNotificationDropdown}
+                  className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-red-600 dark:hover:text-red-400 transition-colors duration-200"
+                >
+                  <Bell className="h-5 w-5" />
+                  {totalUnread > 0 && (
+                    <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full">
+                      {totalUnread}
+                    </span>
+                  )}
+                </button>
+                {isNotificationDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden z-10">
+                    <div className="p-4">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Notifications</h3>
+                        <button
+                          onClick={() => {
+                            notificationItems.forEach(item => markNotificationAsRead(item.id));
+                            setNotificationItems([]);
+                          }}
+                          className="text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
+                        >
+                          Mark all as read
+                        </button>
+                      </div>
+                      {notificationItems.length === 0 ? (
+                        <p className="text-gray-500 dark:text-gray-400">No new notifications</p>
+                      ) : (
+                        <ul className="mt-2 space-y-2">
+                          {notificationItems.map((item) => (
+                            <li key={item.id} className="flex items-start p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg">
+                              <div className="flex-1">
+                                <p className="text-sm text-gray-900 dark:text-white">{item.message}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">{new Date(item.created_at).toLocaleString()}</p>
+                              </div>
+                              <button
+                                onClick={() => markNotificationAsRead(item.id)}
+                                className="ml-2 text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
+                              >
+                                Mark as read
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
               <button
                 onClick={signOut}

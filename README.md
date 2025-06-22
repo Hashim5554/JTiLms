@@ -1,23 +1,26 @@
-# News Management System
+# LGS JTI Learning Management System
 
-A modern news management system built with Next.js, Supabase, and Tailwind CSS. This application allows users to create, read, update, and delete news articles with real-time updates.
+A comprehensive Learning Management System built for LGS JTI school using React, Vite, Supabase, and Tailwind CSS. This application provides a complete digital learning environment for students, teachers, and administrators.
 
 ## Features
 
-- Real-time news updates using Supabase subscriptions
-- Modern UI with Tailwind CSS
-- Responsive design
-- CRUD operations for news articles
-- Optimistic updates for better user experience
-- Error handling and loading states
+- **User Management**: Student, teacher, and admin roles with profile management
+- **Class Management**: Create and manage classes with assignments and materials
+- **Subject Management**: Organize subjects with folders and file uploads
+- **Announcements**: School-wide announcements with real-time updates
+- **Outstanding Achievers**: Showcase student achievements with certificates
+- **File Management**: Upload and organize educational materials
+- **Real-time Updates**: Live notifications and updates using Supabase
+- **Responsive Design**: Works seamlessly on desktop and mobile devices
+- **Dark/Light Theme**: Toggle between themes for better user experience
 
 ## Tech Stack
 
-- Next.js 14
-- Supabase
-- Tailwind CSS
-- TypeScript
-- React Query
+- **Frontend**: React 18, Vite, TypeScript
+- **Styling**: Tailwind CSS
+- **Backend**: Supabase (PostgreSQL, Auth, Storage, Real-time)
+- **State Management**: Zustand
+- **UI Components**: Custom components with modern design
 
 ## Prerequisites
 
@@ -27,19 +30,19 @@ A modern news management system built with Next.js, Supabase, and Tailwind CSS. 
 
 ## Environment Variables
 
-Create a `.env.local` file in the root directory with the following variables:
+Create a `.env` file in the root directory with the following variables:
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
 ## Getting Started
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/news-management-system.git
-cd news-management-system
+git clone https://github.com/yourusername/lgs-lms.git
+cd lgs-lms
 ```
 
 2. Install dependencies:
@@ -49,20 +52,26 @@ npm install
 yarn install
 ```
 
-3. Run the development server:
+3. Set up your Supabase project:
+   - Create a new Supabase project
+   - Run the migration files in `supabase/migrations/` in order
+   - Configure storage buckets and policies
+   - Update environment variables
+
+4. Run the development server:
 ```bash
 npm run dev
 # or
 yarn dev
 ```
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser.
+5. Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ## Project Structure
 
 ```
-├── app/
-│   ├── components/
+├── src/
+│   ├── components/          # Reusable UI components
 │   │   ├── NewsCard.tsx
 │   │   ├── NewsForm.tsx
 │   │   └── NewsList.tsx
@@ -75,6 +84,28 @@ yarn dev
 └── public/
     └── images/
 ```
+
+## Key Features
+
+### For Students
+- View classes and assignments
+- Access subject materials
+- Submit assignments
+- View announcements
+- Track achievements
+
+### For Teachers
+- Create and manage classes
+- Upload educational materials
+- Create assignments
+- Post announcements
+- Manage student achievements
+
+### For Administrators
+- User management
+- System-wide announcements
+- Content moderation
+- Analytics and reporting
 
 ## Contributing
 

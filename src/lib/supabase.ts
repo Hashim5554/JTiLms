@@ -109,78 +109,35 @@ export async function createUser({
     if (existingUser) {
       throw new Error('Username already taken');
     }
-    
-    // Ignore not found errors as they're expected
 
-    // Use the create_new_user RPC function if available
-    try {
-      const { data: userData, error: rpcError } = await supabase.rpc('create_new_user', {
-        email,
-        password,
+    // Use the Supabase Auth Admin API to create the user
+    const { data: userData, error: adminError } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: {
+        username,
         role,
-        username
-      });
+      },
+    });
 
-      if (rpcError) throw rpcError;
-      if (userData && userData.error) throw new Error(userData.error);
+    if (adminError) throw adminError;
+    if (!userData || !userData.user) throw new Error('Failed to create user');
 
-      // Success using RPC method
-      return { 
-        user: { 
-          id: userData.id, 
-          email: userData.email 
-        }, 
-        profile: userData 
-      };
-    } catch (rpcError) {
-      console.warn('Failed to create user with RPC, falling back to direct method:', rpcError);
-      
-      // Fallback to direct method if RPC fails
-      // Create auth user
-      const { data: authData, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            username,
-            role,
-          },
-        },
-      });
+    // The trigger on auth.users will create the profile row automatically
+    // Optionally, fetch the profile after creation
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userData.user.id)
+      .single();
 
-      if (signUpError || !authData.user) {
-        throw signUpError || new Error('Failed to create user');
-      }
-
-      // Create profile
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .insert([
-          {
-            id: authData.user.id,
-            email,
-            username,
-            role,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          },
-        ])
-        .select()
-        .single();
-
-      if (profileError) {
-        // Cleanup auth user if profile creation fails
-        console.error('Failed to create profile, attempting to clean up auth user:', profileError);
-        try {
-          await supabase.auth.admin.deleteUser(authData.user.id);
-        } catch (cleanupError) {
-          console.error('Failed to clean up auth user:', cleanupError);
-        }
-        throw profileError;
-      }
-
-      return { user: authData.user, profile };
+    if (profileError) {
+      // Profile may not be immediately available due to trigger timing
+      return { user: userData.user, profile: null };
     }
+
+    return { user: userData.user, profile };
   } catch (error) {
     console.error('Create user error:', error);
     throw error;

@@ -246,7 +246,7 @@ export function RecordRoom() {
         .select(`
           id,
           class_id,
-          profiles (
+          profiles:user_id (
             id,
             username,
             email,
@@ -261,12 +261,7 @@ export function RecordRoom() {
         const assignments = data.map((assignment: any) => ({
           id: assignment.id,
           class_id: assignment.class_id,
-          profiles: assignment.profiles.map((profile: any) => ({
-            id: profile.id,
-            username: profile.username,
-            email: profile.email,
-            photo_url: profile.photo_url
-          }))
+          profiles: assignment.profiles ? [assignment.profiles] : []
         })) as ClassAssignment[];
         setStudents(assignments.map(assignment => assignment.profiles).flat());
       }

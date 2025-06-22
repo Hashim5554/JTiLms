@@ -54,4 +54,62 @@ EXCEPTION
       'details', SQLSTATE
     );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER; 
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create execute_sql function with security measures
+CREATE OR REPLACE FUNCTION public.execute_sql(sql_query TEXT)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  result JSONB;
+  allowed_operations TEXT[] := ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE'];
+  operation TEXT;
+  is_allowed BOOLEAN := false;
+BEGIN
+  -- Only allow ultra_admin to execute SQL
+  IF NOT EXISTS (
+    SELECT 1 FROM profiles 
+    WHERE id = auth.uid() 
+    AND role = 'ultra_admin'
+  ) THEN
+    RAISE EXCEPTION 'Only ultra_admin can execute SQL queries';
+  END IF;
+
+  -- Extract the operation type from the query
+  operation := upper(split_part(trim(sql_query), ' ', 1));
+  
+  -- Check if the operation is allowed
+  FOREACH operation IN ARRAY allowed_operations LOOP
+    IF upper(sql_query) LIKE operation || '%' THEN
+      is_allowed := true;
+      EXIT;
+    END IF;
+  END LOOP;
+
+  IF NOT is_allowed THEN
+    RAISE EXCEPTION 'Only SELECT, INSERT, UPDATE, and DELETE operations are allowed';
+  END IF;
+
+  -- Execute the query and return results
+  BEGIN
+    EXECUTE sql_query;
+    result := jsonb_build_object(
+      'status', 'success',
+      'message', 'Query executed successfully'
+    );
+  EXCEPTION WHEN OTHERS THEN
+    result := jsonb_build_object(
+      'status', 'error',
+      'message', SQLERRM,
+      'details', SQLSTATE
+    );
+  END;
+
+  RETURN result;
+END;
+$$;
+
+-- Grant execute permission to authenticated users
+GRANT EXECUTE ON FUNCTION public.execute_sql(TEXT) TO authenticated; 

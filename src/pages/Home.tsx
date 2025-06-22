@@ -25,6 +25,7 @@ import {
 import { Class } from '../types';
 import '../styles/cards.css';
 import { useTheme } from '../hooks/useTheme';
+import { notifyDiscussionParticipants } from '../lib/notifications';
 
 interface HomeContextType {
   currentClass: Class | null;
@@ -77,6 +78,28 @@ interface NewsItem {
   created_at: string;
   is_deleted?: boolean;
   updated_at?: string;
+}
+
+interface PrivateDiscussion {
+  id: string;
+  content: string;
+  created_by: string;
+  recipient_id: string;
+  class_id: string;
+  created_at: string;
+  updated_at: string;
+  sender_username?: string;
+  sender_role?: string;
+  recipient_username?: string;
+  recipient_role?: string;
+  profiles?: {
+    username: string;
+    role: string;
+  };
+  recipient?: {
+    username: string;
+    role: string;
+  };
 }
 
 const HERO_BG = '/Screenshot 2025-05-03 164632.png';
@@ -149,6 +172,7 @@ export function Home() {
   const [lightPos, setLightPos] = useState<{ x: number; y: number } | null>(null);
   const [showNewsModal, setShowNewsModal] = useState(false);
   const parallax = useParallax(0.4);
+  const [privateDiscussions, setPrivateDiscussions] = useState<PrivateDiscussion[]>([]);
 
   const months = [
     { name: 'August', value: 'august' },
@@ -623,9 +647,10 @@ export function Home() {
             localStorage.removeItem('cachedNews');
           } else if (payload.eventType === 'UPDATE') {
             // For updates, update the item in state
-            setNews((prevNews) => prevNews.map((n) => 
-                n.id === payload.new.id ? payload.new : n
-              ));
+            setNews((prevNews) => {
+              const updatedNews = prevNews.map((n) => (n.id === payload.new.id ? payload.new : n));
+              return updatedNews as NewsItem[];
+            });
             localStorage.removeItem('cachedNews');
           }
         }
@@ -697,24 +722,71 @@ export function Home() {
   // Load target files
   const loadTargetFiles = async () => {
     try {
+      // First get the files
       const { data, error } = await supabase
         .from('attainment_targets')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select(`
+          id,
+          name,
+          url,
+          month,
+          created_by,
+          uploaded_at,
+          created_at
+        `)
+        .order('uploaded_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching target files:', error);
+        throw error;
+      }
+      
+      if (!data) {
+        setTargetFiles({});
+        return;
+      }
+
+      // Then get the usernames for created_by ids
+      const userIds = [...new Set(data.map(file => file.created_by))];
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, username')
+        .in('id', userIds);
+
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError);
+      }
+
+      // Create a map of user IDs to usernames
+      const usernameMap = (profiles || []).reduce((acc: {[key: string]: string}, profile) => {
+        acc[profile.id] = profile.username;
+        return acc;
+      }, {});
       
       // Group files by month
-      const groupedFiles = data.reduce((acc, file) => {
+      const groupedFiles = data.reduce((acc: { [key: string]: any[] }, file) => {
         const month = file.month.toLowerCase();
         if (!acc[month]) acc[month] = [];
-        acc[month].push(file);
+        
+        // Add the public URL and username to each file
+        const publicUrl = supabase.storage
+          .from('attainment-targets')
+          .getPublicUrl(file.url)
+          .data.publicUrl;
+          
+        acc[month].push({
+          ...file,
+          publicUrl,
+          username: usernameMap[file.created_by] || 'Unknown User'
+        });
+        
         return acc;
-      }, {} as { [key: string]: any[] });
+      }, {});
 
       setTargetFiles(groupedFiles);
     } catch (error) {
       console.error('Error loading target files:', error);
+      alert('Failed to load files. Please try refreshing the page.');
     }
   };
 
@@ -728,12 +800,22 @@ export function Home() {
     try {
       // Upload file to storage
       const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+      const fileName = `${month}/${user.id}-${Date.now()}.${fileExt}`;
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('attainment-targets')
-        .upload(fileName, file);
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Storage upload error:', uploadError);
+        throw uploadError;
+      }
+
+      if (!uploadData?.path) {
+        throw new Error('Upload failed - no path returned');
+      }
 
       // Add file record to database
       const { error: dbError } = await supabase
@@ -742,16 +824,26 @@ export function Home() {
           name: file.name,
           url: uploadData.path,
           month: month,
-          uploaded_by: user.id,
+          created_by: user.id,  // Changed from uploaded_by to created_by
           uploaded_at: new Date().toISOString()
         }]);
 
-      if (dbError) throw dbError;
+      if (dbError) {
+        // If database insert fails, clean up the uploaded file
+        await supabase.storage
+          .from('attainment-targets')
+          .remove([uploadData.path]);
+        throw dbError;
+      }
 
       // Refresh files
       await loadTargetFiles();
+      
+      // Clear the input
+      e.target.value = '';
     } catch (error) {
       console.error('Error uploading file:', error);
+      alert('Failed to upload file. Please try again.');
     } finally {
       setUploadingFile(false);
     }
@@ -834,6 +926,188 @@ export function Home() {
       console.error('Error moving news to recent:', error);
     }
   };
+
+  const loadDiscussions = async () => {
+    if (!currentClass?.id) return;
+    
+    try {
+      const { data, error } = await supabase
+        .rpc('get_discussions_with_profiles')
+        .eq('class_id', currentClass.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setDiscussions(data || []);
+    } catch (error) {
+      console.error('Error loading discussions:', error);
+    }
+  };
+
+  const loadPrivateDiscussions = async () => {
+    if (!currentClass?.id || !selectedUser?.id || !user?.id) return;
+    
+    try {
+      const { data, error } = await supabase
+        .rpc('get_private_discussions_with_profiles')
+        .eq('class_id', currentClass.id)
+        .or(`created_by.eq.${user.id},recipient_id.eq.${user.id}`)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      
+      // Filter messages to only show those between the current user and selected user
+      const filteredData = data?.filter(d => 
+        (d.created_by === user.id && d.recipient_id === selectedUser.id) ||
+        (d.created_by === selectedUser.id && d.recipient_id === user.id)
+      ) || [];
+      
+      setPrivateDiscussions(filteredData);
+    } catch (error) {
+      console.error('Error loading private discussions:', error);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    console.log('Send button clicked'); // Debug log for button click
+    console.log('Current state:', {
+      newMessage,
+      userId: user?.id,
+      classId: currentClass?.id,
+      discussions: discussions.length
+    });
+    
+    if (!newMessage.trim() || !user?.id || !currentClass?.id) {
+      console.log('Missing required data:', { 
+        hasMessage: !!newMessage.trim(), 
+        hasUserId: !!user?.id, 
+        hasClassId: !!currentClass?.id 
+      });
+      return;
+    }
+
+    try {
+      console.log('Attempting to insert message into Supabase');
+      const { data, error } = await supabase
+        .from('discussions')
+        .insert([{
+          content: newMessage,
+          created_by: user.id,
+          class_id: currentClass.id
+        }])
+        .select();
+
+      if (error) {
+        console.error('Error from Supabase:', error);
+        throw error;
+      }
+      
+      console.log('Message sent successfully:', data);
+      
+      if (data) {
+        // Reload discussions to get the updated list with profile information
+        await loadDiscussions();
+        setNewMessage('');
+        // Notify all participants except the sender
+        await notifyDiscussionParticipants(currentClass.id, user.id, newMessage);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+    }
+  };
+
+  const handleDeleteMessage = async (messageId: string) => {
+    try {
+      const { error } = await supabase
+        .from('discussions')
+        .delete()
+        .eq('id', messageId);
+
+      if (error) throw error;
+      
+      // Update local state
+      setDiscussions((prevDiscussions) => {
+        const updatedDiscussions = prevDiscussions.filter((d: { id: string }) => d.id !== messageId);
+        return updatedDiscussions;
+      });
+    } catch (error) {
+      console.error('Error deleting message:', error);
+    }
+  };
+
+  const handleDeletePrivateMessage = async (messageId: string) => {
+    try {
+      const { error } = await supabase
+        .from('private_discussions')
+        .delete()
+        .eq('id', messageId);
+
+      if (error) throw error;
+      
+      // Update local state
+      setPrivateDiscussions(privateDiscussions.filter(d => d.id !== messageId));
+    } catch (error) {
+      console.error('Error deleting private message:', error);
+    }
+  };
+
+  const handleSendPrivateMessage = async () => {
+    console.log('handleSendPrivateMessage called'); // Debug log
+    console.log('Attempting to send private message:', { 
+      newMessage, 
+      userId: user?.id, 
+      recipientId: selectedUser?.id,
+      classId: currentClass?.id 
+    });
+    
+    if (!newMessage.trim() || !user?.id || !selectedUser?.id || !currentClass?.id) {
+      console.log('Missing required data:', { 
+        hasMessage: !!newMessage.trim(), 
+        hasUserId: !!user?.id, 
+        hasRecipientId: !!selectedUser?.id,
+        hasClassId: !!currentClass?.id 
+      });
+      return;
+    }
+
+    try {
+      console.log('Attempting to insert private message into Supabase');
+      const { data, error } = await supabase
+        .from('private_discussions')
+        .insert([{
+          content: newMessage,
+          created_by: user.id,
+          recipient_id: selectedUser.id,
+          class_id: currentClass.id
+        }])
+        .select();
+
+      if (error) {
+        console.error('Error from Supabase:', error);
+        throw error;
+      }
+      
+      console.log('Private message sent successfully:', data);
+      
+      if (data) {
+        // Reload discussions to get the updated list with profile information
+        await loadPrivateDiscussions();
+        setNewMessage('');
+      }
+    } catch (error) {
+      console.error('Error sending private message:', error);
+    }
+  };
+
+  // Add useEffect for loading discussions
+  useEffect(() => {
+    if (showDiscussionsModal) {
+      if (selectedDiscussionType === 'open') {
+        loadDiscussions();
+      } else if (selectedDiscussionType === 'private' && selectedUser) {
+        loadPrivateDiscussions();
+      }
+    }
+  }, [showDiscussionsModal, selectedDiscussionType, selectedUser]);
 
   // Add error boundary
   if (error) {
@@ -1568,10 +1842,38 @@ export function Home() {
                       {selectedUser ? (
                         <div className="h-[40vh] sm:h-[60vh] flex flex-col">
                           <div className="flex-1 p-2 sm:p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 overflow-y-auto space-y-2 sm:space-y-4">
-                            {/* Messages will go here */}
+                            {privateDiscussions.length > 0 ? (
+                              privateDiscussions.map((discussion) => (
+                                <div key={discussion.id} className="flex items-start gap-2 p-2 rounded-lg bg-white dark:bg-gray-800 shadow-sm">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium text-sm text-gray-900 dark:text-white">
+                                        {discussion.sender_username || 'Unknown User'}
+                                      </span>
+                                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                                        {new Date(discussion.created_at).toLocaleString()}
+                                      </span>
+                                    </div>
+                                    <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{discussion.content}</p>
+                                  </div>
+                                  {(user?.id === discussion.created_by || 
+                                    user?.role === 'admin' || 
+                                    user?.role === 'ultra_admin' || 
+                                    user?.role === 'teacher') && (
+                                    <button
+                                      onClick={() => handleDeletePrivateMessage(discussion.id)}
+                                      className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                </div>
+                              ))
+                            ) : (
                             <div className="text-center text-xs sm:text-base text-gray-500 dark:text-gray-400">
                               No messages yet. Start the conversation!
                             </div>
+                            )}
                           </div>
                           <div className="mt-2 sm:mt-4 flex gap-2">
                   <input
@@ -1582,6 +1884,10 @@ export function Home() {
                               className="flex-1 px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-base rounded-xl border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                             />
                   <button
+                              onClick={() => {
+                                console.log('Send button clicked'); // Debug log
+                                handleSendPrivateMessage();
+                              }}
                               disabled={!newMessage.trim()}
                               className="px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-base rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                   >
@@ -1617,10 +1923,38 @@ export function Home() {
                   
                   <div className="h-[40vh] sm:h-[60vh] flex flex-col">
                     <div className="flex-1 p-2 sm:p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 overflow-y-auto space-y-2 sm:space-y-4">
-                      {/* Messages will go here */}
+                      {privateDiscussions.length > 0 ? (
+                        privateDiscussions.map((discussion) => (
+                          <div key={discussion.id} className="flex items-start gap-2 p-2 rounded-lg bg-white dark:bg-gray-800 shadow-sm">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-sm text-gray-900 dark:text-white">
+                                  {discussion.sender_username || 'Unknown User'}
+                                </span>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  {new Date(discussion.created_at).toLocaleString()}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{discussion.content}</p>
+                            </div>
+                            {(user?.id === discussion.created_by || 
+                              user?.role === 'admin' || 
+                              user?.role === 'ultra_admin' || 
+                              user?.role === 'teacher') && (
+                              <button
+                                onClick={() => handleDeletePrivateMessage(discussion.id)}
+                                className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        ))
+                      ) : (
                       <div className="text-center text-xs sm:text-base text-gray-500 dark:text-gray-400">
-                        No messages yet. Be the first to start the discussion!
+                          No messages yet. Start a conversation!
     </div>
+                      )}
                     </div>
                     <div className="mt-2 sm:mt-4 flex gap-2">
                       <input
@@ -1628,11 +1962,14 @@ export function Home() {
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
                         placeholder="Type your message..."
-                        className="flex-1 px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-base rounded-xl border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+                        className="flex-1 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
                       />
                   <button
-                        disabled={!newMessage.trim()}
-                        className="px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-base rounded-xl bg-gradient-to-r from-green-600 to-green-700 text-white font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                        onClick={() => {
+                          console.log('Send button clicked'); // Debug log
+                          handleSendPrivateMessage();
+                        }}
+                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold hover:from-red-700 hover:to-red-800 transition-colors"
                       >
                         Send
                       </button>
@@ -1745,7 +2082,7 @@ export function Home() {
                             </div>
                             <div className="flex items-center gap-1 sm:gap-2">
                               <a
-                                href={`${supabase.storage.from('attainment-targets').getPublicUrl(file.url).data.publicUrl}`}
+                                href={file.publicUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"

@@ -26,6 +26,7 @@ interface Achiever {
     username: string;
     photo_url: string | null;
   };
+  certificate_url?: string;
 }
 
 export function Announcements() {
@@ -54,6 +55,13 @@ export function Announcements() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<any | null>(null);
+  const [certificateFile, setCertificateFile] = useState<File | null>(null);
+  const [uploadingCertificate, setUploadingCertificate] = useState(false);
+  const [showEditAchieverModal, setShowEditAchieverModal] = useState(false);
+  const [editAchiever, setEditAchiever] = useState<Achiever | null>(null);
+  const [editCertificateFile, setEditCertificateFile] = useState<File | null>(null);
+  const [updatingAchiever, setUpdatingAchiever] = useState(false);
+  const [isAchieversHovered, setIsAchieversHovered] = useState(false);
 
   // Optimized animations with reduced complexity
   const pageVariants = {
@@ -114,38 +122,36 @@ export function Announcements() {
 
   // Optimize auto-advance slideshow
   useEffect(() => {
-    if (achievers.length <= 1) return;
-    
+    if (achievers.length <= 1 || isAchieversHovered) return;
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % achievers.length);
-    }, 4000);
-
+    }, 2500);
     return () => clearInterval(timer);
-  }, [achievers.length]);
+  }, [achievers.length, isAchieversHovered]);
 
   // Load announcements
   useEffect(() => {
-  const loadAnnouncements = async () => {
-    try {
-      const { data, error } = await supabase
-      .from('announcements')
-      .select(`
-        *,
-            profiles!announcements_created_by_fkey (
+    const loadAnnouncements = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('announcements')
+          .select(`
+            *,
+            profiles:created_by (
               username,
               photo_url
-          )
-      `)
-      .order('created_at', { ascending: false });
+            )
+          `)
+          .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setAnnouncements(data || []);
+        if (error) throw error;
+        setAnnouncements(data || []);
       } catch (err: any) {
         console.error(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+      } finally {
+        setLoading(false);
+      }
+    };
 
     loadAnnouncements();
   }, []);
@@ -182,27 +188,32 @@ export function Announcements() {
       return;
     }
 
-    try {
-      const { data, error } = await supabase
-        .from('announcements')
-        .insert([{
-          title: newAnnouncement.title.trim(),
-          content: newAnnouncement.content.trim(),
-        }])
-        .select()
-        .single();
+    const insertObj: any = {
+      title: newAnnouncement.title.trim(),
+      content: newAnnouncement.content.trim(),
+    };
+    if (user?.id) insertObj.created_by = user.id;
 
-      if (error) throw error;
-      
-      setAnnouncements(prev => [data, ...prev]);
-      console.log('Announcement created successfully!');
-      setTimeout(() => {
-        setShowCreateModal(false);
-        setNewAnnouncement({ title: '', content: '' });
-      }, 3000);
-    } catch (err: any) {
-      console.error(err.message);
+    const { data, error } = await supabase
+      .from('announcements')
+      .insert([insertObj])
+      .select()
+      .single();
+
+    console.log('Insert data:', data);
+    console.log('Insert error:', error);
+
+    if (error) {
+      alert('Insert error: ' + error.message);
+      return;
     }
+
+    setAnnouncements(prev => [data, ...prev]);
+    console.log('Announcement created successfully!');
+    setTimeout(() => {
+      setShowCreateModal(false);
+      setNewAnnouncement({ title: '', content: '' });
+    }, 3000);
   };
 
   // Handle delete announcement
@@ -258,6 +269,22 @@ export function Announcements() {
       return;
     }
 
+    let certificate_url = null;
+    if (certificateFile) {
+      setUploadingCertificate(true);
+      const fileExt = certificateFile.name.split('.').pop();
+      const fileName = `certificates/${newAchiever.student_id}-${Date.now()}.${fileExt}`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('achiever-certificates')
+        .upload(fileName, certificateFile);
+      setUploadingCertificate(false);
+      if (uploadError) {
+        alert('Failed to upload certificate');
+        return;
+      }
+      certificate_url = supabase.storage.from('achiever-certificates').getPublicUrl(fileName).data.publicUrl;
+    }
+
     try {
       const { data, error } = await supabase
         .from('achievers')
@@ -265,7 +292,8 @@ export function Announcements() {
           student_id: newAchiever.student_id,
           achievement: newAchiever.achievement,
           description: newAchiever.description,
-          date: newAchiever.date
+          date: newAchiever.date,
+          certificate_url
         }])
         .select()
         .single();
@@ -273,7 +301,6 @@ export function Announcements() {
       if (error) throw error;
 
       setAchievers(prev => [data, ...prev]);
-      console.log('Achievement added successfully!');
       setTimeout(() => {
         setShowAchieverModal(false);
         setNewAchiever({
@@ -282,10 +309,32 @@ export function Announcements() {
           description: '',
           date: new Date().toISOString().split('T')[0]
         });
+        setCertificateFile(null);
       }, 3000);
     } catch (err: any) {
       console.error(err.message);
     }
+  };
+
+  // Handle delete achiever
+  const handleDeleteAchiever = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this achievement?')) return;
+    try {
+      const { error } = await supabase.from('achievers').delete().eq('id', id);
+      if (error) throw error;
+      setAchievers(prev => prev.filter(a => a.id !== id));
+    } catch (err: any) {
+      alert('Failed to delete achievement');
+    }
+  };
+
+  // Update getAchieverPhoto to handle more edge cases
+  const getAchieverPhoto = (achiever: Achiever) => {
+    const url = achiever?.profiles?.photo_url;
+    if (!url || url.trim() === '' || url === 'null' || url === 'undefined') {
+      return '/default-avatar.png';
+    }
+    return url;
   };
 
   return (
@@ -386,7 +435,11 @@ export function Announcements() {
       </div>
 
             {/* Optimized Slideshow */}
-            <div className="relative h-[280px] sm:h-[320px] overflow-hidden rounded-xl sm:rounded-2xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+            <div
+              className="relative h-[280px] sm:h-[320px] overflow-hidden rounded-xl sm:rounded-2xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800"
+              onMouseEnter={() => setIsAchieversHovered(true)}
+              onMouseLeave={() => setIsAchieversHovered(false)}
+            >
               <AnimatePresence mode="wait" custom={currentSlide}>
                 {memoizedAchievers.length > 0 && (
                   <motion.div
@@ -409,33 +462,35 @@ export function Announcements() {
                       <div className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-xl overflow-hidden">
                         <div className="p-4 sm:p-6">
                           <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
-                            <motion.div 
-                              whileHover={{ rotate: 360 }}
-                              transition={{ duration: 0.5 }}
-                              className="relative"
-                            >
-                              <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full overflow-hidden ring-2 sm:ring-3 ring-red-500/20">
-                                <img
-                                  src={memoizedAchievers[currentSlide].profiles?.photo_url || '/default-avatar.png'}
-                                  alt={memoizedAchievers[currentSlide].profiles?.username}
-                                  className="w-full h-full object-cover"
-          />
-        </div>
-          <motion.div
-                                animate={{ 
-                                  scale: [1, 1.2, 1],
-                                  rotate: [0, 10, -10, 0]
-                                }}
-                                transition={{ 
-                                  duration: 2,
-                                  repeat: Infinity,
-                                  repeatType: "reverse"
-                                }}
-                                className="absolute -bottom-1 -right-1 p-1 sm:p-1.5 bg-gradient-to-br from-red-500 to-red-600 rounded-full shadow-lg"
-                              >
-                                <Sparkles className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" />
-                              </motion.div>
-                            </motion.div>
+                            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full overflow-hidden ring-2 sm:ring-3 ring-red-500/20 relative">
+                              <img
+                                src={getAchieverPhoto(memoizedAchievers[currentSlide])}
+                                alt={memoizedAchievers[currentSlide].profiles?.username}
+                                className="w-full h-full object-cover"
+                                onError={e => { e.currentTarget.src = '/default-avatar.png'; }}
+                              />
+                              {(user?.role === 'admin' || user?.role === 'ultra_admin' || user?.role === 'teacher') && (
+                                <div className="absolute top-0 right-0 flex flex-col gap-1 p-1">
+                                  <button
+                                    onClick={() => handleDeleteAchiever(memoizedAchievers[currentSlide].id)}
+                                    className="bg-red-100 hover:bg-red-200 text-red-600 rounded-full p-1 shadow"
+                                    title="Delete Achievement"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setEditAchiever(memoizedAchievers[currentSlide]);
+                                      setShowEditAchieverModal(true);
+                                    }}
+                                    className="bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-full p-1 shadow"
+                                    title="Edit Achievement"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                             <div>
                               <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">
                                 {memoizedAchievers[currentSlide].profiles?.username}
@@ -453,6 +508,16 @@ export function Announcements() {
                               {memoizedAchievers[currentSlide].description}
                             </p>
                           </div>
+                          {memoizedAchievers[currentSlide].certificate_url && (
+                            <a
+                              href={memoizedAchievers[currentSlide].certificate_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-block mt-3 px-3 py-1 rounded bg-blue-100 text-blue-600 hover:bg-blue-200 text-xs font-medium transition-colors"
+                            >
+                              View Certificate
+                            </a>
+                          )}
                         </div>
                       </div>
                     </motion.div>
@@ -634,14 +699,6 @@ export function Announcements() {
                         className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
                       >
                         <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
-                      </motion.button>
-                      <motion.button
-                        whileHover={{ scale: 1.1, y: -2 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => navigate(`/announcements/${announcement.id}/edit`)}
-                        className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
-                      >
-                        <Edit className="w-4 h-4 sm:w-5 sm:h-5" />
                       </motion.button>
                     </div>
                   )}
@@ -905,6 +962,18 @@ export function Announcements() {
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
                   />
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Certificate (optional)
+                  </label>
+                  <input
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={e => setCertificateFile(e.target.files?.[0] || null)}
+                    className="w-full px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
@@ -923,6 +992,158 @@ export function Announcements() {
                   className="px-6 py-3 rounded-xl bg-gradient-to-r from-red-500 to-red-600 text-white font-medium shadow-lg hover:shadow-xl transition-all"
                 >
                   Add Achievement
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Achiever Modal */}
+      <AnimatePresence>
+        {showEditAchieverModal && editAchiever && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ type: "spring", stiffness: 200, damping: 20 }}
+              className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl w-full max-w-lg p-8 relative"
+            >
+              <button
+                onClick={() => setShowEditAchieverModal(false)}
+                className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+              </button>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+                Edit Achievement
+              </h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Achievement
+                  </label>
+                  <input
+                    type="text"
+                    value={editAchiever.achievement}
+                    onChange={e => setEditAchiever({ ...editAchiever, achievement: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Description
+                  </label>
+                  <textarea
+                    value={editAchiever.description}
+                    onChange={e => setEditAchiever({ ...editAchiever, description: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Date
+                  </label>
+                  <input
+                    type="date"
+                    value={editAchiever.date}
+                    onChange={e => setEditAchiever({ ...editAchiever, date: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Certificate (optional)
+                  </label>
+                  <input
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={e => setEditCertificateFile(e.target.files?.[0] || null)}
+                    className="w-full px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                  />
+                  {editAchiever.certificate_url && (
+                    <a
+                      href={editAchiever.certificate_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block mt-2 px-2 py-1 rounded bg-blue-100 text-blue-600 hover:bg-blue-200 text-xs"
+                    >
+                      View Current Certificate
+                    </a>
+                  )}
+                </div>
+              </div>
+              <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setShowEditAchieverModal(false)}
+                  className="px-6 py-3 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white font-medium transition-colors"
+                >
+                  Cancel
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={async () => {
+                    setUpdatingAchiever(true);
+                    let certificate_url = editAchiever.certificate_url;
+                    if (editCertificateFile) {
+                      const fileExt = editCertificateFile.name.split('.').pop();
+                      const fileName = `certificates/${editAchiever.student_id}-${Date.now()}.${fileExt}`;
+                      const { data: uploadData, error: uploadError } = await supabase.storage
+                        .from('achiever-certificates')
+                        .upload(fileName, editCertificateFile);
+                      if (!uploadError) {
+                        certificate_url = supabase.storage.from('achiever-certificates').getPublicUrl(fileName).data.publicUrl;
+                      }
+                    }
+                    const { error } = await supabase
+                      .from('achievers')
+                      .update({
+                        achievement: editAchiever.achievement,
+                        description: editAchiever.description,
+                        date: editAchiever.date,
+                        certificate_url
+                      })
+                      .eq('id', editAchiever.id);
+                    setUpdatingAchiever(false);
+                    if (!error) {
+                      // Fetch the updated achiever with the profiles join
+                      const { data: updated, error: fetchError } = await supabase
+                        .from('achievers')
+                        .select(`
+                          *,
+                          profiles:student_id (
+                            username,
+                            photo_url
+                          )
+                        `)
+                        .eq('id', editAchiever.id)
+                        .single();
+                      if (!fetchError && updated) {
+                        setAchievers(prev => prev.map(a => a.id === updated.id ? updated : a));
+                        setShowEditAchieverModal(false);
+                        setEditAchiever(null);
+                        setEditCertificateFile(null);
+                      } else {
+                        alert('Failed to fetch updated achievement');
+                      }
+                    } else {
+                      alert('Failed to update achievement');
+                    }
+                  }}
+                  disabled={updatingAchiever}
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-red-500 to-red-600 text-white font-medium shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+                >
+                  {updatingAchiever ? 'Saving...' : 'Save Changes'}
                 </motion.button>
               </div>
             </motion.div>

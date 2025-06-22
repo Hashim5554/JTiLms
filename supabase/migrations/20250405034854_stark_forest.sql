@@ -27,13 +27,52 @@ CREATE TABLE IF NOT EXISTS clubs (
 
 ALTER TABLE clubs ENABLE ROW LEVEL SECURITY;
 
+-- Create function to setup RLS policies for clubs
+CREATE OR REPLACE FUNCTION public.create_clubs_policies()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  -- Drop existing policies if they exist
+  DROP POLICY IF EXISTS "Clubs are viewable by everyone" ON public.clubs;
+  DROP POLICY IF EXISTS "Only admins can modify clubs" ON public.clubs;
+  DROP POLICY IF EXISTS "Users can manage their own clubs" ON public.clubs;
+
+  -- Create policies
+  -- Allow everyone to view clubs
 CREATE POLICY "Clubs are viewable by everyone"
-  ON clubs
+    ON public.clubs
   FOR SELECT
-  TO public
   USING (true);
 
+  -- Allow admins to modify clubs
 CREATE POLICY "Only admins can modify clubs"
-  ON clubs
-  USING (is_admin_or_ultra(auth.uid()))
-  WITH CHECK (is_admin_or_ultra(auth.uid()));
+    ON public.clubs
+    FOR ALL
+    USING (
+      EXISTS (
+        SELECT 1 FROM profiles
+        WHERE id = auth.uid()
+        AND role IN ('admin', 'ultra_admin')
+      )
+    )
+    WITH CHECK (
+      EXISTS (
+        SELECT 1 FROM profiles
+        WHERE id = auth.uid()
+        AND role IN ('admin', 'ultra_admin')
+      )
+    );
+
+  -- Allow users to manage their own clubs
+  CREATE POLICY "Users can manage their own clubs"
+    ON public.clubs
+    FOR ALL
+    USING (auth.uid() = created_by)
+    WITH CHECK (auth.uid() = created_by);
+END;
+$$;
+
+-- Execute the function to create policies
+SELECT public.create_clubs_policies();
