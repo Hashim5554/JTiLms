@@ -18,7 +18,7 @@ export interface ClassAssignment {
   updated_at: string;
 }
 
-export type UserRole = 'ultra_admin' | 'admin' | 'student';
+export type UserRole = 'ultra_admin' | 'admin' | 'student' | 'pending';
 
 export interface Profile {
   id: string;

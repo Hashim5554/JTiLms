@@ -70,6 +70,7 @@ export function Users() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<UserRole | 'all'>('all');
+  const [showPendingUsers, setShowPendingUsers] = useState(false);
   const [sortField, setSortField] = useState<SortField>('username');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [loading, setLoading] = useState(false);
@@ -82,10 +83,15 @@ export function Users() {
   const [newUser, setNewUser] = useState({
     email: '',
     username: '',
-    password: '',
     role: 'student' as UserRole,
     selectedClasses: [] as string[]
   });
+
+  // Add new state for Google account search
+  const [searchEmail, setSearchEmail] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   // Add new state for class selection
   const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
@@ -221,12 +227,13 @@ export function Users() {
     }
     
     // For other users, use role hierarchy
-    const roleHierarchy = {
-      'ultra_admin': ['admin', 'teacher', 'student'] as UserRole[],
-      'admin': ['teacher', 'student'] as UserRole[],
-      'teacher': ['student'] as UserRole[],
-      'student': [] as UserRole[]
-    } as Record<UserRole, UserRole[]>;
+    const roleHierarchy: Record<UserRole, UserRole[]> = {
+      'ultra_admin': ['admin', 'teacher', 'student', 'pending'],
+      'admin': ['teacher', 'student', 'pending'],
+      'teacher': ['student', 'pending'],
+      'student': ['pending'],
+      'pending': []
+    };
     return roleHierarchy[currentRole]?.includes(newRole) || false;
   };
 
@@ -261,14 +268,20 @@ export function Users() {
     }
   };
 
-  // Add filter functionality
+  // Separate pending users from active users
+  const pendingUsers = useMemo(() => {
+    return users.filter(user => user.role === 'pending');
+  }, [users]);
+
+  // Add filter functionality for active users (excluding pending)
   const filteredUsers = useMemo(() => {
     return users
       .filter(user => {
         const matchesSearch = user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
                             user.email?.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-        return matchesSearch && matchesRole;
+        const isNotPending = user.role !== 'pending'; // Exclude pending users from main list
+        return matchesSearch && matchesRole && isNotPending;
       })
       .sort((a, b) => {
         const aValue = a[sortField];
@@ -278,101 +291,241 @@ export function Users() {
       });
   }, [users, searchTerm, roleFilter, sortField, sortOrder]);
 
-  const handleCreateUser = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newUser.email || !newUser.username || !newUser.password) {
-      setError('Please fill in all required fields');
+  // Add new function to search for existing Google accounts
+  const searchGoogleAccounts = async (email: string) => {
+    if (!email || email.length < 3) {
+      setSearchResults([]);
       return;
     }
 
-    // Add validation for student class selection
-    if (newUser.role === 'student' && selectedClasses.length === 0) {
-      setError('Please select at least one class for the student');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
+    setIsSearching(true);
+    setSearchError(null);
 
     try {
-      if (newUser.password.length < 6) {
-        throw new Error('Password must be at least 6 characters long');
-      }
-
-      // Validate email format
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(newUser.email)) {
-        throw new Error('Please enter a valid email address');
-      }
-
-      // Validate username format (alphanumeric and underscores only)
-      const usernameRegex = /^[a-zA-Z0-9_]+$/;
-      if (!usernameRegex.test(newUser.username)) {
-        throw new Error('Username can only contain letters, numbers, and underscores');
-      }
-
-      // Check if username is already taken
-      const { data: existingUser, error: checkError } = await supabase
+      // Search in profiles table for existing accounts
+      const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('username')
-        .eq('username', newUser.username)
+        .select('id, email, username, role, created_at')
+        .ilike('email', `%${email}%`)
+        .limit(10);
+
+      if (profilesError) {
+        throw profilesError;
+      }
+
+      setSearchResults(profiles || []);
+    } catch (error: any) {
+      console.error('Error searching accounts:', error);
+      setSearchError('Failed to search accounts');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Add function to add existing user to system
+  const addExistingUser = async (userData: any) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Check if user already has a profile
+      const { data: existingProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userData.id)
         .single();
 
-      if (existingUser) {
-        throw new Error('Username is already taken');
+      if (profileError && profileError.code !== 'PGRST116') {
+        throw profileError;
       }
 
-      // Validate class assignments
-      if (newUser.role === 'student' && selectedClasses.length > 0) {
-        const classValidations = await Promise.all(
-          selectedClasses.map(classId => validateClassAssignment(classId))
-        );
+      if (existingProfile) {
+        // User already exists in system - update their role instead
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ 
+            role: newUser.role,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userData.id);
 
-        if (classValidations.some(isValid => !isValid)) {
-          throw new Error('One or more selected classes are full or invalid');
+        if (updateError) throw updateError;
+
+        // If student, create class assignment (remove existing ones first)
+        if (newUser.role === 'student' && selectedClass) {
+          // Remove existing class assignments
+          await supabase
+            .from('class_assignments')
+            .delete()
+            .eq('user_id', userData.id);
+
+          // Add new class assignment
+          const { error: assignmentError } = await supabase
+            .from('class_assignments')
+            .insert([{
+              user_id: userData.id,
+              class_id: selectedClass.id,
+            }]);
+          
+          if (assignmentError) throw assignmentError;
         }
+        
+        setSuccess('User role updated successfully!');
+      } else {
+        // Create profile for existing auth user
+        const { error: createProfileError } = await supabase
+          .from('profiles')
+          .insert([{
+            id: userData.id,
+            email: userData.email,
+            username: userData.email.split('@')[0], // Use email prefix as username
+            role: newUser.role,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }]);
+
+        if (createProfileError) throw createProfileError;
+
+        // If student, create class assignment
+        if (newUser.role === 'student' && selectedClass) {
+          const { error: assignmentError } = await supabase
+            .from('class_assignments')
+            .insert([{
+              user_id: userData.id,
+              class_id: selectedClass.id,
+            }]);
+          
+          if (assignmentError) throw assignmentError;
+        }
+        
+        setSuccess('User added successfully!');
       }
-
-      // Create user
-      const result = await createUser({
-        email: newUser.email,
-        password: newUser.password,
-        username: newUser.username,
-        role: newUser.role
-      });
-
-      if (!result || !result.user) {
-        throw new Error('Failed to create user');
-      }
-
-      // Assign classes if any selected
-      if (selectedClasses.length > 0) {
-        const { error: assignmentError } = await supabase
-          .from('class_assignments')
-          .insert(
-            selectedClasses.map(classId => ({
-              user_id: result.user.id,
-              class_id: classId
-            }))
-          );
-
-        if (assignmentError) throw assignmentError;
-      }
-
-      setSuccess('User created successfully!');
-      await loadUsers();
-      setIsCreateModalOpen(false);
+      
+      // Refresh users list
+      loadUsers();
+      setShowAddUserModal(false);
       setNewUser({
-        email: '',
         username: '',
-        password: '',
-        role: 'student' as UserRole,
+        email: '',
+        role: 'student',
         selectedClasses: []
       });
-      setSelectedClasses([]);
+      setSelectedClass(null);
+      setSearchEmail('');
+      setSearchResults([]);
     } catch (error: any) {
-      console.error('Error creating user:', error);
-      setError(error.message || 'Failed to create user');
+      console.error('Error adding existing user:', error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Update form validation to remove password requirement
+  const isFormValid = !loading && !error && newUser.email && newUser.username;
+
+  // Add User Modal logic
+  const handleAddUser = async () => {
+    if (!isFormValid) return;
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      // Check if user already exists in profiles
+      const { data: existingProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('email', newUser.email)
+        .single();
+
+      if (profileError && profileError.code !== 'PGRST116') {
+        throw profileError;
+      }
+
+      let userId = null;
+      let isNewUser = false;
+
+      if (!existingProfile) {
+        // User does not exist, create via admin API
+        // Use a random password (user will log in with Google)
+        const randomPassword = Math.random().toString(36).slice(-12) + 'Aa1!';
+        try {
+          const { user } = await createUser({
+            email: newUser.email,
+            password: randomPassword,
+            username: newUser.username,
+            role: newUser.role,
+          });
+          userId = user.id;
+          isNewUser = true;
+        } catch (err: any) {
+          // If user already exists in auth, try to fetch their profile again
+          if (err?.message?.includes('user already exists')) {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('email', newUser.email)
+              .single();
+            if (profile) {
+              userId = profile.id;
+            } else {
+              throw err;
+            }
+          } else {
+            throw err;
+          }
+        }
+      } else {
+        // User exists, update their profile
+        userId = existingProfile.id;
+        await supabase
+          .from('profiles')
+          .update({
+            username: newUser.username,
+            role: newUser.role,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', userId);
+      }
+
+      // Handle class assignment if student
+      if (newUser.role === 'student' && selectedClass) {
+        // Remove existing assignments
+        await supabase
+          .from('class_assignments')
+          .delete()
+          .eq('user_id', userId);
+        // Add new assignment
+        await supabase
+          .from('class_assignments')
+          .insert([
+            {
+              user_id: userId,
+              class_id: selectedClass.id,
+            },
+          ]);
+      }
+
+      setSuccess(isNewUser ? 'User created successfully!' : 'User updated successfully!');
+      // Refresh user list and close modal after a short delay
+      setTimeout(() => {
+        loadUsers();
+        setShowAddUserModal(false);
+        setNewUser({
+          email: '',
+          username: '',
+          role: 'student',
+          selectedClasses: [],
+        });
+        setSelectedClass(null);
+        setSearchEmail('');
+        setSearchResults([]);
+        setError(null);
+        setSuccess(null);
+      }, 1000);
+    } catch (error: any) {
+      setError(error.message || 'Failed to add user');
     } finally {
       setLoading(false);
     }
@@ -443,6 +596,28 @@ export function Users() {
     }
   };
 
+  const handleApprovePendingUser = async (userId: string, newRole: UserRole) => {
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ role: newRole })
+        .eq('id', userId);
+      
+      if (error) throw error;
+      
+      setUsers(users.map(user => 
+        user.id === userId ? { ...user, role: newRole } : user
+      ));
+      setSuccess('User approved successfully');
+    } catch (error: any) {
+      console.error('Error approving user:', error);
+      setError(error.message || 'Failed to approve user');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Add function to handle editing user classes
   const handleEditUserClasses = async (userId: string, newClasses: string[]) => {
     setLoading(true);
@@ -481,61 +656,6 @@ export function Users() {
       setLoading(false);
     }
   };
-
-  const handleAddUser = async () => {
-    if (!isFormValid) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Create user directly with our simplified function
-      const { data: userData, error: userError } = await supabase.rpc('create_new_user', {
-        email: newUser.email,
-        password: newUser.password,
-        role: newUser.role,
-        username: newUser.username
-      });
-
-      if (userError) throw userError;
-      if (!userData || userData.error) {
-        throw new Error(userData?.error || 'Failed to create user');
-      }
-
-      const userId = userData.id;
-
-      // If student, create class assignment
-      if (newUser.role === 'student' && selectedClass) {
-        const { error: assignmentError } = await supabase
-          .from('class_assignments')
-          .insert([{
-            user_id: userId,
-            class_id: selectedClass.id,
-          }]);
-        
-        if (assignmentError) throw assignmentError;
-      }
-      
-      // Refresh users list
-      loadUsers();
-      setShowAddUserModal(false);
-      setNewUser({
-        username: '',
-        email: '',
-        password: '',
-        role: 'student',
-        selectedClasses: []
-      });
-      setSelectedClass(null);
-    } catch (error: any) {
-      console.error('Error creating user:', error);
-      setError(error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const isFormValid = !loading && !error && newUser.email && newUser.username && newUser.password;
 
   const getClassString = (user: ExtendedProfile) => {
     if (!user || !user.class_assignments || !user.class_assignments.length) return 'No assigned class';
@@ -807,13 +927,95 @@ export function Users() {
             </button>
 
               <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-4 sm:mb-6">
-                Add New User
+                Add User to System
               </h2>
 
               <div className="space-y-3 sm:space-y-4">
+                {/* Search for existing Google accounts */}
                 <div>
                   <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
-                    Email
+                    Search Google Account
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                      {/* Gmail SVG icon */}
+                      <svg className="w-5 h-5 text-red-500" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
+                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 1.99 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                        <path d="M1 1h22v22H1z" fill="none" />
+                      </svg>
+                    </span>
+                    <input
+                      type="email"
+                      value={searchEmail}
+                      onChange={(e) => {
+                        setSearchEmail(e.target.value);
+                        searchGoogleAccounts(e.target.value);
+                      }}
+                      className="w-full pl-11 sm:pl-12 pr-3 sm:pr-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-sm sm:text-base"
+                      placeholder="Search by email address..."
+                    />
+                    {isSearching && (
+                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-500"></div>
+                      </div>
+                    )}
+                  </div>
+                  {/* Search results */}
+                  {searchResults.length > 0 && (
+                    <div className="mt-2 max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg bg-white dark:bg-gray-900">
+                      {searchResults.map((result, index) => (
+                        <button
+                          key={index}
+                          onClick={() => {
+                            setNewUser({
+                              ...newUser,
+                              email: result.email,
+                              username: result.username || result.email.split('@')[0],
+                              role: result.role || 'student'
+                            });
+                            setSearchEmail(result.email);
+                            setSearchResults([]);
+                          }}
+                          className="w-full flex items-center gap-3 px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-left text-sm border-b border-gray-100 dark:border-gray-600 last:border-b-0 transition-colors group"
+                        >
+                          <span className="flex-shrink-0">
+                            {/* Gmail SVG icon */}
+                            <svg className="w-5 h-5 text-red-500" viewBox="0 0 24 24" aria-hidden="true">
+                              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
+                              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 1.99 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                              <path d="M1 1h22v22H1z" fill="none" />
+                            </svg>
+                          </span>
+                          <span className="flex flex-col min-w-0">
+                            <span className="font-medium truncate">{result.email}</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                              {result.username ? `Username: ${result.username}` : 'No username set'} • {result.role || 'No role'}
+                            </span>
+                            {result.role && (
+                              <span className="text-xs text-blue-500 dark:text-blue-400">
+                                Already in system - will update role
+                              </span>
+                            )}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {searchError && (
+                    <p className="text-red-500 text-xs mt-1">{searchError}</p>
+                  )}
+                </div>
+
+                {/* Manual email entry */}
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
+                    Email (or enter manually)
                   </label>
                   <input
                     type="email"
@@ -822,33 +1024,20 @@ export function Users() {
                     className="w-full px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-sm sm:text-base"
                     placeholder="Enter email address"
                   />
-              </div>
+                </div>
 
                 <div>
                   <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
-                      Username
-                    </label>
-                      <input
-                        type="text"
-                        value={newUser.username}
-                        onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+                    Username
+                  </label>
+                  <input
+                    type="text"
+                    value={newUser.username}
+                    onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
                     className="w-full px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-sm sm:text-base"
-                        placeholder="Enter username"
-                      />
-      </div>
-
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
-                      Password
-                    </label>
-                      <input
-                        type="password"
-                        value={newUser.password}
-                        onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                    className="w-full px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-sm sm:text-base"
-                        placeholder="Enter password"
-                      />
-                  </div>
+                    placeholder="Enter username"
+                  />
+                </div>
 
                 <div>
                   <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
@@ -908,7 +1097,7 @@ export function Users() {
                   }`}
                   >
                   <UserPlus className="w-4 h-4 sm:w-5 sm:h-5" />
-                  Add User
+                  {loading ? 'Adding User...' : 'Add User to System'}
                 </motion.button>
               </div>
             </motion.div>

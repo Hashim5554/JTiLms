@@ -15,80 +15,88 @@ import { Customize } from './pages/Customize';
 import { RecordRoom } from './pages/RecordRoom';
 import { AfternoonClubs } from './pages/AfternoonClubs';
 import { useAuthStore } from './store/auth';
-import { clearAllSessions } from './lib/supabase';
 import { useTheme } from './hooks/useTheme';
 import { setupRLSPolicies } from './lib/rls';
+import { SessionProvider, useSession } from './contexts/SessionContext';
 
-function App() {
+// Component for pending users
+function PendingAccess() {
+  const { signOut } = useAuthStore();
+  
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 text-center">
+        <div className="mb-6">
+          <div className="mx-auto w-16 h-16 bg-yellow-100 dark:bg-yellow-900/20 rounded-full flex items-center justify-center mb-4">
+            <svg className="w-8 h-8 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Access Pending</h2>
+          <p className="text-gray-600 dark:text-gray-300">
+            Your account is currently pending approval. Please contact an administrator to activate your account.
+          </p>
+        </div>
+        
+        <div className="space-y-4">
+          <button
+            onClick={() => signOut()}
+            className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+          >
+            Sign Out
+          </button>
+          
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            If you believe this is an error, please contact your system administrator.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AppRoutes() {
   const { user, setUser } = useAuthStore();
+  const { session, user: sessionUser } = useSession();
   const { theme } = useTheme();
   const [loading, setLoading] = useState(true);
   const location = useLocation();
 
-  // Ensure user is admin if they exist
+  // Sync session user to auth store
   useEffect(() => {
-    if (user && user.role !== 'ultra_admin' && user.role !== 'admin') {
-      console.log('User is not an admin, setting to ultraadmin');
-      setUser({
-        ...user,
-        role: 'ultra_admin'
-      });
+    if (sessionUser) {
+      console.log('AppRoutes: Setting user from session context', sessionUser);
+      setUser(sessionUser);
+    } else {
+      console.log('AppRoutes: Clearing user');
+      setUser(null);
     }
-  }, [user, setUser]);
+  }, [sessionUser, setUser]);
 
   // Set theme and initialize RLS policies
   useEffect(() => {
-    // Set initial theme class
     document.documentElement.classList.remove('light', 'dark');
     document.documentElement.classList.add(theme);
-    
-    // Initialize RLS policies but don't block on errors
     setupRLSPolicies().catch(error => {
       console.warn('RLS policy setup failed, continuing anyway:', error);
     });
   }, [theme]);
-  
-  // Clear sessions only on first load of the application
-  useEffect(() => {
-    // Use sessionStorage to track if this is the first load
-    const isFirstLoad = !sessionStorage.getItem('appInitialized');
-    
-    const initApp = async () => {
-      if (isFirstLoad) {
-        try {
-          // Clear any existing sessions only on first load
-          await clearAllSessions();
-          console.log('First load: Sessions cleared, redirecting to login');
-          // Mark that we've initialized the app
-          sessionStorage.setItem('appInitialized', 'true');
-          setUser(null);
-        } catch (err) {
-          console.error('Error during initialization:', err);
-        }
-      } else {
-        console.log('App already initialized, skipping session clear');
-      }
-      
-      // Always set loading to false
-      setLoading(false);
-    };
-    
-    initApp();
-  }, [setUser]);
 
   // Add a timeout to prevent infinite loading state
   useEffect(() => {
     if (loading) {
       const timer = setTimeout(() => {
         if (loading) {
-          console.log('Loading timeout - forcing login page');
           setLoading(false);
         }
       }, 2000);
-      
       return () => clearTimeout(timer);
     }
   }, [loading]);
+
+  useEffect(() => {
+    if (session) setLoading(false);
+  }, [session]);
 
   if (loading) {
     return (
@@ -101,7 +109,6 @@ function App() {
     );
   }
 
-  // Check if user is logged out and redirect to login page
   if (!user) {
     return (
       <Routes>
@@ -110,13 +117,16 @@ function App() {
       </Routes>
     );
   }
-  
-  // Check if admin needs to select a class first
+
+  // Check if user has pending access
+  if (user.role === 'pending') {
+    return <PendingAccess />;
+  }
+
   const storedClassId = localStorage.getItem('selectedClassId');
   const isAdmin = user.role === 'ultra_admin' || user.role === 'admin';
   const needsClassSelection = isAdmin && !storedClassId && location.pathname !== '/select-class';
-  
-  // Redirect admins to class selection if no class is selected
+
   if (needsClassSelection) {
     return (
       <Routes>
@@ -124,8 +134,7 @@ function App() {
       </Routes>
     );
   }
-  
-  // Normal routing when user is logged in and class is selected (or user is a student)
+
   return (
     <Routes>
       <Route path="/select-class" element={<ClassSelect />} />
@@ -147,4 +156,12 @@ function App() {
   );
 }
 
-export default App
+function App() {
+  return (
+    <SessionProvider>
+      <AppRoutes />
+    </SessionProvider>
+  );
+}
+
+export default App;

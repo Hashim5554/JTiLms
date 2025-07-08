@@ -69,6 +69,8 @@ export function Layout() {
   const [notificationItems, setNotificationItems] = useState<Array<{ id: string; message: string; created_at: string }>>([]);
   const [totalUnread, setTotalUnread] = useState(0);
 
+  const isAdmin = user && (user.role === 'admin' || user.role === 'ultra_admin');
+
   // Close mobile menu when route changes
   useEffect(() => {
     setIsMobileMenuOpen(false);
@@ -284,7 +286,7 @@ export function Layout() {
           {/* Logo and Title */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <img src="/theofficialfinallogo.png" alt="LGS JTi Logo" className="h-9 w-auto mr-2 rounded-2xl object-center object-contain mb-[-4px]" />
+              <img src="/lgs-logo.png" alt="LGS JTi Logo" className="h-9 w-auto mr-2 rounded-2xl object-center object-contain mb-[-4px]" />
               <span className="text-xl font-bold text-gray-900 dark:text-white">LGS JTi</span>
             </Link>
             <ThemeToggle />
@@ -323,9 +325,12 @@ export function Layout() {
               label="Clubs" 
               notificationCount={notifications.clubs} 
             />
-            {/* Always show admin options */}
-            <NavLink to="/users" icon={Users2} label="Users" />
+            {isAdmin && (
+              <NavLink to="/users" icon={Users} label="Users" />
+            )}
+            {isAdmin && (
             <NavLink to="/customize" icon={Palette} label="Customize" />
+            )}
           </nav>
 
           {/* Class Selector - Always show for all users */}
