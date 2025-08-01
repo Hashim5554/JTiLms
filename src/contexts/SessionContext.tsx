@@ -1,82 +1,170 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import type { Profile } from '../types';
 
 interface SessionContextType {
   session: any;
-  user: any;
+  user: Profile | null;
+  loading: boolean;
 }
 
-const SessionContext = createContext<SessionContextType>({ session: null, user: null });
+const SessionContext = createContext<SessionContextType>({ session: null, user: null, loading: true });
 
 export const useSession = () => useContext(SessionContext);
 
 export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<any>(null);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      
-      if (session?.user) {
-        console.log('SessionProvider: initial session user', session.user);
+    let mounted = true;
+    let timeoutId: NodeJS.Timeout;
+
+    const loadSession = async () => {
+      try {
+        console.log('SessionProvider: Loading initial session...');
+        const { data: { session }, error } = await supabase.auth.getSession();
         
-        // Try to get the user's profile - let the database trigger create it if it doesn't exist
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
+        if (!mounted) return;
         
-        if (profileError) {
-          console.log('SessionProvider: No profile found, profile will be created by database trigger', profileError);
-          // Don't create profile here - let the database trigger handle it
-          // Just use the session user for now
-          setUser(session.user);
-        } else {
-          console.log('SessionProvider: Found existing profile', profile);
-          setUser(profile);
+        if (error) {
+          console.error('SessionProvider: Error getting session:', error);
+          setLoading(false);
+          return;
         }
-      } else {
-        setUser(null);
+
+        setSession(session);
+        
+        if (session?.user) {
+          console.log('SessionProvider: initial session user', session.user);
+          
+          try {
+            // Try to get the user's profile
+            const { data: profile, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .single();
+            
+            if (!mounted) return;
+            
+            if (profileError) {
+              console.log('SessionProvider: No profile found, using session user', profileError);
+              // Create a basic profile from session user
+              const basicProfile: Profile = {
+                id: session.user.id,
+                username: session.user.email?.split('@')[0] || 'User',
+                role: 'student',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              };
+              setUser(basicProfile);
+            } else {
+              console.log('SessionProvider: Found existing profile', profile);
+              setUser(profile as Profile);
+            }
+          } catch (profileError) {
+            console.error('SessionProvider: Error loading profile:', profileError);
+            if (mounted) {
+              // Create a basic profile from session user
+              const basicProfile: Profile = {
+                id: session.user.id,
+                username: session.user.email?.split('@')[0] || 'User',
+                role: 'student',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              };
+              setUser(basicProfile);
+            }
+          }
+        } else {
+          setUser(null);
+        }
+        
+        setLoading(false);
+      } catch (error) {
+        console.error('SessionProvider: Error in loadSession:', error);
+        if (mounted) {
+          setLoading(false);
+        }
       }
-    });
+    };
+
+    // Set a timeout to prevent infinite loading
+    timeoutId = setTimeout(() => {
+      if (mounted && loading) {
+        console.log('SessionProvider: Loading timeout reached, setting loading to false');
+        setLoading(false);
+      }
+    }, 4000);
+
+    loadSession();
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+      
       console.log('SessionProvider: auth state change', event, session);
       setSession(session);
       
       if (session?.user) {
         console.log('SessionProvider: auth state change user', session.user);
         
-        // Try to get the user's profile - let the database trigger create it if it doesn't exist
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-        
-        if (profileError) {
-          console.log('SessionProvider: No profile found on auth change, profile will be created by database trigger', profileError);
-          // Don't create profile here - let the database trigger handle it
-          // Just use the session user for now
-          setUser(session.user);
-        } else {
-          console.log('SessionProvider: Found existing profile on auth change', profile);
-          setUser(profile);
+        try {
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+          
+          if (!mounted) return;
+          
+          if (profileError) {
+            console.log('SessionProvider: No profile found on auth change, using session user', profileError);
+            // Create a basic profile from session user
+            const basicProfile: Profile = {
+              id: session.user.id,
+              username: session.user.email?.split('@')[0] || 'User',
+              role: 'student',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            };
+            setUser(basicProfile);
+          } else {
+            console.log('SessionProvider: Found existing profile on auth change', profile);
+            setUser(profile as Profile);
+          }
+        } catch (error) {
+          console.error('SessionProvider: Error loading profile on auth change:', error);
+          if (mounted) {
+            // Create a basic profile from session user
+            const basicProfile: Profile = {
+              id: session.user.id,
+              username: session.user.email?.split('@')[0] || 'User',
+              role: 'student',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            };
+            setUser(basicProfile);
+          }
         }
       } else {
         setUser(null);
       }
+      
+      setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      clearTimeout(timeoutId);
+      subscription.unsubscribe();
+    };
   }, []);
 
   return (
-    <SessionContext.Provider value={{ session, user }}>
+    <SessionContext.Provider value={{ session, user, loading }}>
       {children}
     </SessionContext.Provider>
   );

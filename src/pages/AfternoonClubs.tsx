@@ -1,998 +1,1104 @@
 import React, { useState, useEffect } from 'react';
-import { useAuthStore } from '../store/auth';
 import { supabase } from '../lib/supabase';
+import { AnimatePresence, motion } from 'framer-motion';
 import { 
-  Users, 
-  Search, 
   Plus, 
-  Check, 
-  X, 
+  Users, 
   Calendar,
-  UserPlus,
-  Trash2,
-  PlusCircle,
-  Edit2,
-  ChevronDown,
-  ChevronRight,
-  Settings,
   Clock,
-  UserMinus,
-  CalendarDays,
-  Users2,
-  Loader2,
   MapPin,
   Star,
-  Trophy,
   Target,
+  Palette, 
   BookOpen,
-  Music,
   Code,
-  Palette,
+  Music, 
   Languages,
   Award,
-  Heart
+  Heart,
+  UserPlus,
+  Trash2,
+  Edit2,
+  X,
+  CheckCircle,
+  AlertCircle,
+  Clock as ClockIcon,
+  UserCheck,
+  Search
 } from 'lucide-react';
-import { format } from 'date-fns';
-import '../styles/cards.css';
-import { motion, AnimatePresence } from 'framer-motion';
-import type { Club } from '../types/index';
 
-interface ClubMember {
-  id: string;
-  club_id: string;
-  user_id: string;
-  joined_at: string;
-  profiles?: {
-    id: string;
-    username: string;
-    photo_url: string | null;
-  };
-  clubs?: Club;
-}
-
-interface Message {
-  type: 'success' | 'error';
-  text: string;
-}
-
-interface SearchResult {
-  id: string;
-    username: string;
-  email: string;
-  photo_url: string | null;
-}
-
-const categoryIcons = {
+// Sector icons mapping
+const sectorIcons = {
   Sports: <Target className="h-6 w-6" />,
   Arts: <Palette className="h-6 w-6" />,
   Science: <BookOpen className="h-6 w-6" />,
-  Technology: <Code className="h-6 w-6" />,
+  'AI Clubs': <Code className="h-6 w-6" />,
   Music: <Music className="h-6 w-6" />,
   Languages: <Languages className="h-6 w-6" />,
   Leadership: <Award className="h-6 w-6" />,
   Community: <Heart className="h-6 w-6" />
 };
 
-const difficultyColors = {
-  Beginner: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-  Intermediate: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
-  Advanced: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+// Status colors
+const statusColors = {
+  present: 'bg-green-100 text-green-800 border-green-200',
+  absent: 'bg-red-100 text-red-800 border-red-200',
+  late: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  leave: 'bg-blue-100 text-blue-800 border-blue-200'
 };
 
-export function AfternoonClubs() {
-  const { user } = useAuthStore();
-  const [clubs, setClubs] = useState<Club[]>([]);
-  const [selectedClub, setSelectedClub] = useState<Club | null>(null);
-  const [clubMembers, setClubMembers] = useState<ClubMember[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [message, setMessage] = useState<Message | null>(null);
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
-  const [isEditing, setIsEditing] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
+export default function AfternoonClubs() {
+  const [sectors, setSectors] = useState([]);
+  const [clubs, setClubs] = useState([]);
+  const [activeSector, setActiveSector] = useState(null);
+  const [user, setUser] = useState(null);
+  const [clubMembers, setClubMembers] = useState([]);
+  const [selectedClub, setSelectedClub] = useState(null);
+  const [attendance, setAttendance] = useState([]);
+  const [attendanceDate, setAttendanceDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [message, setMessage] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showAddStudentModal, setShowAddStudentModal] = useState(false);
+  const [showCreateSectorModal, setShowCreateSectorModal] = useState(false);
+  const [availableStudents, setAvailableStudents] = useState([]);
+  const [filteredStudents, setFilteredStudents] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [newClubData, setNewClubData] = useState({
     name: '',
     description: '',
-    day: '',
-    time: '',
-    location: '',
-    capacity: '',
-    teacher: '',
-    category: '',
-    difficulty_level: 'Beginner',
-    requirements: '',
-    equipment_needed: [] as string[],
-    image_url: ''
+    sector_id: '',
+    max_capacity: 30
   });
-  const [userClubs, setUserClubs] = useState<ClubMember[]>([]);
-
-  const isAdmin = user?.role === 'ultra_admin' || user?.role === 'admin';
-  const isTeacher = user?.role === 'teacher';
-  const canManageClubs = isAdmin || isTeacher;
-
-  useEffect(() => {
-    loadClubs();
-    if (!canManageClubs) {
-      loadUserClubs();
-    }
-  }, [canManageClubs, user]);
+  const [newSectorData, setNewSectorData] = useState({
+    name: '',
+    description: ''
+  });
 
   useEffect(() => {
-    if (selectedClub) {
-      loadClubMembers();
-    }
-  }, [selectedClub]);
-
-  const loadClubs = async () => {
+    async function fetchData() {
     setLoading(true);
-    try {
-      let query = supabase
-        .from('clubs')
-        .select('*')
-        .order('name');
-
-      if (selectedCategory) {
-        query = query.eq('category', selectedCategory);
-      }
-
-      const { data, error } = await query;
+      const { data: sectorData } = await supabase.from('sectors').select('*');
+      setSectors(sectorData || []);
+      setActiveSector(sectorData?.[0]?.id || null);
+      const { data: clubData } = await supabase.from('clubs').select('*');
+      setClubs(clubData || []);
       
-      if (error) throw error;
-      if (data) setClubs(data);
-    } catch (error) {
-      if (error instanceof Error) {
-        setMessage({ type: 'error', text: error.message });
+      // Get current user and their profile
+      const { data: { user: userData } } = await supabase.auth.getUser();
+      if (userData) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userData.id)
+          .single();
+        setUser(profileData || userData);
       } else {
-        setMessage({ type: 'error', text: 'An unexpected error occurred' });
+        setUser(null);
       }
-    } finally {
       setLoading(false);
     }
-  };
+    fetchData();
+  }, []);
 
-  const loadUserClubs = async () => {
-    try {
-      const { data: userClubsData, error } = await supabase
-        .from('club_members')
-        .select(`
-          *,
-          clubs (*)
-        `)
-        .eq('user_id', user?.id);
+  const isAdminOrTeacher = user?.role === 'admin' || user?.role === 'ultra_admin' || user?.role === 'teacher';
+  const isStudent = user && !isAdminOrTeacher;
+  
+  // Debug logging
+  console.log('User:', user);
+  console.log('User role:', user?.role);
+  console.log('isAdminOrTeacher:', isAdminOrTeacher);
+  console.log('isStudent:', isStudent);
 
-      if (error) throw error;
-      setUserClubs(userClubsData as ClubMember[]);
-    } catch (error) {
-      console.error('Error loading user clubs:', error);
-      setMessage({ type: 'error', text: 'Failed to load user clubs.' });
-    }
-  };
-
-  const loadClubMembers = async () => {
-    if (!selectedClub) return;
-    
-    setLoading(true);
-    try {
+  async function loadClubMembers(clubId) {
       const { data } = await supabase
         .from('club_members')
-        .select(`
-          *,
-          profiles:user_id (
-            id,
-            username,
-            photo_url
-          )
-        `)
-        .eq('club_id', selectedClub.id);
-      
-      if (data) setClubMembers(data);
-    } catch (error) {
-      if (error instanceof Error) {
-        setMessage({ type: 'error', text: error.message });
-      } else {
-        setMessage({ type: 'error', text: 'An unexpected error occurred' });
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+      .select('*, profiles:user_id (id, username, photo_url)')
+      .eq('club_id', clubId);
+    setClubMembers(data || []);
+  }
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      return;
-    }
-    
-    setIsSearching(true);
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, username, email, photo_url')
-        .ilike('username', `%${searchQuery}%`)
-        .limit(5);
-      
-      if (error) throw error;
-      setSearchResults(data || []);
-    } catch (error) {
-      console.error('Error searching users:', error);
-    } finally {
-      setIsSearching(false);
-    }
-  };
+  async function loadAttendance(clubId, date) {
+    const { data } = await supabase
+      .from('club_attendance')
+      .select('*, profiles:user_id (id, username)')
+      .eq('club_id', clubId)
+      .eq('date', date);
+    setAttendance(data || []);
+  }
 
-  const handleAddMember = async (userId: string) => {
-    if (!selectedClub) return;
-    
-    try {
-      const { error } = await supabase
-        .from('club_members')
-        .insert([{
-          club_id: selectedClub.id,
-          user_id: userId
-        }]);
-      
-      if (error) throw error;
-      
-      await loadClubMembers();
-        setMessage({ type: 'success', text: 'Member added successfully' });
-    } catch (error) {
-      if (error instanceof Error) {
-        setMessage({ type: 'error', text: error.message });
-      } else {
-        setMessage({ type: 'error', text: 'Failed to add member' });
-      }
-    }
-  };
+  async function handleMarkAttendance(clubId, userId, status) {
+    await supabase.from('club_attendance').upsert({
+      club_id: clubId,
+      user_id: userId,
+      date: attendanceDate,
+      status,
+      marked_by: user.id
+    });
+    await loadAttendance(clubId, attendanceDate);
+    setMessage({ type: 'success', text: 'Attendance marked successfully!' });
+  }
 
-  const handleRemoveMember = async (memberId: string) => {
-    try {
-      const { error } = await supabase
-        .from('club_members')
-        .delete()
-        .eq('id', memberId);
-      
-      if (error) throw error;
-      
-      await loadClubMembers();
-      setMessage({ type: 'success', text: 'Member removed successfully' });
-    } catch (error) {
-      if (error instanceof Error) {
-      setMessage({ type: 'error', text: error.message });
-      } else {
-        setMessage({ type: 'error', text: 'Failed to remove member' });
-      }
-    }
-  };
-
-  const handleCreate = async () => {
-    try {
-      if (!formData.name || !formData.description) {
-        setMessage({ type: 'error', text: 'Name and description are required' });
+  async function handleCreateClub() {
+    if (!newClubData.name || !newClubData.sector_id) {
+      setMessage({ type: 'error', text: 'Please fill in all required fields' });
       return;
     }
     
       const { data, error } = await supabase
-        .from('clubs')
+      .from('clubs')
         .insert([{
-          name: formData.name,
-          description: formData.description,
-          day: formData.day,
-          time: formData.time,
-          location: formData.location,
-          capacity: parseInt(formData.capacity) || 30,
-          teacher: formData.teacher,
-          category: formData.category,
-          difficulty_level: formData.difficulty_level,
-          requirements: formData.requirements,
-          equipment_needed: formData.equipment_needed || [],
-          image_url: formData.image_url,
-          created_by: user?.id
+        ...newClubData,
+        created_by: user.id
+      }])
+      .select()
+      .single();
+
+    if (error) {
+        setMessage({ type: 'error', text: error.message });
+      return;
+    }
+
+    setClubs([...clubs, data]);
+    setShowCreateModal(false);
+    setNewClubData({ name: '', description: '', sector_id: '', max_capacity: 30 });
+    setMessage({ type: 'success', text: 'Club created successfully!' });
+  }
+
+  async function handleCreateSector() {
+    if (!newSectorData.name) {
+      setMessage({ type: 'error', text: 'Please enter a sector name' });
+      return;
+    }
+    
+      const { data, error } = await supabase
+      .from('sectors')
+        .insert([{
+        name: newSectorData.name,
+        description: newSectorData.description
         }])
         .select()
         .single();
       
-      if (error) throw error;
-      if (data) {
-        setClubs([data, ...clubs]);
-        setFormData({
-          name: '',
-          description: '',
-          day: '',
-          time: '',
-          location: '',
-          capacity: '',
-          teacher: '',
-          category: '',
-          difficulty_level: 'Beginner',
-          requirements: '',
-          equipment_needed: [],
-          image_url: ''
-        });
-        setIsCreating(false);
-        setIsEditing(null);
-        setMessage({ type: 'success', text: 'Club created successfully' });
-      }
-    } catch (error) {
-      console.error('Error creating club:', error);
-      setMessage({ type: 'error', text: 'Failed to create club' });
+    if (error) {
+      setMessage({ type: 'error', text: error.message });
+      return;
     }
-  };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this club?')) return;
+    setSectors([...sectors, data]);
+    setShowCreateSectorModal(false);
+    setNewSectorData({ name: '', description: '' });
+    setMessage({ type: 'success', text: 'Sector created successfully!' });
+  }
 
-    try {
+  async function handleDeleteSector(sectorId) {
+    const { error } = await supabase
+      .from('sectors')
+      .delete()
+      .eq('id', sectorId);
+
+    if (error) {
+      setMessage({ type: 'error', text: error.message });
+      return;
+    }
+
+    setSectors(sectors.filter(s => s.id !== sectorId));
+    if (activeSector === sectorId) {
+      setActiveSector(sectors[0]?.id || null);
+    }
+    setMessage({ type: 'success', text: 'Sector deleted successfully!' });
+  }
+
+  async function handleDeleteClub(clubId) {
       const { error } = await supabase
         .from('clubs')
         .delete()
-        .eq('id', id);
+      .eq('id', clubId);
 
-      if (error) throw error;
+    if (error) {
+      setMessage({ type: 'error', text: error.message });
+      return;
+    }
 
-      setClubs(clubs.filter(club => club.id !== id));
-      if (selectedClub?.id === id) {
+    setClubs(clubs.filter(c => c.id !== clubId));
+    if (selectedClub?.id === clubId) {
         setSelectedClub(null);
       }
-      setMessage({ type: 'success', text: 'Club deleted successfully' });
-    } catch (error) {
-      if (error instanceof Error) {
-        setMessage({ type: 'error', text: error.message });
-      } else {
-        setMessage({ type: 'error', text: 'Failed to delete club' });
-      }
-    }
-  };
+    setMessage({ type: 'success', text: 'Club deleted successfully!' });
+  }
 
-  const handleJoinClub = async (clubId: string) => {
-    try {
+  async function handleAddStudent(studentId) {
+    if (!selectedClub) return;
+
       const { error } = await supabase
         .from('club_members')
         .insert([{
-          club_id: clubId,
-          user_id: user?.id
-        }]);
+        club_id: selectedClub.id,
+        user_id: studentId
+      }]);
 
-      if (error) throw error;
-
-      await loadUserClubs();
-      setMessage({ type: 'success', text: 'Successfully joined the club' });
-    } catch (error) {
-      if (error instanceof Error) {
+    if (error) {
         setMessage({ type: 'error', text: error.message });
-      } else {
-        setMessage({ type: 'error', text: 'Failed to join club' });
-      }
+      return;
     }
-  };
 
-  const handleLeaveClub = async (clubId: string) => {
-    try {
-      const { error } = await supabase
-        .from('club_members')
-        .delete()
-        .eq('club_id', clubId)
-        .eq('user_id', user?.id);
+    await loadClubMembers(selectedClub.id);
+    setShowAddStudentModal(false);
+    setMessage({ type: 'success', text: 'Student added successfully!' });
+  }
 
-      if (error) throw error;
-
-      await loadUserClubs();
-      setMessage({ type: 'success', text: 'Successfully left the club' });
-    } catch (error) {
-      if (error instanceof Error) {
-      setMessage({ type: 'error', text: error.message });
-      } else {
-        setMessage({ type: 'error', text: 'Failed to leave club' });
-      }
-    }
-  };
-
-  const handleUpdate = async (id: string) => {
-    try {
-      if (!formData.name || !formData.description) {
-        setMessage({ type: 'error', text: 'Name and description are required' });
+  async function loadAvailableStudents() {
+    console.log('Loading available students...');
+    
+    // First, let's check what students exist
+    const { data: allProfiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('*');
+    
+    console.log('All profiles:', allProfiles);
+    console.log('Profiles error:', profilesError);
+    
+    if (profilesError) {
+      console.error('Error loading profiles:', profilesError);
+      setMessage({ type: 'error', text: 'Error loading students: ' + profilesError.message });
         return;
       }
 
-      const { error } = await supabase
-        .from('clubs')
-        .update(formData)
-        .eq('id', id);
+    // Filter for students - check multiple possible field names and values
+    const students = allProfiles?.filter(profile => {
+      console.log('Checking profile:', profile);
+      
+      // Check if it's a student by role field
+      if (profile.role === 'student') return true;
+      
+      // Check if it's a student by role field (case insensitive)
+      if (profile.role?.toLowerCase() === 'student') return true;
+      
+      // Check if it's not an admin/teacher (assume it's a student)
+      if (profile.role && !['admin', 'ultra_admin', 'teacher'].includes(profile.role.toLowerCase())) return true;
+      
+      // If no role field, assume it's a student
+      if (!profile.role) return true;
+      
+      // If it has a username and isn't explicitly admin/teacher, treat as student
+      if (profile.username && !profile.role) return true;
+      
+      return false;
+    }) || [];
+    
+    console.log('Students found:', students);
+    
+    const enrolledStudentIds = clubMembers.map(m => m.user_id);
+    console.log('Enrolled student IDs:', enrolledStudentIds);
+    
+    // Include all profiles that aren't enrolled (regardless of role)
+    const available = allProfiles?.filter(profile => {
+      // Skip if already enrolled
+      if (enrolledStudentIds.includes(profile.id)) return false;
+      
+      // Include everyone else (regardless of role)
+      return true;
+    }) || [];
+    
+    console.log('Available students (including LGS):', available);
+    
+    setAvailableStudents(available);
+    setFilteredStudents(available);
+    
+    if (available.length === 0) {
+      setMessage({ type: 'info', text: 'No available students found. All students may already be enrolled or no students exist.' });
+      
+      // If no profiles exist at all, show a message
+      if (allProfiles?.length === 0) {
+        setMessage({ type: 'info', text: 'No users found in the database.' });
+      }
+    }
+  }
 
-      if (error) throw error;
+  // Filter clubs for students (only show clubs they're enrolled in)
+  const visibleClubs = isStudent
+    ? clubs.filter(club => clubMembers.some(m => m.club_id === club.id && m.user_id === user.id))
+    : clubs.filter(club => club.sector_id === activeSector);
 
-      setMessage({ type: 'success', text: 'Club updated successfully' });
-      setIsEditing(null);
-      setFormData({
-        name: '',
-        description: '',
-        day: '',
-        time: '',
-        location: '',
-        capacity: '',
-        teacher: '',
-        category: '',
-        difficulty_level: 'Beginner',
-        requirements: '',
-        equipment_needed: [],
-        image_url: ''
-      });
-      loadClubs();
-    } catch (error) {
-      console.error('Error updating club:', error);
-      setMessage({ type: 'error', text: 'Failed to update club' });
+  // Animation variants
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
+      }
     }
   };
 
-  const startEditing = (club: Club) => {
-    setIsEditing(club.id);
-    setFormData({
-      name: club.name,
-      description: club.description,
-      day: club.day || '',
-      time: club.time || '',
-      location: club.location || '',
-      capacity: club.capacity.toString(),
-      teacher: club.teacher || '',
-      category: club.category || '',
-      difficulty_level: club.difficulty_level || 'Beginner',
-      requirements: club.requirements || '',
-      equipment_needed: club.equipment_needed || [],
-      image_url: club.image_url || ''
-    });
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: {
+      y: 0,
+      opacity: 1,
+      transition: {
+        duration: 0.5
+      }
+    }
   };
 
-  const StudentClubView = () => (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900 dark:text-white">My Clubs</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {userClubs.map((userClub) => (
-          <motion.div
-            key={userClub.id}
-            initial={{ opacity: 0, y: 20 }}
+  const cardVariants = {
+    hidden: { scale: 0.8, opacity: 0 },
+    visible: {
+      scale: 1,
+      opacity: 1,
+      transition: {
+        duration: 0.3
+      }
+    },
+    hover: {
+      scale: 1.05,
+      y: -5,
+      transition: {
+        duration: 0.2
+      }
+    }
+  };
+
+      return (
+      <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+        {/* Header */}
+        <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <motion.h1 
+              initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="card p-6"
-          >
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {userClub.clubs?.name}
-                </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  {userClub.clubs?.description}
-                </p>
-              </div>
-              <button
-                onClick={() => handleLeaveClub(userClub.club_id)}
-                className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+              className="text-4xl font-bold text-gray-900 dark:text-white text-center mb-2"
+            >
+              Afternoon Clubs
+            </motion.h1>
+            <motion.p 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2 }}
+              className="text-gray-600 dark:text-gray-400 text-center"
+            >
+              Explore and manage extracurricular activities
+            </motion.p>
+            </div>
+            </div>
+
+              {/* Sector Tabs */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+              Sectors
+            </h2>
+            {isAdminOrTeacher && (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowCreateSectorModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200"
               >
-                <UserMinus className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="mt-4 flex items-center text-sm text-gray-500 dark:text-gray-400">
-              <Users className="h-4 w-4 mr-2" />
-              <span>{userClub.clubs?.members_count || 0} members</span>
-            </div>
+                <Plus className="h-4 w-4" />
+                Add Sector
+              </motion.button>
+            )}
+          </div>
+          
+          <motion.div 
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            className="flex flex-wrap justify-center gap-4 mb-12"
+          >
+            {sectors.map((sector, index) => (
+              <motion.div
+                key={sector.id}
+                variants={itemVariants}
+                className="flex items-center gap-2"
+              >
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className={`flex items-center gap-3 px-6 py-3 rounded-full font-semibold transition-all duration-200 shadow-lg ${
+                    activeSector === sector.id
+                      ? 'bg-gradient-to-r from-red-600 to-pink-600 text-white shadow-xl'
+                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:shadow-xl border border-gray-200 dark:border-gray-700'
+                  }`}
+                  onClick={() => setActiveSector(sector.id)}
+                >
+                  {sectorIcons[sector.name] || <Star className="h-6 w-6" />}
+                  <span>{sector.name}</span>
+                </motion.button>
+                {isAdminOrTeacher && (
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => handleDeleteSector(sector.id)}
+                    className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
+                    title="Delete sector"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </motion.button>
+                )}
           </motion.div>
         ))}
-      </div>
+          </motion.div>
 
-      <h2 className="text-2xl font-bold text-gray-900 dark:text-white mt-8">Available Clubs</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {clubs
-          .filter(club => !userClubs.some(userClub => userClub.club_id === club.id))
-          .map((club) => (
+        {/* Clubs Grid */}
+        {loading ? (
+          <div className="flex justify-center items-center h-64">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+              className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full"
+            />
+          </div>
+        ) : (
+          <motion.div 
+            layout
+            className="grid grid-cols-1 gap-8"
+          >
+            <AnimatePresence mode="popLayout">
+              {visibleClubs.map((club, index) => (
             <motion.div
               key={club.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="card p-6"
-            >
-              <div className="flex justify-between items-start">
+                  variants={cardVariants}
+                  initial="hidden"
+                  animate="visible"
+                  whileHover="hover"
+                  layout
+                  className="group relative bg-white dark:bg-gray-800 rounded-3xl shadow-xl overflow-hidden border border-gray-200 dark:border-gray-700 hover:shadow-3xl transition-all duration-500 hover:scale-[1.02]"
+                >
+                  {/* Club Header with Gradient Background */}
+                  <div className="relative bg-gradient-to-br from-red-500 via-pink-500 to-red-600 p-6 text-white">
+                    <div className="absolute inset-0 bg-black/10"></div>
+                    <div className="relative z-10">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                              {sectorIcons[sectors.find(s => s.id === club.sector_id)?.name] || <Star className="h-5 w-5" />}
+                            </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                              <h3 className="text-2xl font-bold mb-1">
                     {club.name}
                   </h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    {club.description}
+                              <p className="text-white/80 text-base font-medium">
+                                {sectors.find(s => s.id === club.sector_id)?.name || 'Unknown Sector'}
                   </p>
                 </div>
-                <button
-                  onClick={() => handleJoinClub(club.id)}
-                  className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-colors"
-                >
-                  <UserPlus className="h-5 w-5" />
-                </button>
+                          </div>
+                        </div>
+                        {isAdminOrTeacher && (
+                          <motion.button
+                            whileHover={{ scale: 1.1, rotate: 5 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => handleDeleteClub(club.id)}
+                            className="p-2 bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 rounded-xl transition-all duration-300 opacity-0 group-hover:opacity-100"
+                            title="Delete club"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </motion.button>
+                        )}
               </div>
-              <div className="mt-4 flex items-center text-sm text-gray-500 dark:text-gray-400">
-                <Users className="h-4 w-4 mr-2" />
-                <span>{club.members_count} members</span>
+                      
+                      <p className="text-white/90 text-base leading-relaxed mb-4 line-clamp-2">
+                        {club.description || 'No description available.'}
+                      </p>
+
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4 text-white/80">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
+                              <Users className="h-3 w-3" />
             </div>
-            </motion.div>
-          ))}
+                            <span className="font-semibold text-sm">{clubMembers.filter(m => m.club_id === club.id).length} members</span>
         </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
+                              <Calendar className="h-3 w-3" />
     </div>
-  );
-
-  const AdminClubView = () => (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Clubs</h2>
-        <button
-          onClick={() => setIsCreating(true)}
-          className="button-primary"
-        >
-          <Plus className="h-5 w-5 mr-2" />
-          Create Club
-        </button>
+                            <span className="font-semibold text-sm">{new Date(club.created_at).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                        
+                        <motion.button
+                          whileHover={{ scale: 1.05, y: -2 }}
+                          whileTap={{ scale: 0.95 }}
+                          className="px-6 py-3 bg-white/20 backdrop-blur-sm text-white rounded-xl font-bold shadow-2xl hover:shadow-3xl hover:bg-white/30 transition-all duration-300 flex items-center gap-2 border border-white/30"
+                          onClick={async () => {
+                            setSelectedClub(club);
+                            await loadClubMembers(club.id);
+                            await loadAttendance(club.id, attendanceDate);
+                          }}
+                        >
+                          <Users className="h-4 w-4" />
+                          View Details
+                        </motion.button>
+                      </div>
+                    </div>
         </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {clubs.map((club) => (
-          <motion.div
-            key={club.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="card p-6"
-          >
-            <div className="flex justify-between items-start">
+                  {/* Club Stats with Glass Effect */}
+                  <div className="p-6">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-600 shadow-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                            <Users className="h-4 w-4 text-white" />
+                          </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {club.name}
-                </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  {club.description}
-                </p>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">Capacity</div>
+                            <div className="text-lg font-bold text-gray-900 dark:text-white">
+                              {clubMembers.filter(m => m.club_id === club.id).length}/{club.max_capacity || 30}
               </div>
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => {
-                    setSelectedClub(club);
-                    setIsEditing(club.id);
-                  }}
-                  className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
-                >
-                  <Edit2 className="h-5 w-5" />
-                </button>
-                <button
-                  onClick={() => handleDelete(club.id)}
-                  className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                >
-                  <Trash2 className="h-5 w-5" />
-                </button>
               </div>
           </div>
-            <div className="mt-4 flex items-center text-sm text-gray-500 dark:text-gray-400">
-              <Users className="h-4 w-4 mr-2" />
-              <span>{club.members_count} members</span>
+                        <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-1.5">
+                          <div 
+                            className="bg-gradient-to-r from-green-500 to-emerald-600 h-1.5 rounded-full transition-all duration-500"
+                            style={{ width: `${Math.min((clubMembers.filter(m => m.club_id === club.id).length / (club.max_capacity || 30)) * 100, 100)}%` }}
+                          ></div>
             </div>
-          </motion.div>
-        ))}
       </div>
+                      
+                      <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-600 shadow-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                            <Calendar className="h-4 w-4 text-white" />
     </div>
-  );
+                          <div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">Attendance Today</div>
+                            <div className="text-lg font-bold text-gray-900 dark:text-white">
+                              {attendance.filter(a => a.club_id === club.id && a.date === attendanceDate && a.status === 'present').length}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {attendance.filter(a => a.club_id === club.id && a.date === attendanceDate).length > 0 
+                            ? `${Math.round((attendance.filter(a => a.club_id === club.id && a.date === attendanceDate && a.status === 'present').length / attendance.filter(a => a.club_id === club.id && a.date === attendanceDate).length) * 100)}% present`
+                            : 'No attendance marked'
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </motion.div>
+        )}
 
-  const ClubCard = ({ club }: { club: Club }) => {
-    const isMember = club.members?.some(member => member.user_id === user?.id);
-    
-    return (
+        {/* Empty State */}
+        {!loading && visibleClubs.length === 0 && (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-        whileHover={{ scale: 1.02 }}
-        className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden"
-      >
-        <div className="relative h-48">
-          <img
-            src={club.image_url || '/default-club.jpg'}
-            alt={club.name}
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute top-4 right-4">
-            {club.difficulty_level && (
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${difficultyColors[club.difficulty_level]}`}>
-                {club.difficulty_level}
-              </span>
-            )}
+            className="text-center py-12"
+          >
+            <div className="text-gray-400 dark:text-gray-600 mb-4">
+              <Users className="h-16 w-16 mx-auto" />
           </div>
-        </div>
-        
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-              {club.name}
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              No clubs found
             </h3>
-            {club.category && categoryIcons[club.category as keyof typeof categoryIcons]}
-          </div>
-          
-          <p className="text-gray-600 dark:text-gray-300 mb-4 line-clamp-2">
-            {club.description}
-          </p>
-          
-          <div className="space-y-2 mb-4">
-            {club.day && (
-              <div className="flex items-center text-gray-600 dark:text-gray-300">
-                <Calendar className="h-4 w-4 mr-2" />
-                <span>{club.day}</span>
-              </div>
-            )}
-            {club.time && (
-              <div className="flex items-center text-gray-600 dark:text-gray-300">
-                <Clock className="h-4 w-4 mr-2" />
-                <span>{club.time}</span>
-              </div>
-            )}
-            {club.location && (
-              <div className="flex items-center text-gray-600 dark:text-gray-300">
-                <MapPin className="h-4 w-4 mr-2" />
-                <span>{club.location}</span>
-              </div>
-            )}
-          </div>
-          
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <Users className="h-4 w-4 mr-2 text-gray-500" />
-              <span className="text-sm text-gray-500">
-                {club.members_count} members
-              </span>
-            </div>
-            
-            {club.rating && (
-              <div className="flex items-center">
-                <Star className="h-4 w-4 mr-1 text-yellow-400 fill-current" />
-                <span className="text-sm text-gray-500">
-                  {club.rating.toFixed(1)} ({club.total_ratings})
-                </span>
-              </div>
-            )}
-          </div>
-          
-          <div className="mt-4">
-            {isMember ? (
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => handleLeaveClub(club.id)}
-                className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-              >
-                Leave Club
-              </motion.button>
-            ) : (
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => handleJoinClub(club.id)}
-                className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-              >
-                Join Club
-              </motion.button>
-            )}
-          </div>
-        </div>
-      </motion.div>
-    );
-  };
-
-  return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Afternoon Clubs</h1>
-        {canManageClubs && (
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsCreating(true)}
-            className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-          >
-            <Plus className="h-5 w-5 mr-2" />
-            Create Club
-          </motion.button>
-        )}
-          </div>
-
-      <AnimatePresence>
-        {message && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className={`p-4 rounded-lg mb-6 ${
-              message.type === 'success' 
-                ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200' 
-                : 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200'
-            }`}
-          >
-            {message.text}
+            <p className="text-gray-600 dark:text-gray-400">
+              {isStudent ? 'You are not enrolled in any clubs in this sector.' : 'No clubs have been created in this sector yet.'}
+            </p>
           </motion.div>
         )}
-      </AnimatePresence>
+              </div>
 
-      <div className="mb-8">
-        <div className="flex flex-wrap gap-4">
-          {Object.entries(categoryIcons).map(([category, icon]) => (
-            <motion.button
-              key={category}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setSelectedCategory(selectedCategory === category ? null : category)}
-              className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
-                selectedCategory === category
-                  ? 'bg-red-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-              }`}
-            >
-              {icon}
-              <span className="ml-2">{category}</span>
-            </motion.button>
-          ))}
-        </div>
-      </div>
+      {/* Floating Add Club Button */}
+      {isAdminOrTeacher && (
+        <motion.button
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          className="fixed bottom-8 right-8 w-16 h-16 bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-full shadow-2xl flex items-center justify-center z-50"
+          onClick={() => setShowCreateModal(true)}
+        >
+          <Plus className="h-8 w-8" />
+        </motion.button>
+      )}
 
-      {loading ? (
-        <div className="flex justify-center items-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-red-600" />
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <AnimatePresence mode="popLayout">
-          {clubs.map((club) => (
-              <ClubCard key={club.id} club={club} />
-            ))}
-          </AnimatePresence>
-                  </div>
-                )}
-                
-      {/* Create/Edit Modal */}
+      {/* Club Details Modal */}
       <AnimatePresence>
-        {(isCreating || isEditing) && (
+        {selectedClub && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-lg p-4"
+              className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl w-full max-w-6xl max-h-[95vh] overflow-y-auto"
             >
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  {isEditing ? 'Edit Club' : 'Create Club'}
-                </h2>
-                              <button
-                  onClick={() => {
-                    setIsCreating(false);
-                    setIsEditing(null);
-                    setFormData({
-                      name: '',
-                      description: '',
-                      day: '',
-                      time: '',
-                      location: '',
-                      capacity: '',
-                      teacher: '',
-                      category: '',
-                      difficulty_level: 'Beginner',
-                      requirements: '',
-                      equipment_needed: [],
-                      image_url: ''
-                    });
-                  }}
-                  className="p-2 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 transition-colors"
-                >
-                  <X className="h-5 w-5" />
-                              </button>
-              </div>
+              <div className="p-8">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                      {selectedClub.name}
+                    </h2>
+                    <p className="text-gray-600 dark:text-gray-300">
+                      {sectors.find(s => s.id === selectedClub.sector_id)?.name} • {clubMembers.length} members
+                    </p>
+            </div>
+                  <button
+                    onClick={() => setSelectedClub(null)}
+                    className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                  >
+                    <X className="h-6 w-6" />
+                  </button>
+          </div>
+          
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                    {/* Members Section */}
+                  <div>
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                        Enrolled Students ({clubMembers.length})
+                      </h3>
+                      {isAdminOrTeacher && (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                          onClick={() => {
+                            setShowAddStudentModal(true);
+                            loadAvailableStudents();
+                          }}
+                          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all duration-200"
+                        >
+                          <UserPlus className="h-4 w-4" />
+                          Add Student
+              </motion.button>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-3 max-h-60 overflow-y-auto">
+                      {clubMembers.length === 0 ? (
+                        <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                          <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                          <p>No students enrolled yet</p>
+                        </div>
+                      ) : (
+                        clubMembers.map((member) => (
+                          <motion.div
+                            key={member.id}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-pink-600 rounded-full flex items-center justify-center text-white font-semibold text-lg">
+                                {member.profiles?.username?.charAt(0) || 'U'}
+                              </div>
+                              <div>
+                                <span className="font-medium text-gray-900 dark:text-white">
+                                  {member.profiles?.username || 'Unknown'}
+                                </span>
+                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                  Joined {new Date(member.joined_at).toLocaleDateString()}
+                                </div>
+                              </div>
+                            </div>
+                            {isAdminOrTeacher && (
+              <motion.button
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                onClick={async () => {
+                                  await supabase.from('club_members').delete().eq('id', member.id);
+                                  await loadClubMembers(selectedClub.id);
+                                }}
+                                className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
+                                title="Remove student"
+                              >
+                                <Trash2 className="h-4 w-4" />
+              </motion.button>
+                            )}
+                          </motion.div>
+                        ))
+            )}
+          </div>
+        </div>
 
-              <div className="max-h-[calc(100vh-12rem)] overflow-y-auto pr-2 space-y-4">
-                {/* Basic Information Section */}
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-                  <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Basic Information</h3>
-                  <div className="space-y-3">
+                  {/* Attendance Section */}
+                  <div>
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                        Attendance ({attendanceDate})
+                      </h3>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="date"
+                          value={attendanceDate}
+                          onChange={(e) => {
+                            setAttendanceDate(e.target.value);
+                            loadAttendance(selectedClub.id, e.target.value);
+                          }}
+                          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        />
+                        {isAdminOrTeacher && (
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+                            onClick={() => {
+                              // Mark all as present
+                              clubMembers.forEach(member => {
+                                handleMarkAttendance(selectedClub.id, member.user_id, 'present');
+                              });
+                            }}
+                            className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+                          >
+                            Mark All Present
+          </motion.button>
+        )}
+                      </div>
+          </div>
+
+                    <div className="space-y-3 max-h-60 overflow-y-auto">
+                      {clubMembers.length === 0 ? (
+                        <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                          <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                          <p>No students to mark attendance for</p>
+                        </div>
+                      ) : (
+                        clubMembers.map((member) => {
+                          const att = attendance.find(a => a.user_id === member.user_id);
+                          // Students only see their own attendance
+                          if (isStudent && member.user_id !== user.id) return null;
+                          
+                          return (
+          <motion.div
+                              key={member.user_id}
+                              initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+                              className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-pink-600 rounded-full flex items-center justify-center text-white font-semibold text-lg">
+                                  {member.profiles?.username?.charAt(0) || 'U'}
+                                </div>
+                                <span className="font-medium text-gray-900 dark:text-white">
+                                  {member.profiles?.username || 'Unknown'}
+                                </span>
+                              </div>
+                              
+                              <div className="flex items-center gap-3">
+                                <span className={`px-4 py-2 rounded-full text-sm font-medium border ${statusColors[att?.status] || 'bg-gray-100 text-gray-800 border-gray-200'}`}>
+                                  {att?.status || 'Not marked'}
+                                </span>
+                                
+                                {isAdminOrTeacher && (
+                                  <div className="flex gap-1">
+                                    {['present', 'absent', 'late', 'leave'].map((status) => (
+            <motion.button
+                                        key={status}
+                                        whileHover={{ scale: 1.1 }}
+                                        whileTap={{ scale: 0.9 }}
+                                        className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                                          att?.status === status
+                                            ? 'bg-red-600 text-white shadow-lg'
+                                            : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500'
+                                        }`}
+                                        onClick={() => handleMarkAttendance(selectedClub.id, member.user_id, status)}
+                                      >
+                                        {status}
+            </motion.button>
+          ))}
+        </div>
+                                )}
+      </div>
+                            </motion.div>
+                          );
+                        })
+                      )}
+        </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+                )}
+      </AnimatePresence>
+                
+      {/* Create Club Modal */}
+      <AnimatePresence>
+        {showCreateModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md"
+            >
+              <div className="p-6">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+                  Create New Club
+                </h3>
+                
+                <div className="space-y-4">
                 <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Name *
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Club Name *
                   </label>
                   <input
                     type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
+                      value={newClubData.name}
+                      onChange={(e) => setNewClubData({ ...newClubData, name: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                         placeholder="Enter club name"
                   />
                 </div>
 
                 <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Category
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Sector *
                       </label>
                       <select
-                        value={formData.category}
-                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
-                      >
-                        <option value="">Select a category</option>
-                        {Object.keys(categoryIcons).map((category) => (
-                          <option key={category} value={category}>
-                            {category}
+                      value={newClubData.sector_id}
+                      onChange={(e) => setNewClubData({ ...newClubData, sector_id: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                      <option value="">Select a sector</option>
+                      {sectors.map(sector => (
+                        <option key={sector.id} value={sector.id}>
+                          {sector.name}
                           </option>
                         ))}
                       </select>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Description *
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Description
                   </label>
                   <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
-                        rows={2}
+                      value={newClubData.description}
+                      onChange={(e) => setNewClubData({ ...newClubData, description: e.target.value })}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                         placeholder="Enter club description"
                   />
-              </div>
-                  </div>
                 </div>
 
-                {/* Schedule & Location Section */}
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-                  <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Schedule & Location</h3>
-                  <div className="grid grid-cols-2 gap-3">
                 <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Day
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Max Capacity
                   </label>
                     <input
-                    type="text"
-                    value={formData.day}
-                    onChange={(e) => setFormData({ ...formData, day: e.target.value })}
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
-                        placeholder="e.g., Monday"
+                      type="number"
+                      value={newClubData.max_capacity}
+                      onChange={(e) => setNewClubData({ ...newClubData, max_capacity: parseInt(e.target.value) || 30 })}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     />
                   </div>
+                  </div>
 
-                <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Time
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.time}
-                    onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
-                        placeholder="e.g., 3:00 PM"
-                  />
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={() => setShowCreateModal(false)}
+                    className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                                     <button
+                     onClick={handleCreateClub}
+                     className="flex-1 px-4 py-2 bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all duration-200"
+                   >
+                     Create Club
+                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-                <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Location
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.location}
-                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
-                        placeholder="e.g., Room 101"
-                  />
+      {/* Add Student Modal */}
+      <AnimatePresence>
+        {showAddStudentModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden"
+            >
+              <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                    Add Users to {selectedClub?.name}
+                  </h3>
+                  <button
+                    onClick={() => setShowAddStudentModal(false)}
+                    className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                  >
+                    <X className="h-6 w-6" />
+                  </button>
                                   </div>
 
-                <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Capacity
-                  </label>
+                <div className="relative">
                   <input
-                        type="number"
-                    value={formData.capacity}
-                    onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
-                        placeholder="Max students"
+                    type="text"
+                    placeholder="Search users by name or email..."
+                    value={searchTerm}
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                    onChange={(e) => {
+                      const term = e.target.value;
+                      setSearchTerm(term);
+                      const filtered = availableStudents.filter(student => 
+                        student.username?.toLowerCase().includes(term.toLowerCase()) ||
+                        student.email?.toLowerCase().includes(term.toLowerCase())
+                      );
+                      setFilteredStudents(filtered);
+                    }}
                   />
-                                    </div>
+                  <Search className="absolute right-3 top-3 h-5 w-5 text-gray-400" />
                   </div>
                 </div>
 
-                {/* Additional Details Section */}
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-                  <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Additional Details</h3>
+              <div className="p-6 max-h-96 overflow-y-auto">
+                {filteredStudents.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>{searchTerm ? 'No students found matching your search' : 'No available students found'}</p>
+                    <p className="text-sm">{searchTerm ? 'Try a different search term' : 'All students are already enrolled in this club'}</p>
+                  </div>
+                ) : (
                   <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                <div>
-                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Teacher
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.teacher}
-                    onChange={(e) => setFormData({ ...formData, teacher: e.target.value })}
-                          className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
-                          placeholder="Teacher's name"
-                  />
+                    {filteredStudents.map((student) => (
+                      <motion.div
+                        key={student.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-pink-600 rounded-full flex items-center justify-center text-white font-semibold text-lg">
+                            {student.username?.charAt(0) || 'S'}
                                   </div>
-
                       <div>
-                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Difficulty Level
-                        </label>
-                        <select
-                          value={formData.difficulty_level}
-                          onChange={(e) => setFormData({ ...formData, difficulty_level: e.target.value as 'Beginner' | 'Intermediate' | 'Advanced' })}
-                          className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
+                            <div className="font-medium text-gray-900 dark:text-white">
+                              {student.username}
+                            </div>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                              {student.email}
+                            </div>
+                          </div>
+                        </div>
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => handleAddStudent(student.id)}
+                          className="px-4 py-2 bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all duration-200 font-medium"
                         >
-                          <option value="Beginner">Beginner</option>
-                          <option value="Intermediate">Intermediate</option>
-                          <option value="Advanced">Advanced</option>
-                        </select>
+                          Add
+                        </motion.button>
+                      </motion.div>
+                    ))}
                       </div>
+                )}
                     </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
+      {/* Create Sector Modal */}
+      <AnimatePresence>
+        {showCreateSectorModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md"
+            >
+              <div className="p-6">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+                  Create New Sector
+                </h3>
+                
+                <div className="space-y-4">
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Requirements
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Sector Name *
                       </label>
-                      <textarea
-                        value={formData.requirements}
-                        onChange={(e) => setFormData({ ...formData, requirements: e.target.value })}
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
-                        rows={2}
-                        placeholder="List any prerequisites or requirements"
+                    <input
+                      type="text"
+                      value={newSectorData.name}
+                      onChange={(e) => setNewSectorData({ ...newSectorData, name: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      placeholder="Enter sector name"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Image URL
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Description
                       </label>
-                      <input
-                        type="text"
-                        value={formData.image_url}
-                        onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500 dark:focus:ring-red-400"
-                        placeholder="URL for club image"
-                      />
-                    </div>
-                  </div>
+                    <textarea
+                      value={newSectorData.description}
+                      onChange={(e) => setNewSectorData({ ...newSectorData, description: e.target.value })}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      placeholder="Enter sector description"
+                    />
                 </div>
               </div>
 
-              <div className="flex justify-end space-x-3 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex gap-3 mt-6">
                                   <button
-                    onClick={() => {
-                      setIsCreating(false);
-                      setIsEditing(null);
-                      setFormData({
-                        name: '',
-                        description: '',
-                        day: '',
-                        time: '',
-                        location: '',
-                        capacity: '',
-                      teacher: '',
-                      category: '',
-                      difficulty_level: 'Beginner',
-                      requirements: '',
-                      equipment_needed: [],
-                      image_url: ''
-                      });
-                    }}
-                  className="px-4 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    onClick={() => setShowCreateSectorModal(false)}
+                    className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                   >
                     Cancel
                                   </button>
                                   <button
-                    onClick={() => isEditing ? handleUpdate(isEditing) : handleCreate()}
-                  className="px-4 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    onClick={handleCreateSector}
+                    className="flex-1 px-4 py-2 bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all duration-200"
                   >
-                  {isEditing ? 'Update Club' : 'Create Club'}
+                    Create Sector
                                   </button>
+                </div>
               </div>
             </motion.div>
+          </motion.div>
+          )}
+      </AnimatePresence>
+
+      {/* Message Toast */}
+      <AnimatePresence>
+        {message && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 ${
+              message.type === 'success' 
+                ? 'bg-green-500 text-white' 
+                : 'bg-red-500 text-white'
+            }`}
+          >
+            {message.text}
           </motion.div>
           )}
       </AnimatePresence>

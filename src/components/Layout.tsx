@@ -68,6 +68,7 @@ export function Layout() {
   const [isNotificationDropdownOpen, setIsNotificationDropdownOpen] = useState(false);
   const [notificationItems, setNotificationItems] = useState<Array<{ id: string; message: string; created_at: string }>>([]);
   const [totalUnread, setTotalUnread] = useState(0);
+  const [sidebarPages, setSidebarPages] = useState<Array<{ id: string; page_id: string; title: string; order_index: number }>>([]);
 
   const isAdmin = user && (user.role === 'admin' || user.role === 'ultra_admin');
 
@@ -93,6 +94,35 @@ export function Layout() {
       setCurrentClass(null);
     }
   }, [selectedClassId, classes]);
+
+  // Load sidebar pages when current class changes
+  useEffect(() => {
+    if (currentClass) {
+      loadSidebarPages();
+    } else {
+      setSidebarPages([]);
+    }
+  }, [currentClass]);
+
+  const loadSidebarPages = async () => {
+    if (!currentClass) {
+      setSidebarPages([]);
+      return;
+    }
+    
+    try {
+      const { data, error } = await supabase
+        .from('sidebar_pages')
+        .select('*')
+        .eq('class_id', currentClass.id)
+        .order('order_index', { ascending: true });
+
+      if (error) throw error;
+      setSidebarPages(data || []);
+    } catch (error) {
+      console.error('Error loading sidebar pages:', error);
+    }
+  };
 
   // Subscribe to real-time notification changes using Supabase channel API
   useEffect(() => {
@@ -330,6 +360,33 @@ export function Layout() {
             )}
             {isAdmin && (
             <NavLink to="/customize" icon={Palette} label="Customize" />
+            )}
+
+            {/* Sidebar Pages */}
+            {sidebarPages.length > 0 && (
+              <>
+                <div className="pt-4 pb-2">
+                  <div className="px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Custom Pages
+                  </div>
+                </div>
+                {sidebarPages.map((sidebarPage) => (
+                  <Link
+                    key={sidebarPage.id}
+                    to={`/custom-page/${sidebarPage.page_id}`}
+                    className={`group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 ${
+                      isActive(`/custom-page/${sidebarPage.page_id}`)
+                        ? 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400'
+                    }`}
+                  >
+                    <FileText className={`h-5 w-5 mr-3 transition-transform duration-200 group-hover:scale-110 ${
+                      isActive(`/custom-page/${sidebarPage.page_id}`) ? 'text-red-600 dark:text-red-400' : 'text-gray-400 dark:text-gray-500 group-hover:text-red-500 dark:group-hover:text-red-400'
+                    }`} />
+                    <span className="flex-1 truncate">{sidebarPage.title}</span>
+                  </Link>
+                ))}
+              </>
             )}
           </nav>
 

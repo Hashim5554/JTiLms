@@ -171,6 +171,14 @@ export function RecordRoom() {
     test_name: ''
   });
 
+  // Hidden search boxes for form submission
+  const [hiddenSearchBoxes, setHiddenSearchBoxes] = useState({
+    testName: '',
+    marks: '',
+    totalMarks: '',
+    reason: ''
+  });
+
   // New discipline form
   const [newDiscipline, setNewDiscipline] = useState({
     student_id: '',
@@ -196,7 +204,7 @@ export function RecordRoom() {
       loadStudents();
       loadRecords();
     }
-  }, [selectedClass, activeTab]);
+  }, [selectedClass, isAdmin]);
 
   const fetchClassesData = async () => {
     setLoading(true);
@@ -333,8 +341,7 @@ export function RecordRoom() {
         
         if (data) setResults(data);
       } 
-      else if (activeTab === 'schoolAttendance' || activeTab === 'onlineAttendance') {
-        const type = activeTab === 'schoolAttendance' ? 'school' : 'online';
+      else if (activeTab === 'schoolAttendance') {
         
         const { data } = await supabase
           .from('attendance')
@@ -343,7 +350,7 @@ export function RecordRoom() {
             profiles:student_id (username)
           `)
           .eq('class_id', selectedClass)
-          .eq('type', type)
+          .eq('type', 'school')
           .order('date', { ascending: false });
         
         if (data) setAttendances(data);
@@ -418,7 +425,7 @@ export function RecordRoom() {
   const handleAttendanceChange = async (studentId: string, status: 'present' | 'absent' | 'leave') => {
     if (!selectedClass || !currentDate) return;
     
-    const type = activeTab === 'schoolAttendance' ? 'school' : 'online';
+    const type = 'school';
     
     try {
       // Check if attendance record already exists
@@ -585,14 +592,14 @@ export function RecordRoom() {
   );
 
   const StudentAttendanceView = () => {
-    const type = activeTab === 'schoolAttendance' ? 'school' : 'online';
+    const type = 'school';
     const filteredAttendances = attendances.filter(a => a.type === type);
     
     return (
       <div className="bg-theme-secondary shadow-lg rounded-xl overflow-hidden">
         <div className="px-4 py-5 sm:px-6 flex justify-between items-center border-b border-theme-border-primary">
           <h3 className="text-lg leading-6 font-medium text-theme-text-primary">
-            {activeTab === 'schoolAttendance' ? 'School Attendance' : 'Online Course Attendance'}
+            School Attendance
           </h3>
         </div>
         <div className="border-t border-theme-border-primary">
@@ -672,7 +679,7 @@ export function RecordRoom() {
                       {new Date(discipline.date).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                      <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
                         discipline.warning_count >= 3
                           ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200'
                           : discipline.warning_count === 2
@@ -746,6 +753,9 @@ export function RecordRoom() {
                 <th scope="col" className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                   Date
                 </th>
+                <th scope="col" className="px-6 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800">
@@ -793,11 +803,31 @@ export function RecordRoom() {
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
                       {new Date(result.test_date).toLocaleDateString()}
                     </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                      <button
+                        onClick={async () => {
+                          if (window.confirm('Are you sure you want to delete this result?')) {
+                            const { error } = await supabase
+                              .from('results')
+                              .delete()
+                              .eq('id', result.id);
+                            if (error) {
+                              alert('Failed to delete result: ' + error.message);
+                            } else {
+                              setResults(results.filter(r => r.id !== result.id));
+                            }
+                          }
+                        }}
+                        className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                      >
+                        Delete
+                      </button>
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <td colSpan={7} className="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                     <div className="flex flex-col items-center justify-center space-y-2">
                       <FileText className="h-12 w-12 text-gray-400 dark:text-gray-600" />
                       <p>No results found. Add a new result below.</p>
@@ -862,61 +892,128 @@ export function RecordRoom() {
             <label htmlFor="testName" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Test Name
               </label>
-              <input
-                type="text"
-              id="testName"
-                value={newResult.test_name}
-              onKeyDown={(e) => e.stopPropagation()}
-              onChange={(e) => {
-                e.stopPropagation();
-                setNewResult(prev => ({ ...prev, test_name: e.target.value }));
-              }}
-              className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
-              placeholder="Midterm, Final, Quiz, etc."
-              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  id="testName"
+                  value={newResult.test_name}
+                  onChange={(e) => {
+                    setNewResult(prev => ({ ...prev, test_name: e.target.value }));
+                    setHiddenSearchBoxes(prev => ({ ...prev, testName: e.target.value }));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                    }
+                  }}
+                  className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+                  placeholder="Midterm, Final, Quiz, etc."
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const text = await navigator.clipboard.readText();
+                      setNewResult(prev => ({ ...prev, test_name: text }));
+                      setHiddenSearchBoxes(prev => ({ ...prev, testName: text }));
+                    } catch (err) {
+                      console.error('Failed to read clipboard:', err);
+                    }
+                  }}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                  Paste
+                </button>
+              </div>
             </div>
 
             <div>
             <label htmlFor="marks" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Marks Obtained
               </label>
-              <input
-              type="text"
-              id="marks"
-              value={newResult.marks}
-              onKeyDown={(e) => e.stopPropagation()}
-              onChange={(e) => {
-                e.stopPropagation();
-                const value = e.target.value;
-                if (value === '' || /^\d*$/.test(value)) {
-                  setNewResult(prev => ({ ...prev, marks: value }));
-                }
-              }}
-              className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
-              placeholder="85"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  id="marks"
+                  value={newResult.marks}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === '' || /^\d*$/.test(value)) {
+                      setNewResult(prev => ({ ...prev, marks: value }));
+                      setHiddenSearchBoxes(prev => ({ ...prev, marks: value }));
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                    }
+                  }}
+                  className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+                  placeholder="85"
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const text = await navigator.clipboard.readText();
+                      if (text === '' || /^\d*$/.test(text)) {
+                        setNewResult(prev => ({ ...prev, marks: text }));
+                        setHiddenSearchBoxes(prev => ({ ...prev, marks: text }));
+                      }
+                    } catch (err) {
+                      console.error('Failed to read clipboard:', err);
+                    }
+                  }}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                  Paste
+                </button>
+              </div>
             </div>
 
             <div>
             <label htmlFor="totalMarks" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Total Marks
               </label>
-              <input
-              type="text"
-              id="totalMarks"
-              value={newResult.total_marks}
-              onKeyDown={(e) => e.stopPropagation()}
-              onChange={(e) => {
-                e.stopPropagation();
-                const value = e.target.value;
-                if (value === '' || /^\d*$/.test(value)) {
-                  setNewResult(prev => ({ ...prev, total_marks: value }));
-                }
-              }}
-              className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
-              placeholder="100"
-            />
-          </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  id="totalMarks"
+                  value={newResult.total_marks}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === '' || /^\d*$/.test(value)) {
+                      setNewResult(prev => ({ ...prev, total_marks: value }));
+                      setHiddenSearchBoxes(prev => ({ ...prev, totalMarks: value }));
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                    }
+                  }}
+                  className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+                  placeholder="100"
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const text = await navigator.clipboard.readText();
+                      if (text === '' || /^\d*$/.test(text)) {
+                        setNewResult(prev => ({ ...prev, total_marks: text }));
+                        setHiddenSearchBoxes(prev => ({ ...prev, totalMarks: text }));
+                      }
+                    } catch (err) {
+                      console.error('Failed to read clipboard:', err);
+                    }
+                  }}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                  Paste
+                </button>
+              </div>
+            </div>
           
             <div>
             <label htmlFor="grade" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -969,7 +1066,7 @@ export function RecordRoom() {
   );
 
   const AdminAttendanceView = () => {
-    const type = activeTab === 'schoolAttendance' ? 'school' : 'online';
+    const type = 'school';
     
     return (
       <div className="space-y-6">
@@ -977,12 +1074,10 @@ export function RecordRoom() {
         <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
           <div>
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {activeTab === 'schoolAttendance' ? 'School Attendance' : 'Online Course Attendance'}
+              School Attendance
             </h2>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {activeTab === 'schoolAttendance' 
-                ? 'Track student attendance in physical classes' 
-                : 'Monitor student participation in online courses'}
+              Track student attendance in physical classes
             </p>
           </div>
           <div className="flex items-center space-x-3">
@@ -1196,6 +1291,26 @@ export function RecordRoom() {
                     <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
                       {new Date(discipline.date).toLocaleDateString()}
                     </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                      <button
+                        onClick={async () => {
+                          if (window.confirm('Are you sure you want to delete this discipline record?')) {
+                            const { error } = await supabase
+                              .from('discipline')
+                              .delete()
+                              .eq('id', discipline.id);
+                            if (error) {
+                              alert('Failed to delete discipline record: ' + error.message);
+                            } else {
+                              setDisciplines(disciplines.filter(d => d.id !== discipline.id));
+                            }
+                          }
+                        }}
+                        className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                      >
+                        Delete
+                      </button>
+                    </td>
                   </tr>
                 ))
               ) : (
@@ -1275,18 +1390,39 @@ export function RecordRoom() {
             <label htmlFor="reason" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Reason
             </label>
-            <textarea
-              id="reason"
-              value={newDiscipline.reason}
-              onKeyDown={(e) => e.stopPropagation()}
-              onChange={(e) => {
-                e.stopPropagation();
-                setNewDiscipline(prev => ({ ...prev, reason: e.target.value }));
-              }}
-              rows={3}
-              className="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
-              placeholder="Describe the incident..."
-            />
+            <div className="flex gap-2">
+              <textarea
+                id="reason"
+                value={newDiscipline.reason}
+                onChange={(e) => {
+                  setNewDiscipline(prev => ({ ...prev, reason: e.target.value }));
+                  setHiddenSearchBoxes(prev => ({ ...prev, reason: e.target.value }));
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                  }
+                }}
+                rows={3}
+                className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:outline-none focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+                placeholder="Describe the incident..."
+              />
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const text = await navigator.clipboard.readText();
+                    setNewDiscipline(prev => ({ ...prev, reason: text }));
+                    setHiddenSearchBoxes(prev => ({ ...prev, reason: text }));
+                  } catch (err) {
+                    console.error('Failed to read clipboard:', err);
+                  }
+                }}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 self-start"
+              >
+                Paste
+              </button>
+            </div>
           </div>
           
           <div className="sm:col-span-2">
@@ -1363,17 +1499,6 @@ export function RecordRoom() {
               School
           </button>
           <button
-            onClick={() => setActiveTab('onlineAttendance')}
-              className={`flex items-center rounded-md px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-colors ${
-              activeTab === 'onlineAttendance'
-                  ? 'bg-red-600 text-white'
-                  : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700'
-            }`}
-          >
-              <Video className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-              Online
-          </button>
-          <button
             onClick={() => setActiveTab('discipline')}
               className={`flex items-center rounded-md px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-colors ${
               activeTab === 'discipline'
@@ -1404,7 +1529,7 @@ export function RecordRoom() {
                 <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3 w-3 sm:h-4 sm:w-4 -translate-y-1/2 text-gray-400" />
             </div>
 
-              {activeTab === 'schoolAttendance' || activeTab === 'onlineAttendance' ? (
+              {activeTab === 'schoolAttendance' ? (
                 <div className="relative w-full sm:w-auto">
                   <input
                     type="date"
@@ -1425,7 +1550,6 @@ export function RecordRoom() {
               {/* Student views */}
               {activeTab === 'results' && <StudentResultsView />}
               {activeTab === 'schoolAttendance' && <StudentAttendanceView />}
-              {activeTab === 'onlineAttendance' && <StudentAttendanceView />}
               {activeTab === 'discipline' && <StudentDisciplineView />}
             </>
           ) : (
@@ -1441,7 +1565,6 @@ export function RecordRoom() {
         <>
                   {activeTab === 'results' && <AdminResultsView />}
                   {activeTab === 'schoolAttendance' && <AdminAttendanceView />}
-                  {activeTab === 'onlineAttendance' && <AdminAttendanceView />}
                   {activeTab === 'discipline' && <AdminDisciplineView />}
                 </>
               )}

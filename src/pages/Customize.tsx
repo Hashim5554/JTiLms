@@ -9,6 +9,50 @@ import {
 } from 'lucide-react';
 import type { Class } from '../types';
 
+// Define layoutStarterContent mapping at the top of the file
+const layoutStarterContent: Record<string, any[]> = {
+  standard: [
+    { id: '1', title: 'Welcome', body: 'Welcome to your new page! This is a standard layout. Start adding your content here.', docs: [] }
+  ],
+  grid: [
+    { id: '1', title: 'Grid Item 1', body: 'This is the first grid item. Add your content here.', docs: [] },
+    { id: '2', title: 'Grid Item 2', body: 'This is the second grid item. Add your content here.', docs: [] },
+    { id: '3', title: 'Grid Item 3', body: 'This is the third grid item. Add your content here.', docs: [] },
+    { id: '4', title: 'Grid Item 4', body: 'This is the fourth grid item. Add your content here.', docs: [] }
+  ],
+  list: [
+    { id: '1', title: 'List Item 1', body: 'This is the first list item. Add your content here.', docs: [] },
+    { id: '2', title: 'List Item 2', body: 'This is the second list item. Add your content here.', docs: [] },
+    { id: '3', title: 'List Item 3', body: 'This is the third list item. Add your content here.', docs: [] }
+  ],
+  'columns-2': [
+    { id: '1', title: 'Left Column', body: 'This is the left column content. Add your content here.', docs: [] },
+    { id: '2', title: 'Right Column', body: 'This is the right column content. Add your content here.', docs: [] }
+  ],
+  'columns-3': [
+    { id: '1', title: 'Column 1', body: 'This is the first column content. Add your content here.', docs: [] },
+    { id: '2', title: 'Column 2', body: 'This is the second column content. Add your content here.', docs: [] },
+    { id: '3', title: 'Column 3', body: 'This is the third column content. Add your content here.', docs: [] }
+  ],
+  'left-sidebar': [
+    { id: '1', title: 'Sidebar', body: 'This is the sidebar content. Add navigation or quick links here.', docs: [] },
+    { id: '2', title: 'Main Content', body: 'This is the main content area. Add your primary content here.', docs: [] }
+  ],
+  'right-sidebar': [
+    { id: '1', title: 'Main Content', body: 'This is the main content area. Add your primary content here.', docs: [] },
+    { id: '2', title: 'Sidebar', body: 'This is the sidebar content. Add navigation or quick links here.', docs: [] }
+  ],
+  hero: [
+    { id: '1', title: 'Hero Section', body: 'This is your hero section. Add a compelling headline and description here to grab attention.', docs: [] },
+    { id: '2', title: 'Content Section', body: 'This is the main content section. Add your detailed content here.', docs: [] }
+  ],
+  masonry: [
+    { id: '1', title: 'Masonry Block 1', body: 'This is the first masonry block. Add your content here.', docs: [] },
+    { id: '2', title: 'Masonry Block 2', body: 'This is the second masonry block. Add your content here.', docs: [] },
+    { id: '3', title: 'Masonry Block 3', body: 'This is the third masonry block. Add your content here.', docs: [] }
+  ],
+};
+
 // --- Layout and Theme Options ---
 const layoutOptions = [
   { id: 'standard', name: 'Standard', icon: <Layout className="w-5 h-5" />, preview: <div className="h-10 w-16 bg-gradient-to-br from-gray-200 to-gray-400 rounded-lg mx-auto" /> },
@@ -67,6 +111,7 @@ export function Customize() {
     class_id: '',
     layout: 'standard',
     theme: 'default',
+    content: layoutStarterContent['standard'], // Now stores JSON array
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'title' | 'updated_at'>('updated_at');
@@ -110,12 +155,13 @@ export function Customize() {
   });
   
   // --- Handlers ---
+  // Update handleTitleChange to also update content if layout changes
   const handleTitleChange = (title: string) => {
-    setNewPage({
-      ...newPage,
+    setNewPage(prev => ({
+      ...prev,
       title,
       path: title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
-    });
+    }));
   };
   const handleCreatePage = async () => {
     if (!user) return;
@@ -130,7 +176,7 @@ export function Customize() {
           title: newPage.title.trim(),
           path: newPage.path.trim(),
           class_id: newPage.class_id || null,
-          content: '',
+          content: JSON.stringify(newPage.content || []), // Store as JSON string
           config: { layout: newPage.layout, theme: newPage.theme },
         }])
         .select()
@@ -138,7 +184,7 @@ export function Customize() {
       if (error) throw error;
       setPages([...pages, data]);
       setShowCreateModal(false);
-      setNewPage({ title: '', path: '', class_id: '', layout: 'standard', theme: 'default' });
+      setNewPage({ title: '', path: '', class_id: '', layout: 'standard', theme: 'default', content: layoutStarterContent['standard'] });
       setSuccess('Page created successfully!');
       setTimeout(() => setSuccess(null), 3000);
       navigate(`/custom/${data.path}`);
@@ -196,8 +242,11 @@ export function Customize() {
     }
   }, [classDropdownOpen]);
   
+  // Check if user is admin for admin functions
+  const isAdmin = user?.role === 'ultra_admin' || user?.role === 'admin';
+  
   // --- Access Denied ---
-  if (user?.role !== 'ultra_admin' && user?.role !== 'admin') {
+  if (!isAdmin) {
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-screen flex items-center justify-center">
         <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', stiffness: 300, damping: 20 }} className="text-center p-8 rounded-2xl shadow-lg bg-white dark:bg-gray-800 max-w-md">
@@ -232,7 +281,7 @@ export function Customize() {
                 <p className="text-lg text-white/80 text-center max-w-2xl mb-6">Create beautiful, interactive custom pages for your LMS. Assign them to all classes or specific classes, and choose from a variety of layouts and themes. All with stunning 3D and animated effects.</p>
                 <motion.button whileHover={{ scale: 1.07, rotate: 2 }} whileTap={{ scale: 0.97 }} onClick={() => setShowCreateModal(true)} className="inline-flex items-center gap-2 px-8 py-4 bg-white/90 text-red-700 rounded-2xl font-bold text-lg shadow-lg hover:bg-white/100 transition-all">
                   <Plus className="w-6 h-6" /> Create New Page
-              </motion.button>
+                </motion.button>
             </div>
           </motion.div>
         </div>
@@ -364,12 +413,46 @@ export function Customize() {
                     <label className="block text-sm text-gray-700 dark:text-gray-200 font-medium mb-1">Layout</label>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                       {layoutOptions.map(opt => (
-                        <motion.button key={opt.id} type="button" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.97 }} onClick={() => { setNewPage({ ...newPage, layout: opt.id }); setLayoutPreview(opt.id); }} className={`flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all ${newPage.layout === opt.id ? 'border-red-500 bg-red-50 dark:bg-red-900/30' : 'border-transparent bg-white/80 dark:bg-gray-800/80'}` } aria-pressed={newPage.layout === opt.id} aria-label={opt.name}>
+                        <motion.button
+                          key={opt.id}
+                          type="button"
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.97 }}
+                          onClick={() => {
+                            setNewPage(prev => ({
+                              ...prev,
+                              layout: opt.id,
+                              content: layoutStarterContent[opt.id] || [],
+                            }));
+                            setLayoutPreview(opt.id);
+                          }}
+                          className={`flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all ${newPage.layout === opt.id ? 'border-red-500 bg-red-50 dark:bg-red-900/30' : 'border-transparent bg-white/80 dark:bg-gray-800/80'}`}
+                          aria-pressed={newPage.layout === opt.id}
+                          aria-label={opt.name}
+                        >
                           {opt.icon}
                           <span className="text-xs font-medium text-gray-700 dark:text-gray-200">{opt.name}</span>
                           <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: newPage.layout === opt.id ? 1 : 0.5, scale: newPage.layout === opt.id ? 1.1 : 0.9 }} className="mt-1">{opt.preview}</motion.div>
+                          <span className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">{getLayoutDescription(opt.id)}</span>
                         </motion.button>
                       ))}
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <label className="block text-sm text-gray-700 dark:text-gray-200 font-medium mb-1">Live Preview</label>
+                    <div className="border rounded-xl p-4 bg-gray-50 dark:bg-gray-800 min-h-[120px] max-h-[200px] overflow-y-auto">
+                      {Array.isArray(newPage.content) ? (
+                        <div className="space-y-2">
+                          {newPage.content.map((block, idx) => (
+                            <div key={idx} className="p-2 bg-white dark:bg-gray-700 rounded border">
+                              <div className="font-medium text-sm">{block.title}</div>
+                              <div className="text-xs text-gray-600 dark:text-gray-300 truncate">{block.body}</div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-gray-500 dark:text-gray-400 text-sm">No preview available</div>
+                      )}
                     </div>
                   </div>
                   <div>
@@ -414,3 +497,19 @@ export function Customize() {
 }
 
 export default Customize;
+
+// Add this helper function for layout descriptions
+function getLayoutDescription(layoutId: string): string {
+  switch (layoutId) {
+    case 'standard': return 'A simple, flexible page.';
+    case 'grid': return 'A grid of content blocks.';
+    case 'list': return 'A vertical list of items.';
+    case 'columns-2': return 'Two side-by-side columns.';
+    case 'columns-3': return 'Three columns for more content.';
+    case 'left-sidebar': return 'Sidebar on the left, content on the right.';
+    case 'right-sidebar': return 'Content on the left, sidebar on the right.';
+    case 'hero': return 'A large hero section at the top.';
+    case 'masonry': return 'Masonry-style blocks.';
+    default: return '';
+  }
+}

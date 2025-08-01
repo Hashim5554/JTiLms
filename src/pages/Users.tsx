@@ -109,6 +109,29 @@ export function Users() {
 
   // Add new state for add user modal
   const [showAddUserModal, setShowAddUserModal] = useState(false);
+  // Add state for the new modal
+  const [showDirectAddUserModal, setShowDirectAddUserModal] = useState(false);
+  const [directNewUser, setDirectNewUser] = useState({
+    email: '',
+    username: '',
+    role: 'student' as UserRole,
+    selectedClass: ''
+  });
+  const [directAddLoading, setDirectAddLoading] = useState(false);
+  const [directAddError, setDirectAddError] = useState<string | null>(null);
+  const [directAddSuccess, setDirectAddSuccess] = useState<string | null>(null);
+
+  // Add new state for Google account search
+  const [oauthUser, setOauthUser] = useState<any>(null);
+  const [oauthProfile, setOauthProfile] = useState({
+    email: '',
+    username: '',
+    role: 'student' as UserRole,
+    selectedClass: ''
+  });
+  const [oauthAddLoading, setOauthAddLoading] = useState(false);
+  const [oauthAddError, setOauthAddError] = useState<string | null>(null);
+  const [oauthAddSuccess, setOauthAddSuccess] = useState<string | null>(null);
 
   // Load initial data
   useEffect(() => {
@@ -134,6 +157,7 @@ export function Users() {
   };
 
   const loadUsers = async () => {
+    console.log('Loading users...');
     setLoading(true);
     try {
       // Get profiles
@@ -141,7 +165,12 @@ export function Users() {
       .from('profiles')
         .select('*');
         
-      if (profilesError) throw profilesError;
+      if (profilesError) {
+        console.error('Error loading profiles:', profilesError);
+        throw profilesError;
+      }
+      
+      console.log('Profiles loaded:', profiles?.length || 0);
       
       // Get class assignments
       const { data: classAssignments, error: classAssignmentsError } = await supabase
@@ -151,6 +180,8 @@ export function Users() {
       if (classAssignmentsError) {
         console.error('Error loading class assignments:', classAssignmentsError);
         // Continue with profiles even if class assignments fail
+      } else {
+        console.log('Class assignments loaded:', classAssignments?.length || 0);
       }
       
       // Get classes
@@ -161,6 +192,8 @@ export function Users() {
       if (classesError) {
         console.error('Error loading classes:', classesError);
         // Continue with profiles even if classes fail
+      } else {
+        console.log('Classes loaded:', classes?.length || 0);
       }
       
       // Create a map of user IDs to their class assignments
@@ -174,6 +207,8 @@ export function Users() {
           userClassAssignmentsMap.get(userId).push(assignment);
         });
       }
+      
+      console.log('User class assignments map created:', userClassAssignmentsMap.size);
       
       // Create a map of class IDs to class objects for quick lookup
       const newClassesMap = new Map();
@@ -210,12 +245,17 @@ export function Users() {
         } as ExtendedProfile;
       }) || [];
       
+      console.log('Users with assignments processed:', usersWithAssignments.length);
+      console.log('Pending users:', usersWithAssignments.filter(u => u.role === 'pending').length);
+      console.log('Active users:', usersWithAssignments.filter(u => u.role !== 'pending').length);
+      
       setUsers(usersWithAssignments);
     } catch (error: any) {
       console.error('Error loading users:', error);
       setError(error.message || 'Failed to load users');
     } finally {
       setLoading(false);
+      console.log('Load users completed');
     }
   };
 
@@ -622,6 +662,8 @@ export function Users() {
   const handleEditUserClasses = async (userId: string, newClasses: string[]) => {
     setLoading(true);
     try {
+      console.log('Updating user classes:', { userId, newClasses });
+      
       // First, remove all existing class assignments
       const { error: deleteError } = await supabase
           .from('class_assignments')
@@ -644,6 +686,7 @@ export function Users() {
         if (insertError) throw insertError;
       }
 
+      console.log('User classes updated successfully');
       setSuccess('User classes updated successfully');
       await loadUsers();
       setIsEditModalOpen(false);
@@ -665,6 +708,33 @@ export function Users() {
       if (!classObj) return '';
       return `${classObj.grade}-${classObj.section}`;
     }).filter(Boolean).join(', ');
+  };
+
+  // Handler for Add User button
+  const handleAdminAddUser = async () => {
+    console.log('Starting admin add user process...');
+    const { data, error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
+    if (error) {
+      console.error('OAuth error:', error);
+      setOauthAddError(error.message);
+      return;
+    }
+    // Wait for OAuth to complete and session to be updated
+    // You may need to listen for onAuthStateChange or poll for session
+    // For now, assume the session is updated and user is available
+    const sessionResult = await supabase.auth.getSession();
+    const sessionUser = sessionResult?.data?.session?.user;
+    if (sessionUser) {
+      console.log('OAuth user obtained:', sessionUser);
+      setOauthUser(sessionUser);
+      setOauthProfile({
+        email: sessionUser.email || '',
+        username: '',
+        role: 'student',
+        selectedClass: ''
+      });
+      setShowDirectAddUserModal(true);
+    }
   };
 
   if (user?.role !== 'admin' && user?.role !== 'ultra_admin') {
@@ -712,7 +782,7 @@ export function Users() {
             className="button-primary flex items-center gap-2 text-sm sm:text-base px-3 sm:px-4 py-2 sm:py-2.5"
           >
             <UserPlus className="w-4 h-4 sm:w-5 sm:h-5" />
-            Add User
+            Waitlist
           </motion.button>
         </div>
       </motion.div>
@@ -927,178 +997,79 @@ export function Users() {
             </button>
 
               <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-4 sm:mb-6">
-                Add User to System
+                Waitlist (Pending Users)
               </h2>
 
-              <div className="space-y-3 sm:space-y-4">
-                {/* Search for existing Google accounts */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
-                    Search Google Account
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2">
-                      {/* Gmail SVG icon */}
-                      <svg className="w-5 h-5 text-red-500" viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
-                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 1.99 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                        <path d="M1 1h22v22H1z" fill="none" />
-                      </svg>
-                    </span>
-                    <input
-                      type="email"
-                      value={searchEmail}
-                      onChange={(e) => {
-                        setSearchEmail(e.target.value);
-                        searchGoogleAccounts(e.target.value);
-                      }}
-                      className="w-full pl-11 sm:pl-12 pr-3 sm:pr-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-sm sm:text-base"
-                      placeholder="Search by email address..."
-                    />
-                    {isSearching && (
-                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-500"></div>
-                      </div>
-                    )}
-                  </div>
-                  {/* Search results */}
-                  {searchResults.length > 0 && (
-                    <div className="mt-2 max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg bg-white dark:bg-gray-900">
-                      {searchResults.map((result, index) => (
-                        <button
-                          key={index}
-                          onClick={() => {
-                            setNewUser({
-                              ...newUser,
-                              email: result.email,
-                              username: result.username || result.email.split('@')[0],
-                              role: result.role || 'student'
-                            });
-                            setSearchEmail(result.email);
-                            setSearchResults([]);
-                          }}
-                          className="w-full flex items-center gap-3 px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-left text-sm border-b border-gray-100 dark:border-gray-600 last:border-b-0 transition-colors group"
-                        >
-                          <span className="flex-shrink-0">
-                            {/* Gmail SVG icon */}
-                            <svg className="w-5 h-5 text-red-500" viewBox="0 0 24 24" aria-hidden="true">
-                              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
-                              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 1.99 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                              <path d="M1 1h22v22H1z" fill="none" />
-                            </svg>
-                          </span>
-                          <span className="flex flex-col min-w-0">
-                            <span className="font-medium truncate">{result.email}</span>
-                            <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                              {result.username ? `Username: ${result.username}` : 'No username set'} • {result.role || 'No role'}
-                            </span>
-                            {result.role && (
-                              <span className="text-xs text-blue-500 dark:text-blue-400">
-                                Already in system - will update role
-                              </span>
-                            )}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {searchError && (
-                    <p className="text-red-500 text-xs mt-1">{searchError}</p>
-                  )}
-                </div>
-
-                {/* Manual email entry */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
-                    Email (or enter manually)
-                  </label>
-                  <input
-                    type="email"
-                    value={newUser.email}
-                    onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                    className="w-full px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-sm sm:text-base"
-                    placeholder="Enter email address"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
-                    Username
-                  </label>
-                  <input
-                    type="text"
-                    value={newUser.username}
-                    onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
-                    className="w-full px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-sm sm:text-base"
-                    placeholder="Enter username"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
-                      Role
-                    </label>
-                      <select
-                    value={newUser.role}
-                        onChange={(e) => setNewUser({ ...newUser, role: e.target.value as UserRole })}
-                    className="w-full px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-sm sm:text-base"
-                      >
-                        <option value="student">Student</option>
-                        <option value="teacher">Teacher</option>
-                    <option value="admin">Admin</option>
-                      </select>
-                </div>
-
-                {newUser.role === 'student' && (
-                  <div>
-                    <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
-                      Class
-                      </label>
-                    <div className="relative">
-                      <button
-                        onClick={() => setShowClassSelect(!showClassSelect)}
-                        className="w-full px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-sm sm:text-base flex items-center justify-between"
-                      >
-                        <span>{selectedClass ? `${selectedClass.grade}-${selectedClass.section}` : 'Select a class'}</span>
-                        <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5" />
-                      </button>
-                      {showClassSelect && (
-                        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 max-h-48 overflow-y-auto">
-                          {classes.map((classItem) => (
-                        <button
-                              key={classItem.id}
-                              onClick={() => {
-                                setSelectedClass(classItem);
-                                setShowClassSelect(false);
-                              }}
-                              className="w-full px-3 sm:px-4 py-2 sm:py-2.5 text-left hover:bg-gray-100 dark:hover:bg-gray-700 text-sm sm:text-base"
-                        >
-                              {classItem.grade}-{classItem.section}
-                        </button>
-                          ))}
-                      </div>
-                    )}
-                  </div>
-              </div>
+              <div className="space-y-3">
+                {pendingUsers.length === 0 && (
+                  <div className="text-gray-500 dark:text-gray-400 text-center py-8">No users are currently on the waitlist.</div>
                 )}
-
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                    onClick={handleAddUser}
-                    disabled={!isFormValid}
-                  className={`w-full mt-4 sm:mt-6 py-2.5 sm:py-3 rounded-lg sm:rounded-xl bg-gradient-to-r from-primary-500 to-primary-600 text-white font-semibold text-sm sm:text-base shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 ${
-                    !isFormValid ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
-                  >
-                  <UserPlus className="w-4 h-4 sm:w-5 sm:h-5" />
-                  {loading ? 'Adding User...' : 'Add User to System'}
-                </motion.button>
+                {pendingUsers.map((pendingUser) => (
+                  <div key={pendingUser.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4 bg-white dark:bg-gray-800 rounded-lg sm:rounded-xl p-3 sm:p-4 shadow">
+                    <div className="flex items-center gap-3">
+                      <User className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+                      <div>
+                        <div className="font-semibold text-gray-900 dark:text-white">{pendingUser.username || '(No name set)'}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{pendingUser.email}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Class: {getClassString(pendingUser) || '(No class set)'}</div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => {
+                          setEditingUser(pendingUser);
+                          setEditingUserClasses(pendingUser.class_assignments?.map(ca => ca.class_id) || []);
+                          setIsEditModalOpen(true);
+                          setShowAddUserModal(false);
+                        }}
+                        className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white font-semibold text-sm shadow"
+                      >
+                        Approve
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={async () => {
+                          console.log('Rejecting user:', pendingUser.id);
+                          setLoading(true);
+                          try {
+                            // Use the new database function for proper deletion
+                            const { data, error } = await supabase.rpc('delete_user_complete', { 
+                              user_id: pendingUser.id 
+                            });
+                            
+                            if (error) {
+                              console.error('Delete user error:', error);
+                              throw error;
+                            }
+                            
+                            console.log('User deleted successfully:', data);
+                            setSuccess('User rejected and deleted.');
+                            await loadUsers();
+                            // Check if the user is still present in the waitlist
+                            const stillPending = users.find(u => u.id === pendingUser.id && u.role === 'pending');
+                            if (stillPending) {
+                              setError('Warning: The rejected user is still visible in the waitlist. Please refresh.');
+                              console.warn('Rejected user still present in waitlist:', pendingUser.id);
+                            } else {
+                              console.log('Rejected user is not present in waitlist.');
+                            }
+                          } catch (err: any) {
+                            console.error('Failed to reject user:', err);
+                            setError(err.message || 'Failed to reject user.');
+                          } finally {
+                            setLoading(false);
+                          }
+                        }}
+                        className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold text-sm shadow"
+                      >
+                        Reject
+                      </motion.button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </motion.div>
           </motion.div>
@@ -1198,15 +1169,205 @@ export function Users() {
                   >
                     Cancel
                 </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                {editingUser.role === 'pending' ? (
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={async () => {
+                      if (!editingUser) return;
+                      console.log('Approving user:', { userId: editingUser.id, role: newUser.role, classId: editingUserClasses[0] });
+                      setLoading(true);
+                      try {
+                        // Use the new database function for proper approval
+                        const { data, error } = await supabase.rpc('approve_user', {
+                          user_id: editingUser.id,
+                          new_role: newUser.role || 'student',
+                          class_id: editingUserClasses[0] || null
+                        });
+                        
+                        if (error) {
+                          console.error('Approve user error:', error);
+                          throw error;
+                        }
+                        
+                        console.log('User approved successfully:', data);
+                        setSuccess('User approved and activated!');
+                        setIsEditModalOpen(false);
+                        setEditingUser(null);
+                        setEditingUserClasses([]);
+                        
+                        // Refresh users list
+                        await loadUsers();
+                        // Check if the user is present in the users list
+                        const approvedUser = users.find(u => u.id === editingUser.id);
+                        if (!approvedUser) {
+                          setError('Warning: The approved user is not visible in the users list. Please refresh or check class assignment.');
+                          console.warn('Approved user not found in users list after approval:', editingUser.id);
+                        } else {
+                          console.log('Approved user is present in users list:', approvedUser);
+                        }
+                        // If the approved user is the current user, force reload
+                        if (user?.id === editingUser.id) {
+                          console.log('Current user was approved, reloading...');
+                          window.location.reload();
+                        }
+                      } catch (err: any) {
+                        console.error('Failed to approve user:', err);
+                        setError(err.message || 'Failed to approve user.');
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                    className="px-4 sm:px-6 py-2 sm:py-2.5 rounded-lg sm:rounded-xl bg-green-600 hover:bg-green-700 text-white font-medium text-sm sm:text-base shadow-lg hover:shadow-xl transition-all"
+                  >
+                    Approve & Activate
+                  </motion.button>
+                ) : (
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                     onClick={() => handleEditUserClasses(editingUser.id, editingUserClasses)}
-                  className="px-4 sm:px-6 py-2 sm:py-2.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-primary-500 to-primary-600 text-white font-medium text-sm sm:text-base shadow-lg hover:shadow-xl transition-all"
+                    className="px-4 sm:px-6 py-2 sm:py-2.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-primary-500 to-primary-600 text-white font-medium text-sm sm:text-base shadow-lg hover:shadow-xl transition-all"
                   >
                     Save Changes
-                    </motion.button>
-    </div>
+                  </motion.button>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Add User Modal */}
+      <AnimatePresence>
+        {showDirectAddUserModal && oauthUser && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ type: "spring", stiffness: 200, damping: 20 }}
+              className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-2xl w-full max-w-lg p-4 sm:p-6 relative"
+            >
+              <button
+                onClick={() => { setShowDirectAddUserModal(false); setOauthUser(null); }}
+                className="absolute top-3 sm:top-4 right-3 sm:right-4 p-1.5 sm:p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <X className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 dark:text-gray-400" />
+              </button>
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-4 sm:mb-6">
+                Add User Details
+              </h2>
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setOauthAddLoading(true);
+                  setOauthAddError(null);
+                  setOauthAddSuccess(null);
+                  try {
+                    // Update/create profile
+                    await supabase.from('profiles').upsert({
+                      id: oauthUser.id,
+                      email: oauthUser.email,
+                      username: oauthProfile.username,
+                      role: oauthProfile.role,
+                      updated_at: new Date().toISOString()
+                    });
+                    // Remove old class assignments
+                    await supabase.from('class_assignments').delete().eq('user_id', oauthUser.id);
+                    // Add new assignment if class selected
+                    if (oauthProfile.selectedClass) {
+                      await supabase.from('class_assignments').insert([
+                        { user_id: oauthUser.id, class_id: oauthProfile.selectedClass }
+                      ]);
+                    }
+                    setOauthAddSuccess('User added successfully!');
+                    setTimeout(() => {
+                      loadUsers();
+                      setShowDirectAddUserModal(false);
+                      setOauthUser(null);
+                      setOauthProfile({ email: '', username: '', role: 'student', selectedClass: '' });
+                      setOauthAddError(null);
+                      setOauthAddSuccess(null);
+                    }, 1000);
+                  } catch (error: any) {
+                    setOauthAddError(error.message || 'Failed to add user');
+                  } finally {
+                    setOauthAddLoading(false);
+                  }
+                }}
+                className="space-y-4"
+              >
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={oauthUser.email}
+                    disabled
+                    className="w-full px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-sm sm:text-base"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
+                    Name
+                  </label>
+                  <input
+                    type="text"
+                    value={oauthProfile.username}
+                    onChange={e => setOauthProfile({ ...oauthProfile, username: e.target.value })}
+                    className="w-full px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-sm sm:text-base"
+                    placeholder="Enter name"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
+                    Role
+                  </label>
+                  <select
+                    value={oauthProfile.role}
+                    onChange={e => setOauthProfile({ ...oauthProfile, role: e.target.value as UserRole })}
+                    className="w-full px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-sm sm:text-base"
+                    required
+                  >
+                    <option value="student">Student</option>
+                    <option value="teacher">Teacher</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2">
+                    Class (for students)
+                  </label>
+                  <select
+                    value={oauthProfile.selectedClass}
+                    onChange={e => setOauthProfile({ ...oauthProfile, selectedClass: e.target.value })}
+                    className="w-full px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-sm sm:text-base"
+                    disabled={oauthProfile.role !== 'student'}
+                  >
+                    <option value="">Select a class</option>
+                    {classes.map(cls => (
+                      <option key={cls.id} value={cls.id}>{cls.grade || ''}-{cls.section || ''}</option>
+                    ))}
+                  </select>
+                </div>
+                {oauthAddError && <div className="text-red-600 dark:text-red-400">{oauthAddError}</div>}
+                {oauthAddSuccess && <div className="text-green-600 dark:text-green-400">{oauthAddSuccess}</div>}
+                <button
+                  type="submit"
+                  disabled={oauthAddLoading}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {oauthAddLoading ? 'Adding...' : 'Add User'}
+                </button>
+              </form>
             </motion.div>
           </motion.div>
         )}

@@ -4,13 +4,20 @@ import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/auth';
 import type { Class } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Edit2, Save, X, Loader2, FileText, AlertCircle, Check } from 'lucide-react';
+import { Edit2, Save, X, Loader2, FileText, AlertCircle, Check, Plus, Trash2, UploadCloud, BookOpen, BookOpenCheck } from 'lucide-react';
+import CustomPageRenderer from '../components/pageComponents/CustomPageRenderer';
+import type { CustomCardProps } from '../components/pageComponents/CustomCard';
 
 interface CustomPageData {
   id: string;
   title: string;
   content: string;
   class_id: string;
+  config: {
+    layout: string;
+    theme: string;
+    [key: string]: any;
+  };
 }
 
 interface ContextType {
@@ -22,20 +29,39 @@ export function CustomPage() {
   const { path } = useParams();
   const { currentClass } = useOutletContext<ContextType>();
   const [page, setPage] = useState<CustomPageData | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editContent, setEditContent] = useState('');
+  const [blocks, setBlocks] = useState<CustomCardProps[]>([]);
+  const [editingBlock, setEditingBlock] = useState<number | null>(null);
+  const [editBlockData, setEditBlockData] = useState<CustomCardProps>({ title: '', body: '', docs: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [uploading, setUploading] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [showBlockTypeSelector, setShowBlockTypeSelector] = useState(false);
+  const [isInSidebar, setIsInSidebar] = useState(false);
+  const [sidebarLoading, setSidebarLoading] = useState(false);
   const user = useAuthStore((state) => state.user);
 
+  const isAdmin = user?.role === 'ultra_admin' || user?.role === 'admin';
+
+  useEffect(() => { 
+    loadPage(); 
+  }, [path]);
+
+  // Check sidebar status when currentClass becomes available
   useEffect(() => {
-    loadPage();
-  }, [path, currentClass]);
+    if (page && currentClass) {
+      checkSidebarStatus(page.id);
+    }
+  }, [currentClass, page]);
 
   const loadPage = async () => {
-    if (!path) return;
+    if (!path) {
+      console.log('No path provided');
+      return;
+    }
     
+    console.log('Loading page with path:', path);
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -44,32 +70,109 @@ export function CustomPage() {
         .eq('path', path)
         .single();
       
+      console.log('Query result:', { data, error });
+      
       if (error) throw error;
+
       if (data) {
         setPage(data);
-        setEditContent(data.content || '');
+        try {
+          const parsedContent = JSON.parse(data.content || '[]');
+          setBlocks(Array.isArray(parsedContent) ? parsedContent : []);
+        } catch {
+          setBlocks([]);
+        }
+        
+        // Check if page is in sidebar for current class (if available)
+        if (currentClass) {
+          checkSidebarStatus(data.id);
+        }
       }
     } catch (error: any) {
       console.error('Error loading page:', error);
       setError(error.message);
+      setTimeout(() => setError(null), 3000);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSave = async () => {
+  const checkSidebarStatus = async (pageId: string) => {
+    if (!currentClass) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('sidebar_pages')
+        .select('*')
+        .eq('page_id', pageId)
+        .eq('class_id', currentClass.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
+        console.error('Error checking sidebar status:', error);
+        return;
+      }
+
+      setIsInSidebar(!!data);
+    } catch (error) {
+      console.error('Error checking sidebar status:', error);
+    }
+  };
+
+  const handleSidebarToggle = async () => {
+    if (!page || !currentClass || sidebarLoading) return;
+    
+    setSidebarLoading(true);
+    try {
+      if (isInSidebar) {
+        // Remove from sidebar
+        const { error } = await supabase
+          .from('sidebar_pages')
+          .delete()
+          .eq('page_id', page.id)
+          .eq('class_id', currentClass.id);
+
+        if (error) throw error;
+        setIsInSidebar(false);
+        setSuccess('Page removed from sidebar!');
+      } else {
+        // Add to sidebar
+        const { data, error } = await supabase
+          .from('sidebar_pages')
+          .insert({
+            page_id: page.id,
+            class_id: currentClass.id,
+            title: page.title,
+            order_index: 999 // Add at the end
+          })
+          .select();
+
+        if (error) throw error;
+        setIsInSidebar(true);
+        setSuccess('Page added to sidebar!');
+      }
+    } catch (error: any) {
+      console.error('Sidebar toggle error:', error);
+      setError(error.message);
+    } finally {
+      setSidebarLoading(false);
+      setTimeout(() => setSuccess(null), 3000);
+      setTimeout(() => setError(null), 3000);
+    }
+  };
+
+  const handleSavePage = async () => {
     if (!page) return;
 
-    setLoading(true);
+    setSaving(true);
     try {
       const { error } = await supabase
         .from('custom_pages')
-        .update({ content: editContent })
+        .update({ content: JSON.stringify(blocks) })
         .eq('id', page.id);
 
       if (error) throw error;
-      setPage({ ...page, content: editContent });
-      setIsEditing(false);
+      setPage({ ...page, content: JSON.stringify(blocks) });
       setSuccess('Changes saved successfully!');
       setTimeout(() => setSuccess(null), 3000);
     } catch (error: any) {
@@ -77,7 +180,87 @@ export function CustomPage() {
       setError(error.message);
       setTimeout(() => setError(null), 3000);
     } finally {
-      setLoading(false);
+      setSaving(false);
+    }
+  };
+
+  const handleAddBlock = () => {
+    setShowBlockTypeSelector(true);
+  };
+
+  const handleSelectBlockType = (type: 'block' | 'column' | 'card') => {
+    const newBlock: CustomCardProps = { 
+      title: `New ${type.charAt(0).toUpperCase() + type.slice(1)}`, 
+      body: `Add your content here...`, 
+      docs: [],
+      type: type // Add type to distinguish between block types
+    };
+    setBlocks([...blocks, newBlock]);
+    setShowBlockTypeSelector(false);
+    setTimeout(() => handleSavePage(), 100); // Auto-save
+  };
+
+  const handleEditBlock = (index: number) => {
+    setEditingBlock(index);
+    setEditBlockData(blocks[index]);
+  };
+
+  const handleSaveBlock = () => {
+    if (editingBlock !== null) {
+      const updatedBlocks = [...blocks];
+      updatedBlocks[editingBlock] = editBlockData;
+      setBlocks(updatedBlocks);
+      setEditingBlock(null);
+      setEditBlockData({ title: '', body: '', docs: [] });
+      // Auto-save after editing block
+      setTimeout(() => handleSavePage(), 100);
+    }
+  };
+
+  const handleDeleteBlock = (index: number) => {
+    setBlocks(blocks.filter((_, i) => i !== index));
+    // Auto-save after deleting block
+    setTimeout(() => handleSavePage(), 100);
+  };
+
+  const handleDeleteDocument = (blockIdx: number, docIdx: number) => {
+    const updatedBlocks = [...blocks];
+    updatedBlocks[blockIdx].docs.splice(docIdx, 1);
+    setBlocks(updatedBlocks);
+    // Auto-save after deleting document
+    setTimeout(() => handleSavePage(), 100);
+  };
+
+  const handleUploadDocument = async (blockIdx: number, file: File) => {
+    setUploading(blockIdx);
+    try {
+      // Upload file to Supabase storage
+      const fileName = `${Date.now()}-${file.name}`;
+      const { data, error } = await supabase.storage
+        .from('custom-page-docs')
+        .upload(fileName, file);
+
+      if (error) throw error;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('custom-page-docs')
+        .getPublicUrl(fileName);
+
+      // Update block with new document
+      const updatedBlocks = [...blocks];
+      updatedBlocks[blockIdx].docs.push({
+        name: file.name,
+        url: publicUrl
+      });
+      setBlocks(updatedBlocks);
+
+      // Save to database
+      await handleSavePage();
+    } catch (error: any) {
+      setError('Failed to upload document: ' + error.message);
+    } finally {
+      setUploading(null);
     }
   };
 
@@ -122,7 +305,7 @@ export function CustomPage() {
       animate={{ opacity: 1 }}
       className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 py-8 px-4 sm:px-6 lg:px-8"
     >
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -130,40 +313,61 @@ export function CustomPage() {
           className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden"
         >
           <div className="p-6 sm:p-8">
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-primary/10 dark:bg-primary/20">
-                  <FileText className="w-6 h-6 text-primary" />
-                </div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }} 
+              animate={{ opacity: 1, y: 0 }} 
+              className="flex items-center justify-between mb-8"
+            >
+              <div className="flex items-center gap-4">
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
                   {page.title}
                 </h1>
+                {isInSidebar && (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-sm font-medium"
+                  >
+                    <BookOpenCheck className="w-4 h-4" />
+                    In Sidebar
+                  </motion.div>
+                )}
               </div>
-              {(user?.role === 'ultra_admin' || user?.role === 'admin') && (
+              <div className="flex items-center gap-3">
+                {/* Sidebar Toggle Button */}
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => setIsEditing(!isEditing)}
-                  className={`btn gap-2 rounded-xl ${
-                    isEditing 
-                      ? 'btn-ghost text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20' 
-                      : 'btn-primary'
-                  }`}
+                  onClick={handleSidebarToggle}
+                  disabled={sidebarLoading}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all duration-200 ${
+                    isInSidebar
+                      ? 'bg-red-500 hover:bg-red-600 text-white'
+                      : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                  } ${sidebarLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  title={isInSidebar ? 'Remove from sidebar' : 'Add to sidebar'}
                 >
-                  {isEditing ? (
-                    <>
-                      <X className="w-5 h-5" />
-                      Cancel
-                    </>
+                  {sidebarLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : isInSidebar ? (
+                    <BookOpenCheck className="w-4 h-4" />
                   ) : (
-                    <>
-                      <Edit2 className="w-5 h-5" />
-                      Edit
-                    </>
+                    <BookOpen className="w-4 h-4" />
                   )}
+                  {sidebarLoading ? 'Updating...' : isInSidebar ? 'Remove from Sidebar' : 'Add to Sidebar'}
+                </motion.button>
+
+                {/* Add Block Button */}
+                {isAdmin && (
+                  <motion.button 
+                    onClick={handleAddBlock} 
+                    className="btn btn-primary gap-2 rounded-xl"
+                  >
+                    <Plus className="w-5 h-5" /> Add Block
                 </motion.button>
               )}
             </div>
+            </motion.div>
 
             <AnimatePresence mode="wait">
               {error && (
@@ -190,47 +394,266 @@ export function CustomPage() {
               )}
             </AnimatePresence>
 
-            {isEditing ? (
+            {/* Block Editor Modal */}
+            <AnimatePresence>
+              {editingBlock !== null && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="space-y-4"
-              >
+                  className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+                >
+                  <motion.div
+                    initial={{ scale: 0.8, y: 40, opacity: 0 }}
+                    animate={{ scale: 1, y: 0, opacity: 1 }}
+                    exit={{ scale: 0.8, y: 40, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                    className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden"
+                  >
+                    {/* Header */}
+                    <div className="bg-gradient-to-r from-red-500 to-pink-600 p-6 text-white">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-2xl font-bold">Edit Content Block</h3>
+                        <motion.button
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => setEditingBlock(null)}
+                          className="p-2 hover:bg-white/20 rounded-xl transition-colors"
+                        >
+                          <X className="w-6 h-6" />
+                        </motion.button>
+                      </div>
+                      <p className="text-red-100 mt-2">Update the title and content for this block</p>
+                    </div>
+
+                    {/* Form */}
+                    <div className="p-6 space-y-6">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                          Block Title
+                        </label>
+                        <input
+                          type="text"
+                          value={editBlockData.title}
+                          onChange={(e) => setEditBlockData({ ...editBlockData, title: e.target.value })}
+                          className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all duration-200 text-lg"
+                          placeholder="Enter block title..."
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                          Content
+                        </label>
                 <textarea
-                  value={editContent}
-                  onChange={(e) => setEditContent(e.target.value)}
-                  className="w-full h-[500px] p-4 border rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200"
-                  placeholder="Enter page content..."
-                />
+                          value={editBlockData.body}
+                          onChange={(e) => setEditBlockData({ ...editBlockData, body: e.target.value })}
+                          rows={8}
+                          className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all duration-200 resize-none"
+                          placeholder="Enter your content here..."
+                        />
+                        <div className="flex justify-between items-center mt-2 text-xs text-gray-500 dark:text-gray-400">
+                          <span>Use line breaks to create paragraphs</span>
+                          <span>{editBlockData.body.length} characters</span>
+                        </div>
+                      </div>
+
+                      {/* Preview */}
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                          Live Preview
+                        </label>
+                        <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 min-h-[100px] max-h-[200px] overflow-y-auto">
+                          <h4 className="font-bold text-lg text-gray-900 dark:text-white mb-2">
+                            {editBlockData.title || 'Untitled Block'}
+                          </h4>
+                          <div className="text-gray-700 dark:text-gray-300 whitespace-pre-line">
+                            {editBlockData.body || 'No content yet...'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="bg-gray-50 dark:bg-gray-800 p-6 flex gap-3">
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => setEditingBlock(null)}
+                        className="flex-1 px-6 py-3 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                      >
+                        Cancel
+                      </motion.button>
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={handleSave}
-                  className="btn btn-primary gap-2 rounded-xl"
-                  disabled={loading}
+                        onClick={handleSaveBlock}
+                        className="flex-1 px-6 py-3 bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-xl font-semibold hover:from-red-600 hover:to-pink-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                      >
+                        Save Changes
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Block Type Selector Modal */}
+            <AnimatePresence>
+              {showBlockTypeSelector && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
                 >
-                  {loading ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <>
-                      <Save className="w-5 h-5" />
-                      Save Changes
-                    </>
+                  <motion.div
+                    initial={{ scale: 0.8, y: 40, opacity: 0 }}
+                    animate={{ scale: 1, y: 0, opacity: 1 }}
+                    exit={{ scale: 0.8, y: 40, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                    className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden"
+                  >
+                    {/* Header */}
+                    <div className="bg-gradient-to-r from-red-500 to-pink-600 p-6 text-white">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-2xl font-bold">Choose Block Type</h3>
+                        <motion.button
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => setShowBlockTypeSelector(false)}
+                          className="p-2 hover:bg-white/20 rounded-xl transition-colors"
+                        >
+                          <X className="w-6 h-6" />
+                        </motion.button>
+                      </div>
+                      <p className="text-red-100 mt-2">Select the type of content block you want to add</p>
+                    </div>
+
+                    {/* Block Type Options */}
+                    <div className="p-6 space-y-4">
+                      {/* Block Option */}
+                      <motion.button
+                        whileHover={{ scale: 1.02, y: -2 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => handleSelectBlockType('block')}
+                        className="w-full p-6 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-700 rounded-2xl border-2 border-gray-200 dark:border-gray-600 hover:border-red-300 dark:hover:border-red-500 transition-all duration-200 text-left group"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-xl">
+                            <svg className="w-8 h-8 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                            </svg>
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="text-xl font-bold text-gray-900 dark:text-white group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors">
+                              Content Block
+                            </h4>
+                            <p className="text-gray-600 dark:text-gray-300 mt-1">
+                              Large, prominent section for main content
+                            </p>
+                          </div>
+                        </div>
+                      </motion.button>
+
+                      {/* Column Option */}
+                      <motion.button
+                        whileHover={{ scale: 1.02, y: -2 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => handleSelectBlockType('column')}
+                        className="w-full p-6 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-700 rounded-2xl border-2 border-gray-200 dark:border-gray-600 hover:border-red-300 dark:hover:border-red-500 transition-all duration-200 text-left group"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-xl">
+                            <svg className="w-8 h-8 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                            </svg>
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="text-xl font-bold text-gray-900 dark:text-white group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors">
+                              Column
+                            </h4>
+                            <p className="text-gray-600 dark:text-gray-300 mt-1">
+                              Tall, narrow section for sidebar content
+                            </p>
+                          </div>
+                        </div>
+                      </motion.button>
+
+                      {/* Card Option */}
+                      <motion.button
+                        whileHover={{ scale: 1.02, y: -2 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => handleSelectBlockType('card')}
+                        className="w-full p-6 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-700 rounded-2xl border-2 border-gray-200 dark:border-gray-600 hover:border-red-300 dark:hover:border-red-500 transition-all duration-200 text-left group"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-xl">
+                            <svg className="w-8 h-8 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="text-xl font-bold text-gray-900 dark:text-white group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors">
+                              Card
+                            </h4>
+                            <p className="text-gray-600 dark:text-gray-300 mt-1">
+                              Compact component for grid layouts
+                            </p>
+                          </div>
+                        </div>
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Page Content */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="space-y-6"
+            >
+              {blocks.length === 0 ? (
+                <div className="text-center py-12">
+                  <FileText className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+                  <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">No content yet</h3>
+                  <p className="text-gray-600 dark:text-gray-400 mb-6">This page doesn't have any content blocks yet.</p>
+                  {isAdmin && (
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={handleAddBlock}
+                      className="btn btn-primary gap-2"
+                    >
+                      <Plus className="w-5 h-5" />
+                      Add Your First Block
+                    </motion.button>
                   )}
-                </motion.button>
+                </div>
+              ) : (
+                <CustomPageRenderer
+                  layout={page.config?.layout || 'standard'}
+                  blocks={blocks}
+                  onUploadDoc={isAdmin ? handleUploadDocument : undefined}
+                  editable={isAdmin}
+                  onEditCard={isAdmin ? handleEditBlock : undefined}
+                  onDeleteCard={isAdmin ? handleDeleteBlock : undefined}
+                  onDeleteDoc={isAdmin ? handleDeleteDocument : undefined}
+                />
+              )}
               </motion.div>
-            ) : (
+
+            {/* Auto-save indicator */}
+            {saving && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="prose prose-lg max-w-none dark:prose-invert"
+                className="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2"
               >
-                {page.content ? (
-                  <div dangerouslySetInnerHTML={{ __html: page.content }} />
-                ) : (
-                  <p className="text-gray-500 dark:text-gray-400 italic">No content yet.</p>
-                )}
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Saving...</span>
               </motion.div>
             )}
           </div>
@@ -239,3 +662,5 @@ export function CustomPage() {
     </motion.div>
   );
 }
+
+export default CustomPage;

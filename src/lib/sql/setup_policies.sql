@@ -69,6 +69,19 @@ BEGIN
   DROP POLICY IF EXISTS "Enable update for authenticated users only" ON clubs;
   DROP POLICY IF EXISTS "Enable delete for authenticated users only" ON clubs;
 
+  -- Drop existing policies for club_members if they exist
+  DROP POLICY IF EXISTS "Enable read access for all users" ON club_members;
+  DROP POLICY IF EXISTS "Enable insert for authenticated users only" ON club_members;
+  DROP POLICY IF EXISTS "club_members_insert_policy" ON club_members;
+  DROP POLICY IF EXISTS "Enable update for authenticated users only" ON club_members;
+  DROP POLICY IF EXISTS "Enable delete for authenticated users only" ON club_members;
+
+  -- Drop existing policies for club_attendance if they exist
+  DROP POLICY IF EXISTS "Enable read access for all users" ON club_attendance;
+  DROP POLICY IF EXISTS "Enable insert for authenticated users only" ON club_attendance;
+  DROP POLICY IF EXISTS "Enable update for authenticated users only" ON club_attendance;
+  DROP POLICY IF EXISTS "Enable delete for authenticated users only" ON club_attendance;
+
   -- Create policies for clubs table
   CREATE POLICY "Enable read access for all users" ON clubs
     FOR SELECT USING (true);
