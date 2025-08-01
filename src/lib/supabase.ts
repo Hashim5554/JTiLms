@@ -8,10 +8,14 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 // Get the current URL for OAuth redirects
 const getRedirectUrl = () => {
   if (typeof window !== 'undefined') {
+    // For development, always use localhost:3000
+    if (window.location.hostname === 'localhost') {
+      return 'http://localhost:3000';
+    }
+    // For production, use the current origin
     return window.location.origin;
   }
-  // For SSR, we'll let the client handle the redirect
-  return undefined;
+  return 'http://localhost:3000';
 };
 
 // Validate environment variables
@@ -19,14 +23,13 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
-// Create Supabase client with error handling and proper redirect URL
+// Create Supabase client with error handling
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
     flowType: 'pkce',
-    redirectTo: getRedirectUrl(),
   },
 });
 
@@ -89,17 +92,13 @@ export const debugOAuthRedirect = () => {
 // OAuth sign-in with proper redirect URL
 export const signInWithOAuth = async (provider: 'google' | 'github' | 'discord') => {
   try {
-    const redirectUrl = debugOAuthRedirect();
+    const redirectUrl = getRedirectUrl();
     console.log(`Attempting to sign in with ${provider}, redirect URL: ${redirectUrl}`);
     
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
         redirectTo: redirectUrl,
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-        },
       },
     });
 
