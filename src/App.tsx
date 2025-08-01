@@ -48,8 +48,8 @@ const handleOAuthRedirect = () => {
           console.log('OAuth session set successfully');
           // Clear the hash from URL
           window.history.replaceState({}, document.title, window.location.pathname);
-          // Force a page reload to ensure session is properly loaded
-          window.location.reload();
+          // Don't reload immediately, let the session context handle it
+          console.log('Session set, waiting for context to update...');
         }
       }).catch((error) => {
         console.error('Failed to set OAuth session:', error);
@@ -286,7 +286,12 @@ function AppRoutes() {
   // Handle loading state based on session loading
   useEffect(() => {
     if (!sessionLoading) {
-      setLoading(false);
+      // Add a small delay to allow OAuth session to be processed
+      const timer = setTimeout(() => {
+        console.log('AppRoutes: Session loading complete, setting loading to false');
+        setLoading(false);
+      }, 1000); // 1 second delay
+      return () => clearTimeout(timer);
     }
   }, [sessionLoading]);
 
