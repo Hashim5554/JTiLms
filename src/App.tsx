@@ -25,42 +25,25 @@ import { Class, Profile } from './types';
 const handleOAuthRedirect = () => {
   const hash = window.location.hash;
   if (hash && hash.includes('access_token')) {
-    console.log('OAuth redirect detected, processing tokens...');
-    
     // Extract the access token from the URL hash
     const params = new URLSearchParams(hash.substring(1));
     const accessToken = params.get('access_token');
     const refreshToken = params.get('refresh_token');
     
     if (accessToken && refreshToken) {
-      console.log('Setting OAuth session...');
       // Set the session manually
       supabase.auth.setSession({
         access_token: accessToken,
         refresh_token: refreshToken,
       }).then(({ data, error }) => {
         if (error) {
-          console.error('Error setting OAuth session:', error);
-          // Clear the hash and redirect to login if session setting fails
-          window.history.replaceState({}, document.title, window.location.pathname);
-          window.location.href = '/login';
+          console.error('Error setting session:', error);
         } else {
           console.log('OAuth session set successfully');
           // Clear the hash from URL
           window.history.replaceState({}, document.title, window.location.pathname);
-          // Don't reload immediately, let the session context handle it
-          console.log('Session set, waiting for context to update...');
         }
-      }).catch((error) => {
-        console.error('Failed to set OAuth session:', error);
-        // Clear the hash and redirect to login
-        window.history.replaceState({}, document.title, window.location.pathname);
-        window.location.href = '/login';
       });
-    } else {
-      console.log('No valid tokens found in URL hash');
-      // Clear the hash if no valid tokens
-      window.history.replaceState({}, document.title, window.location.pathname);
     }
   }
 };
@@ -260,7 +243,6 @@ function AppRoutes() {
   const { session, user: sessionUser, loading: sessionLoading } = useSession();
   const { theme } = useTheme();
   const [loading, setLoading] = useState(true);
-  const [loadingTimeout, setLoadingTimeout] = useState(false);
   const location = useLocation();
 
   // Sync session user to auth store
@@ -286,12 +268,7 @@ function AppRoutes() {
   // Handle loading state based on session loading
   useEffect(() => {
     if (!sessionLoading) {
-      // Add a small delay to allow OAuth session to be processed
-      const timer = setTimeout(() => {
-        console.log('AppRoutes: Session loading complete, setting loading to false');
-        setLoading(false);
-      }, 1000); // 1 second delay
-      return () => clearTimeout(timer);
+      setLoading(false);
     }
   }, [sessionLoading]);
 
@@ -301,8 +278,7 @@ function AppRoutes() {
       const timer = setTimeout(() => {
         console.log('AppRoutes: Loading timeout reached, forcing loading to false');
         setLoading(false);
-        setLoadingTimeout(true);
-      }, 8000); // Increased timeout
+      }, 6000);
       return () => clearTimeout(timer);
     }
   }, [loading]);
@@ -315,17 +291,6 @@ function AppRoutes() {
           <p className="mt-4 text-gray-600 dark:text-gray-400">Loading...</p>
           {sessionLoading && (
             <p className="mt-2 text-sm text-gray-500 dark:text-gray-500">Checking session...</p>
-          )}
-          {loadingTimeout && (
-            <div className="mt-4">
-              <p className="text-sm text-red-500">Loading timeout reached</p>
-              <button 
-                onClick={() => window.location.reload()} 
-                className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-              >
-                Reload Page
-              </button>
-            </div>
           )}
         </div>
       </div>

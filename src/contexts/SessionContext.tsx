@@ -97,7 +97,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         console.log('SessionProvider: Loading timeout reached, setting loading to false');
         setLoading(false);
       }
-    }, 5000);
+    }, 4000);
 
     loadSession();
 
@@ -110,11 +110,6 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       
       if (session?.user) {
         console.log('SessionProvider: auth state change user', session.user);
-        
-        // Add a small delay for OAuth redirects to ensure session is fully processed
-        if (event === 'SIGNED_IN') {
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
         
         try {
           const { data: profile, error: profileError } = await supabase

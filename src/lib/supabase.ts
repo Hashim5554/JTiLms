@@ -8,14 +8,9 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 // Get the current URL for OAuth redirects
 const getRedirectUrl = () => {
   if (typeof window !== 'undefined') {
-    // For development, always use localhost:3000
-    if (window.location.hostname === 'localhost') {
-      return 'http://localhost:3000';
-    }
-    // For production, use the current origin
     return window.location.origin;
   }
-  return 'http://localhost:3000';
+  return 'http://localhost:3000'; // fallback for SSR
 };
 
 // Validate environment variables
@@ -23,13 +18,14 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
-// Create Supabase client with error handling
+// Create Supabase client with error handling and proper redirect URL
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true,
     flowType: 'pkce',
+    redirectTo: getRedirectUrl(),
   },
 });
 
@@ -81,24 +77,19 @@ export const signInWithEmail = async (email: string, password: string) => {
   }
 };
 
-// Debug function to check current redirect URL
-export const debugOAuthRedirect = () => {
-  const currentUrl = window.location.origin;
-  console.log('Current OAuth redirect URL:', currentUrl);
-  console.log('Full current URL:', window.location.href);
-  return currentUrl;
-};
-
 // OAuth sign-in with proper redirect URL
 export const signInWithOAuth = async (provider: 'google' | 'github' | 'discord') => {
   try {
-    const redirectUrl = getRedirectUrl();
-    console.log(`Attempting to sign in with ${provider}, redirect URL: ${redirectUrl}`);
+    console.log(`Attempting to sign in with ${provider}`);
     
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: redirectUrl,
+        redirectTo: getRedirectUrl(),
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
       },
     });
 
