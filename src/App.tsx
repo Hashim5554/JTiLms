@@ -21,6 +21,33 @@ import { SessionProvider, useSession } from './contexts/SessionContext';
 import { supabase } from './lib/supabase';
 import { Class, Profile } from './types';
 
+// Handle OAuth redirect
+const handleOAuthRedirect = () => {
+  const hash = window.location.hash;
+  if (hash && hash.includes('access_token')) {
+    // Extract the access token from the URL hash
+    const params = new URLSearchParams(hash.substring(1));
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    
+    if (accessToken && refreshToken) {
+      // Set the session manually
+      supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      }).then(({ data, error }) => {
+        if (error) {
+          console.error('Error setting session:', error);
+        } else {
+          console.log('OAuth session set successfully');
+          // Clear the hash from URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      });
+    }
+  }
+};
+
 // Component for pending users
 function PendingAccess() {
   const { signOut, user, setUser } = useAuthStore();
@@ -322,6 +349,11 @@ function AppRoutes() {
 }
 
 function App() {
+  // Handle OAuth redirect on app mount
+  useEffect(() => {
+    handleOAuthRedirect();
+  }, []);
+
   return (
     <SessionProvider>
       <AppRoutes />

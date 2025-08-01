@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, signInWithOAuth } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { Logo } from '../components/Logo';
 import Tilt from 'react-parallax-tilt';
@@ -29,13 +29,9 @@ export function Login() {
   const handleGoogleLogin = async () => {
     setLoading(true);
     setError(null);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin,
-      },
-    });
-    if (error) {
+    try {
+      await signInWithOAuth('google');
+    } catch (error: any) {
       console.error('Error logging in with Google:', error.message);
       setError('Failed to sign in with Google. Please try again.');
       setLoading(false);
@@ -51,24 +47,10 @@ export function Login() {
       await supabase.auth.signOut();
       
       // Then sign in with Google, which will prompt for account selection
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin,
-          queryParams: {
-            prompt: 'select_account' // This forces Google to show account selection
-          }
-        },
-      });
-      
-      if (error) {
-        console.error('Error signing in with different account:', error.message);
-        setError('Failed to sign in with different account. Please try again.');
-        setLoading(false);
-      }
+      await signInWithOAuth('google');
       // Don't set loading to false here - let the OAuth redirect handle it
       // The loading state will be reset when the user returns from Google OAuth
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error in handleSignInWithDifferentAccount:', error);
       setError('An unexpected error occurred. Please try again.');
       setLoading(false);

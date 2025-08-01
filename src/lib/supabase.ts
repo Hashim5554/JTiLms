@@ -5,13 +5,29 @@ import type { UserRole } from '../types';
 const supabaseUrl = 'https://hovpbitodsfarvojjvqh.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhvdnBiaXRvZHNmYXJ2b2pqdnFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc3MzcwMTgsImV4cCI6MjA1MzMxMzAxOH0.La3MbLvfG42MzxJq610pMcQfjsmPgSg2IL4Ws86tB9o';
 
+// Get the current URL for OAuth redirects
+const getRedirectUrl = () => {
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+  return 'http://localhost:3000'; // fallback for SSR
+};
+
 // Validate environment variables
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
-// Create Supabase client with error handling
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+// Create Supabase client with error handling and proper redirect URL
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce',
+    redirectTo: getRedirectUrl(),
+  },
+});
 
 // Utility function to check if error is "not found"
 export const isNotFoundError = (error: any) => {
@@ -57,6 +73,35 @@ export const signInWithEmail = async (email: string, password: string) => {
     return data;
   } catch (error: any) {
     console.error('Sign in error:', error);
+    throw error;
+  }
+};
+
+// OAuth sign-in with proper redirect URL
+export const signInWithOAuth = async (provider: 'google' | 'github' | 'discord') => {
+  try {
+    console.log(`Attempting to sign in with ${provider}`);
+    
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: getRedirectUrl(),
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      },
+    });
+
+    if (error) {
+      console.error('OAuth authentication error:', error);
+      throw new Error(error.message || 'OAuth authentication failed. Please try again.');
+    }
+
+    console.log('OAuth sign in initiated:', data);
+    return data;
+  } catch (error: any) {
+    console.error('OAuth sign in error:', error);
     throw error;
   }
 };
