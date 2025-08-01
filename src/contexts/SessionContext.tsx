@@ -97,7 +97,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         console.log('SessionProvider: Loading timeout reached, setting loading to false');
         setLoading(false);
       }
-    }, 4000);
+    }, 5000);
 
     loadSession();
 
