@@ -10,7 +10,8 @@ const getRedirectUrl = () => {
   if (typeof window !== 'undefined') {
     return window.location.origin;
   }
-  return 'http://localhost:3000'; // fallback for SSR
+  // For SSR, we'll let the client handle the redirect
+  return undefined;
 };
 
 // Validate environment variables
@@ -77,15 +78,24 @@ export const signInWithEmail = async (email: string, password: string) => {
   }
 };
 
+// Debug function to check current redirect URL
+export const debugOAuthRedirect = () => {
+  const currentUrl = window.location.origin;
+  console.log('Current OAuth redirect URL:', currentUrl);
+  console.log('Full current URL:', window.location.href);
+  return currentUrl;
+};
+
 // OAuth sign-in with proper redirect URL
 export const signInWithOAuth = async (provider: 'google' | 'github' | 'discord') => {
   try {
-    console.log(`Attempting to sign in with ${provider}`);
+    const redirectUrl = debugOAuthRedirect();
+    console.log(`Attempting to sign in with ${provider}, redirect URL: ${redirectUrl}`);
     
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: getRedirectUrl(),
+        redirectTo: redirectUrl,
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',
