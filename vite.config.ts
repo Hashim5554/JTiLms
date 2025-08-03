@@ -1,9 +1,46 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'favicon.svg'],
+      manifest: {
+        name: 'JTiLms',
+        short_name: 'JTiLms',
+        description: 'A Learning Management System for JTi',
+        theme_color: '#ffffff',
+        icons: [
+          {
+            src: '/theicon.png', // Path is relative to the public folder
+            sizes: '192x192',
+            type: 'image/png'
+          },
+          {
+            src: '/theicon.png',
+            sizes: '512x512',
+            type: 'image/png'
+          },
+          {
+            src: '/apple-touch-icon.png',
+            sizes: '180x180',
+            type: 'image/png',
+            purpose: 'apple touch icon'
+          },
+          {
+            src: '/theicon.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any maskable'
+          }
+        ]
+      }
+    })
+  ],
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
