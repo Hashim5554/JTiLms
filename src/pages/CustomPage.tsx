@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useOutletContext } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { useAuthStore } from '../store/auth';
+import { useSession } from '../contexts/SessionContext';
 import type { Class } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Edit2, Save, X, Loader2, FileText, AlertCircle, Check, Plus, Trash2, UploadCloud, BookOpen, BookOpenCheck } from 'lucide-react';
@@ -40,7 +40,11 @@ export function CustomPage() {
   const [showBlockTypeSelector, setShowBlockTypeSelector] = useState(false);
   const [isInSidebar, setIsInSidebar] = useState(false);
   const [sidebarLoading, setSidebarLoading] = useState(false);
-  const user = useAuthStore((state) => state.user);
+  const [showSidebarModal, setShowSidebarModal] = useState(false);
+  const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
+  const [allClasses, setAllClasses] = useState<any[]>([]);
+  const [sidebarModalLoading, setSidebarModalLoading] = useState(false);
+  const { user } = useSession();
 
   const isAdmin = user?.role === 'ultra_admin' || user?.role === 'admin';
 
@@ -48,12 +52,12 @@ export function CustomPage() {
     loadPage(); 
   }, [path]);
 
-  // Check sidebar status when currentClass becomes available
+  // Check sidebar status when page becomes available
   useEffect(() => {
-    if (page && currentClass) {
+    if (page) {
       checkSidebarStatus(page.id);
     }
-  }, [currentClass, page]);
+  }, [page]);
 
   const loadPage = async () => {
     if (!path) {
@@ -64,11 +68,25 @@ export function CustomPage() {
     console.log('Loading page with path:', path);
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // First try to load by path (for direct URL access)
+      let { data, error } = await supabase
         .from('custom_pages')
         .select('*')
         .eq('path', path)
         .single();
+      
+      // If not found by path, try to load by ID (for sidebar access)
+      if (error && error.code === 'PGRST116') {
+        console.log('Page not found by path, trying by ID:', path);
+        const { data: dataById, error: errorById } = await supabase
+          .from('custom_pages')
+          .select('*')
+          .eq('id', path)
+          .single();
+        
+        data = dataById;
+        error = errorById;
+      }
       
       console.log('Query result:', { data, error });
       
@@ -98,64 +116,95 @@ export function CustomPage() {
   };
 
   const checkSidebarStatus = async (pageId: string) => {
-    if (!currentClass) return;
-    
     try {
       const { data, error } = await supabase
         .from('sidebar_pages')
         .select('*')
-        .eq('page_id', pageId)
-        .eq('class_id', currentClass.id)
-        .single();
+        .eq('page_id', pageId);
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
+      if (error) {
         console.error('Error checking sidebar status:', error);
         return;
       }
 
-      setIsInSidebar(!!data);
+      setIsInSidebar(data && data.length > 0);
     } catch (error) {
       console.error('Error checking sidebar status:', error);
     }
   };
 
-  const handleSidebarToggle = async () => {
-    if (!page || !currentClass || sidebarLoading) return;
-    
-    setSidebarLoading(true);
+  const loadAllClasses = async () => {
     try {
-      if (isInSidebar) {
-        // Remove from sidebar
+      const { data, error } = await supabase
+        .from('classes')
+        .select('*')
+        .order('grade')
+        .order('section');
+
+      if (error) throw error;
+      setAllClasses(data || []);
+    } catch (error) {
+      console.error('Error loading classes:', error);
+    }
+  };
+
+  const handleSidebarToggle = async () => {
+    if (!page || sidebarLoading) return;
+    
+    if (isInSidebar) {
+      // Remove from all sidebars
+      setSidebarLoading(true);
+      try {
         const { error } = await supabase
           .from('sidebar_pages')
           .delete()
-          .eq('page_id', page.id)
-          .eq('class_id', currentClass.id);
+          .eq('page_id', page.id);
 
         if (error) throw error;
         setIsInSidebar(false);
-        setSuccess('Page removed from sidebar!');
-      } else {
-        // Add to sidebar
-        const { data, error } = await supabase
-          .from('sidebar_pages')
-          .insert({
-            page_id: page.id,
-            class_id: currentClass.id,
-            title: page.title,
-            order_index: 999 // Add at the end
-          })
-          .select();
-
-        if (error) throw error;
-        setIsInSidebar(true);
-        setSuccess('Page added to sidebar!');
+        setSuccess('Page removed from all sidebars!');
+      } catch (error: any) {
+        console.error('Sidebar toggle error:', error);
+        setError(error.message);
+      } finally {
+        setSidebarLoading(false);
+        setTimeout(() => setSuccess(null), 3000);
+        setTimeout(() => setError(null), 3000);
       }
+    } else {
+      // Show modal to select classes
+      await loadAllClasses();
+      setShowSidebarModal(true);
+    }
+  };
+
+  const handleAddToSidebar = async () => {
+    if (!page || selectedClasses.length === 0) return;
+    
+    setSidebarModalLoading(true);
+    try {
+      const sidebarEntries = selectedClasses.map(classId => ({
+        page_id: page.id,
+        class_id: classId,
+        title: page.title,
+        order_index: 999
+      }));
+
+      const { error } = await supabase
+        .from('sidebar_pages')
+        .insert(sidebarEntries);
+
+      if (error) throw error;
+      
+      setIsInSidebar(true);
+      setShowSidebarModal(false);
+      setSelectedClasses([]);
+      setSuccess(`Page added to ${selectedClasses.length} class${selectedClasses.length > 1 ? 'es' : ''}!`);
     } catch (error: any) {
-      console.error('Sidebar toggle error:', error);
+      console.error('Error adding to sidebar:', error);
       setError(error.message);
     } finally {
-      setSidebarLoading(false);
+      setSidebarModalLoading(false);
       setTimeout(() => setSuccess(null), 3000);
       setTimeout(() => setError(null), 3000);
     }
@@ -234,13 +283,39 @@ export function CustomPage() {
   const handleUploadDocument = async (blockIdx: number, file: File) => {
     setUploading(blockIdx);
     try {
+      // Check file size (50MB limit)
+      if (file.size > 52428800) {
+        throw new Error('File size must be less than 50MB');
+      }
+
+      // Check file type
+      const allowedTypes = [
+        'application/pdf',
+        'text/plain',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'image/webp'
+      ];
+      
+      if (!allowedTypes.includes(file.type)) {
+        throw new Error('File type not supported. Please upload PDF, Word documents, text files, or images.');
+      }
+
       // Upload file to Supabase storage
       const fileName = `${Date.now()}-${file.name}`;
       const { data, error } = await supabase.storage
         .from('custom-page-docs')
         .upload(fileName, file);
 
-      if (error) throw error;
+      if (error) {
+        if (error.message.includes('Bucket not found')) {
+          throw new Error('Storage bucket not configured. Please contact an administrator.');
+        }
+        throw error;
+      }
 
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
@@ -257,8 +332,13 @@ export function CustomPage() {
 
       // Save to database
       await handleSavePage();
+      
+      setSuccess('Document uploaded successfully!');
+      setTimeout(() => setSuccess(null), 3000);
     } catch (error: any) {
+      console.error('Upload error:', error);
       setError('Failed to upload document: ' + error.message);
+      setTimeout(() => setError(null), 5000);
     } finally {
       setUploading(null);
     }
@@ -334,28 +414,30 @@ export function CustomPage() {
                 )}
               </div>
               <div className="flex items-center gap-3">
-                {/* Sidebar Toggle Button */}
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleSidebarToggle}
-                  disabled={sidebarLoading}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all duration-200 ${
-                    isInSidebar
-                      ? 'bg-red-500 hover:bg-red-600 text-white'
-                      : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
-                  } ${sidebarLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  title={isInSidebar ? 'Remove from sidebar' : 'Add to sidebar'}
-                >
-                  {sidebarLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : isInSidebar ? (
-                    <BookOpenCheck className="w-4 h-4" />
-                  ) : (
-                    <BookOpen className="w-4 h-4" />
-                  )}
-                  {sidebarLoading ? 'Updating...' : isInSidebar ? 'Remove from Sidebar' : 'Add to Sidebar'}
-                </motion.button>
+                {/* Sidebar Toggle Button - Admin Only */}
+                {isAdmin && (
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleSidebarToggle}
+                    disabled={sidebarLoading}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all duration-200 ${
+                      isInSidebar
+                        ? 'bg-red-500 hover:bg-red-600 text-white'
+                        : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                    } ${sidebarLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    title={isInSidebar ? 'Remove from sidebar' : 'Add to sidebar'}
+                  >
+                    {sidebarLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : isInSidebar ? (
+                      <BookOpenCheck className="w-4 h-4" />
+                    ) : (
+                      <BookOpen className="w-4 h-4" />
+                    )}
+                    {sidebarLoading ? 'Updating...' : isInSidebar ? 'Remove from Sidebar' : 'Add to Sidebar'}
+                  </motion.button>
+                )}
 
                 {/* Add Block Button */}
                 {isAdmin && (
@@ -408,7 +490,7 @@ export function CustomPage() {
                     animate={{ scale: 1, y: 0, opacity: 1 }}
                     exit={{ scale: 0.8, y: 40, opacity: 0 }}
                     transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                    className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden"
+                    className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
                   >
                     {/* Header */}
                     <div className="bg-gradient-to-r from-red-500 to-pink-600 p-6 text-white">
@@ -427,7 +509,7 @@ export function CustomPage() {
                     </div>
 
                     {/* Form */}
-                    <div className="p-6 space-y-6">
+                    <div className="p-6 space-y-6 flex-1 overflow-y-auto">
                       <div>
                         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
                           Block Title
@@ -475,7 +557,7 @@ export function CustomPage() {
                     </div>
 
                     {/* Actions */}
-                    <div className="bg-gray-50 dark:bg-gray-800 p-6 flex gap-3">
+                    <div className="bg-gray-50 dark:bg-gray-800 p-6 flex gap-3 flex-shrink-0">
                       <motion.button
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
@@ -512,7 +594,7 @@ export function CustomPage() {
                     animate={{ scale: 1, y: 0, opacity: 1 }}
                     exit={{ scale: 0.8, y: 40, opacity: 0 }}
                     transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                    className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden"
+                    className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden"
                   >
                     {/* Header */}
                     <div className="bg-gradient-to-r from-red-500 to-pink-600 p-6 text-white">
@@ -531,7 +613,7 @@ export function CustomPage() {
                     </div>
 
                     {/* Block Type Options */}
-                    <div className="p-6 space-y-4">
+                    <div className="p-6 space-y-4 flex-1 overflow-y-auto">
                       {/* Block Option */}
                       <motion.button
                         whileHover={{ scale: 1.02, y: -2 }}
@@ -656,6 +738,127 @@ export function CustomPage() {
                 <span>Saving...</span>
               </motion.div>
             )}
+
+            {/* Sidebar Class Selection Modal */}
+            <AnimatePresence>
+              {showSidebarModal && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+                >
+                  <motion.div
+                    initial={{ scale: 0.8, y: 40, opacity: 0 }}
+                    animate={{ scale: 1, y: 0, opacity: 1 }}
+                    exit={{ scale: 0.8, y: 40, opacity: 0 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                    className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+                  >
+                    {/* Header */}
+                    <div className="bg-gradient-to-r from-red-500 to-pink-600 p-6 text-white">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-2xl font-bold">Add to Sidebar</h3>
+                        <motion.button
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => {
+                            setShowSidebarModal(false);
+                            setSelectedClasses([]);
+                          }}
+                          className="p-2 hover:bg-white/20 rounded-xl transition-colors"
+                        >
+                          <X className="w-6 h-6" />
+                        </motion.button>
+                      </div>
+                      <p className="text-red-100 mt-2">Select which classes should see this page in their sidebar</p>
+                    </div>
+
+                    {/* Content */}
+                    <div className="p-6 space-y-6 flex-1 overflow-y-auto">
+                      {/* Select All Option */}
+                      <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl">
+                        <input
+                          type="checkbox"
+                          id="select-all"
+                          checked={selectedClasses.length === allClasses.length && allClasses.length > 0}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedClasses(allClasses.map(c => c.id));
+                            } else {
+                              setSelectedClasses([]);
+                            }
+                          }}
+                          className="w-5 h-5 text-red-600 bg-gray-100 border-gray-300 rounded focus:ring-red-500 dark:focus:ring-red-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                        />
+                        <label htmlFor="select-all" className="text-lg font-semibold text-gray-900 dark:text-white cursor-pointer">
+                          Add to All Classes
+                        </label>
+                      </div>
+
+                      {/* Class List */}
+                      <div className="space-y-3">
+                        <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Or select specific classes:</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
+                          {allClasses.map((cls) => (
+                            <label key={cls.id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors">
+                              <input
+                                type="checkbox"
+                                checked={selectedClasses.includes(cls.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedClasses([...selectedClasses, cls.id]);
+                                  } else {
+                                    setSelectedClasses(selectedClasses.filter(id => id !== cls.id));
+                                  }
+                                }}
+                                className="w-4 h-4 text-red-600 bg-gray-100 border-gray-300 rounded focus:ring-red-500 dark:focus:ring-red-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                              />
+                              <span className="text-gray-900 dark:text-white font-medium">
+                                Grade {cls.grade}-{cls.section}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="p-6 bg-gray-50 dark:bg-gray-800 flex justify-end gap-3">
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => {
+                          setShowSidebarModal(false);
+                          setSelectedClasses([]);
+                        }}
+                        className="px-6 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                      >
+                        Cancel
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handleAddToSidebar}
+                        disabled={selectedClasses.length === 0 || sidebarModalLoading}
+                        className="px-6 py-2 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-xl hover:from-red-700 hover:to-red-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {sidebarModalLoading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Adding...
+                          </>
+                        ) : (
+                          <>
+                            Add to {selectedClasses.length} Class{selectedClasses.length !== 1 ? 'es' : ''}
+                          </>
+                        )}
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </motion.div>
       </div>

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
-import { useAuthStore } from '../store/auth';
+import { useSession } from '../contexts/SessionContext';
 import { useTheme } from '../hooks/useTheme';
 import { 
   BookOpen, Calendar, ChevronDown, ChevronRight, Plus, Trash2, Edit, Eye, 
@@ -25,7 +25,7 @@ interface Assignment {
 }
 
 export function Assignments() {
-  const { user } = useAuthStore();
+  const { user } = useSession();
   const { theme } = useTheme();
   const navigate = useNavigate();
   const context = useOutletContext<ContextType>();

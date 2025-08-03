@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase, signInWithOAuth } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { Logo } from '../components/Logo';
 import Tilt from 'react-parallax-tilt';
@@ -29,9 +29,13 @@ export function Login() {
   const handleGoogleLogin = async () => {
     setLoading(true);
     setError(null);
-    try {
-      await signInWithOAuth('google');
-    } catch (error: any) {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+      },
+    });
+    if (error) {
       console.error('Error logging in with Google:', error.message);
       setError('Failed to sign in with Google. Please try again.');
       setLoading(false);
@@ -47,10 +51,24 @@ export function Login() {
       await supabase.auth.signOut();
       
       // Then sign in with Google, which will prompt for account selection
-      await signInWithOAuth('google');
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+          queryParams: {
+            prompt: 'select_account' // This forces Google to show account selection
+          }
+        },
+      });
+      
+      if (error) {
+        console.error('Error signing in with different account:', error.message);
+        setError('Failed to sign in with different account. Please try again.');
+        setLoading(false);
+      }
       // Don't set loading to false here - let the OAuth redirect handle it
       // The loading state will be reset when the user returns from Google OAuth
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error in handleSignInWithDifferentAccount:', error);
       setError('An unexpected error occurred. Please try again.');
       setLoading(false);
@@ -58,17 +76,18 @@ export function Login() {
   };
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gray-100 dark:bg-gray-900">
-      {/* Subtle Floating Shapes in Gray/Indigo/White */}
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 px-4 sm:px-0">
+      {/* Enhanced Floating Shapes with better dark mode */}
       <div className="absolute inset-0 z-0 pointer-events-none">
-        <div className="absolute top-10 left-10 w-40 h-40 bg-indigo-100 dark:bg-gray-800 rounded-full blur-2xl animate-float-slow" />
-        <div className="absolute bottom-20 right-20 w-56 h-56 bg-white/30 dark:bg-gray-700 rounded-full blur-3xl animate-float" />
-        <div className="absolute top-1/2 left-1/2 w-24 h-24 bg-gray-200 dark:bg-gray-800 rounded-full blur-xl animate-float-reverse" />
+        <div className="absolute top-10 left-10 w-40 h-40 bg-indigo-100 dark:bg-indigo-900/30 rounded-full blur-2xl animate-float-slow" />
+        <div className="absolute bottom-20 right-20 w-56 h-56 bg-white/40 dark:bg-gray-700/40 rounded-full blur-3xl animate-float" />
+        <div className="absolute top-1/2 left-1/2 w-24 h-24 bg-gray-200 dark:bg-gray-700 rounded-full blur-xl animate-float-reverse" />
+        <div className="absolute top-1/4 right-1/4 w-32 h-32 bg-blue-100 dark:bg-blue-900/20 rounded-full blur-2xl animate-float-slow" />
       </div>
 
       {/* Login Card with 3D Tilt */}
-      <Tilt tiltMaxAngleX={15} tiltMaxAngleY={15} glareEnable={true} glareMaxOpacity={0.18} className="z-10">
-        <div className="w-full max-w-lg p-12 space-y-8 rounded-3xl shadow-2xl bg-white/70 dark:bg-gray-800/70 backdrop-blur-lg border border-white/30 dark:border-gray-700/40 relative">
+      <Tilt tiltMaxAngleX={15} tiltMaxAngleY={15} glareEnable={true} glareMaxOpacity={0.18} className="z-10 w-full max-w-lg">
+        <div className="w-full max-w-lg p-12 space-y-8 rounded-3xl shadow-2xl bg-white/80 dark:bg-gray-800/90 backdrop-blur-lg border border-white/40 dark:border-gray-700/50 relative">
           {/* Animated Logo */}
           <div className="flex justify-center">
             <div className="animate-fade-in-up">

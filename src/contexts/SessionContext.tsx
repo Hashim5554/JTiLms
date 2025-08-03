@@ -6,9 +6,15 @@ interface SessionContextType {
   session: any;
   user: Profile | null;
   loading: boolean;
+  refreshUser: () => Promise<void>;
 }
 
-const SessionContext = createContext<SessionContextType>({ session: null, user: null, loading: true });
+const SessionContext = createContext<SessionContextType>({ 
+  session: null, 
+  user: null, 
+  loading: true,
+  refreshUser: async () => {}
+});
 
 export const useSession = () => useContext(SessionContext);
 
@@ -16,6 +22,53 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [session, setSession] = useState<any>(null);
   const [user, setUser] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const loadUserProfile = async (userId: string) => {
+    try {
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (profileError) {
+        console.log('SessionProvider: No profile found, user needs approval', profileError);
+        // Don't create a profile here - let the database trigger handle it
+        // Just set a basic user object to show pending status
+        const pendingUser: Profile = {
+          id: userId,
+          email: session?.user?.email || '',
+          username: session?.user?.email?.split('@')[0] || 'User',
+          role: 'pending',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        setUser(pendingUser);
+      } else {
+        console.log('SessionProvider: Found existing profile', profile);
+        setUser(profile as Profile);
+      }
+    } catch (error) {
+      console.error('SessionProvider: Error loading profile:', error);
+      // Set pending user status
+      const pendingUser: Profile = {
+        id: userId,
+        email: session?.user?.email || '',
+        username: session?.user?.email?.split('@')[0] || 'User',
+        role: 'pending',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      setUser(pendingUser);
+    }
+  };
+
+  const refreshUser = async () => {
+    if (session?.user) {
+      console.log('SessionProvider: Refreshing user profile...');
+      await loadUserProfile(session.user.id);
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -38,46 +91,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         
         if (session?.user) {
           console.log('SessionProvider: initial session user', session.user);
-          
-          try {
-            // Try to get the user's profile
-            const { data: profile, error: profileError } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .single();
-            
-            if (!mounted) return;
-            
-            if (profileError) {
-              console.log('SessionProvider: No profile found, using session user', profileError);
-              // Create a basic profile from session user
-              const basicProfile: Profile = {
-                id: session.user.id,
-                username: session.user.email?.split('@')[0] || 'User',
-                role: 'student',
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              };
-              setUser(basicProfile);
-            } else {
-              console.log('SessionProvider: Found existing profile', profile);
-              setUser(profile as Profile);
-            }
-          } catch (profileError) {
-            console.error('SessionProvider: Error loading profile:', profileError);
-            if (mounted) {
-              // Create a basic profile from session user
-              const basicProfile: Profile = {
-                id: session.user.id,
-                username: session.user.email?.split('@')[0] || 'User',
-                role: 'student',
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              };
-              setUser(basicProfile);
-            }
-          }
+          await loadUserProfile(session.user.id);
         } else {
           setUser(null);
         }
@@ -110,45 +124,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
       
       if (session?.user) {
         console.log('SessionProvider: auth state change user', session.user);
-        
-        try {
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-          
-          if (!mounted) return;
-          
-          if (profileError) {
-            console.log('SessionProvider: No profile found on auth change, using session user', profileError);
-            // Create a basic profile from session user
-            const basicProfile: Profile = {
-              id: session.user.id,
-              username: session.user.email?.split('@')[0] || 'User',
-              role: 'student',
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            };
-            setUser(basicProfile);
-          } else {
-            console.log('SessionProvider: Found existing profile on auth change', profile);
-            setUser(profile as Profile);
-          }
-        } catch (error) {
-          console.error('SessionProvider: Error loading profile on auth change:', error);
-          if (mounted) {
-            // Create a basic profile from session user
-            const basicProfile: Profile = {
-              id: session.user.id,
-              username: session.user.email?.split('@')[0] || 'User',
-              role: 'student',
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            };
-            setUser(basicProfile);
-          }
-        }
+        await loadUserProfile(session.user.id);
       } else {
         setUser(null);
       }
@@ -164,7 +140,7 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   return (
-    <SessionContext.Provider value={{ session, user, loading }}>
+    <SessionContext.Provider value={{ session, user, loading, refreshUser }}>
       {children}
     </SessionContext.Provider>
   );

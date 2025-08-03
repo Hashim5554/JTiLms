@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
-import { useAuthStore } from '../store/auth';
+import { useSession } from '../contexts/SessionContext';
 import { useTheme } from '../hooks/useTheme';
+import { markMessagesAsRead } from '../lib/messageTracking';
 import { 
   Megaphone, Plus, Trash2, Edit, ChevronLeft, ChevronRight as ChevronRightIcon,
   Search, Sparkles, Trophy, User, Calendar, X
@@ -30,7 +31,7 @@ interface Achiever {
 }
 
 export function Announcements() {
-  const { user } = useAuthStore();
+  const { user } = useSession();
   const { theme } = useTheme();
   const navigate = useNavigate();
   const context = useOutletContext<ContextType>();
@@ -180,6 +181,13 @@ export function Announcements() {
 
     loadAchievers();
   }, []);
+
+  // Mark announcements as read when user visits the page
+  useEffect(() => {
+    if (user) {
+      markMessagesAsRead('announcements');
+    }
+  }, [user]);
 
   // Handle create announcement
   const handleCreateAnnouncement = async () => {
@@ -378,7 +386,7 @@ export function Announcements() {
               >
                 Stay updated with the latest news and important information from your school.
               </motion.p>
-              {(user?.role === 'admin' || user?.role === 'ultra_admin') && (
+              {(user?.role === 'admin' || user?.role === 'ultra_admin' || user?.role === 'teacher') && (
           <motion.button
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
@@ -421,7 +429,7 @@ export function Announcements() {
                   </p>
                 </div>
               </div>
-              {(user?.role === 'admin' || user?.role === 'ultra_admin') && (
+              {(user?.role === 'admin' || user?.role === 'ultra_admin' || user?.role === 'teacher') && (
                 <motion.button
                   whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.95 }}

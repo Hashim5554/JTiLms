@@ -1,362 +1,246 @@
-import { useEffect, useState } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { Layout } from './components/Layout';
-import { Home } from './pages/Home';
-import { Announcements } from './pages/Announcements';
-import { Subjects } from './pages/Subjects';
-import { Library } from './pages/Library';
-import { SubjectDetail } from './pages/SubjectDetail';
-import { Users } from './pages/Users';
-import { Settings } from './pages/Settings';
-import { Login } from './pages/Login';
-import { ClassSelect } from './pages/ClassSelect';
-import { CustomPage } from './pages/CustomPage';
-import { Customize } from './pages/Customize';
-import { RecordRoom } from './pages/RecordRoom';
-import AfternoonClubs from './pages/AfternoonClubs';
-import { useAuthStore } from './store/auth';
-import { useTheme } from './hooks/useTheme';
-import { setupRLSPolicies } from './lib/rls';
+import React, { useEffect, useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { SessionProvider, useSession } from './contexts/SessionContext';
 import { supabase } from './lib/supabase';
-import { Class, Profile } from './types';
+import { Layout } from './components/Layout';
+import { Login } from './pages/Login';
+import { Home } from './pages/Home';
+import { Dashboard } from './pages/Dashboard';
+import { Classes } from './pages/Classes';
+import { ClassSelect } from './pages/ClassSelect';
+import { Subjects } from './pages/Subjects';
+import { SubjectDetail } from './pages/SubjectDetail';
+import { Assignments } from './pages/Assignments';
+import { Announcements } from './pages/Announcements';
+import { Library } from './pages/Library';
+import { Users } from './pages/Users';
+import { Settings } from './pages/Settings';
+import { Customize } from './pages/Customize';
+import { CustomPage } from './pages/CustomPage';
+import { RecordRoom } from './pages/RecordRoom';
+import AfternoonClubs from './pages/AfternoonClubs';
+import { Other } from './pages/Other';
+import { loadClasses } from './utils/classUtils';
+import { Clock, AlertTriangle } from 'lucide-react';
 
-// Handle OAuth redirect
-const handleOAuthRedirect = () => {
-  const hash = window.location.hash;
-  if (hash && hash.includes('access_token')) {
-    // Extract the access token from the URL hash
-    const params = new URLSearchParams(hash.substring(1));
-    const accessToken = params.get('access_token');
-    const refreshToken = params.get('refresh_token');
-    
-    if (accessToken && refreshToken) {
-      // Set the session manually
-      supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-      }).then(({ data, error }) => {
-        if (error) {
-          console.error('Error setting session:', error);
-        } else {
-          console.log('OAuth session set successfully');
-          // Clear the hash from URL
-          window.history.replaceState({}, document.title, window.location.pathname);
-        }
-      });
-    }
-  }
-};
 
-// Component for pending users
+// Pending Access Component
 function PendingAccess() {
-  const { signOut, user, setUser } = useAuthStore();
-  const [name, setName] = useState<string>(user?.username || '');
-  const [selectedClass, setSelectedClass] = useState<string>('');
-  const [submitted, setSubmitted] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [classes, setClasses] = useState<Class[]>([]);
+  const { user } = useSession();
   
-  useEffect(() => {
-    async function fetchClasses() {
-      console.log('Fetching classes for waitlist...');
-      const { data, error } = await supabase.from('classes').select('*');
-      if (!error && data) {
-        console.log('Classes loaded:', data.length);
-        setClasses(data as Class[]);
-      } else {
-        console.error('Error loading classes:', error);
-      }
-    }
-    fetchClasses();
-  }, []);
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    setSuccess('');
-    
-    console.log('Submitting waitlist application:', { name, selectedClass, userId: user?.id });
-    
+  const handleSignOut = async () => {
     try {
-      if (!user) throw new Error('No user found');
-      
-      // First, ensure the profile exists and update it
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .upsert({
-          id: user.id,
-          email: user.email,
-          username: name,
-          role: 'pending',
-          updated_at: new Date().toISOString()
-        });
-      
-      if (profileError) {
-        console.error('Profile update error:', profileError);
-        throw profileError;
-      }
-      
-      console.log('Profile updated successfully');
-      
-      // Update class assignment if selected
-      if (selectedClass) {
-        console.log('Adding class assignment:', selectedClass);
-        
-        // Remove any existing assignments first
-        await supabase
-          .from('class_assignments')
-          .delete()
-          .eq('user_id', user.id);
-        
-        // Add new assignment
-        const { error: assignmentError } = await supabase
-          .from('class_assignments')
-          .insert([{
-            user_id: user.id,
-            class_id: selectedClass,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }]);
-        
-        if (assignmentError) {
-          console.error('Class assignment error:', assignmentError);
-          throw assignmentError;
-        }
-        
-        console.log('Class assignment added successfully');
-      }
-      
-      setSuccess('You have joined the waitlist. Please wait for admin approval.');
-      setSubmitted(true);
-      setUser({ ...user, username: name });
-      
-      console.log('Waitlist application submitted successfully');
-    } catch (err: any) {
-      console.error('Waitlist submission error:', err);
-      setError(err.message || 'Failed to join waitlist. Please try again.');
-    } finally {
-      setLoading(false);
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Error signing out:', error);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 text-center">
-        <div className="mb-6">
-          <div className="mx-auto w-16 h-16 bg-yellow-100 dark:bg-yellow-900/20 rounded-full flex items-center justify-center mb-4">
-            <svg className="w-8 h-8 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-            </svg>
+    <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-orange-50 to-amber-50 dark:from-yellow-900/10 dark:via-orange-900/10 dark:to-amber-900/10 flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Background decorative elements */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-10 left-10 w-32 h-32 bg-yellow-200/30 dark:bg-yellow-800/20 rounded-full blur-2xl animate-pulse" />
+        <div className="absolute bottom-20 right-20 w-40 h-40 bg-orange-200/30 dark:bg-orange-800/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-24 h-24 bg-amber-200/20 dark:bg-amber-800/20 rounded-full blur-xl animate-pulse" style={{ animationDelay: '2s' }} />
+      </div>
+      
+      <div className="max-w-md w-full bg-white/90 dark:bg-gray-800/95 backdrop-blur-lg rounded-3xl shadow-2xl border border-yellow-200/50 dark:border-yellow-800/30 p-8 text-center relative z-10">
+        <div className="mb-8">
+          <div className="w-20 h-20 bg-gradient-to-br from-yellow-400 to-orange-500 dark:from-yellow-500 dark:to-orange-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <Clock className="w-10 h-10 text-white" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Access Pending</h2>
-          <p className="text-gray-600 dark:text-gray-300">
-            Your account is currently pending approval. Please join the waitlist below and wait for an administrator to activate your account.
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">
+            Access Pending
+          </h1>
+          <p className="text-lg text-gray-600 dark:text-gray-300 leading-relaxed">
+            Your account is awaiting approval from an administrator.
           </p>
         </div>
-        {submitted ? (
-          <div className="text-green-600 dark:text-green-400 font-semibold mb-4">{success}</div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
-              <input 
-                type="text" 
-                value={name} 
-                onChange={e => setName(e.target.value)} 
-                required 
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white" 
-              />
+        
+        <div className="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/30 dark:to-orange-900/30 rounded-2xl p-6 mb-8 border border-yellow-200/50 dark:border-yellow-800/30">
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0">
+              <div className="w-10 h-10 bg-yellow-100 dark:bg-yellow-900/50 rounded-full flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Class</label>
-              <select 
-                value={selectedClass} 
-                onChange={e => setSelectedClass(e.target.value)} 
-                required 
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white"
-              >
-                <option value="">Select a class</option>
-                {classes.map(cls => (
-                  <option key={cls.id} value={cls.id}>
-                    {cls.grade || ''}-{cls.section || ''}
-                  </option>
-                ))}
-              </select>
+            <div className="text-left">
+              <h3 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-2 text-lg">
+                What happens next?
+              </h3>
+              <p className="text-sm text-yellow-700 dark:text-yellow-300 leading-relaxed">
+                An administrator will review your account and assign you the appropriate role and permissions. You'll be notified once your access is granted.
+              </p>
             </div>
-            {error && <div className="text-red-600 dark:text-red-400">{error}</div>}
-            <button 
-              type="submit" 
-              disabled={loading} 
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
-            >
-              {loading ? 'Joining...' : 'Join Waitlist'}
-            </button>
-          </form>
-        )}
-        <button
-          onClick={() => signOut()}
-          className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors mt-2"
-        >
-          Sign Out
-        </button>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-          If you believe this is an error, please contact your system administrator.
-        </p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
+            <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+              <p><span className="font-semibold text-gray-700 dark:text-gray-200">Email:</span> {user?.email || 'N/A'}</p>
+              <p><span className="font-semibold text-gray-700 dark:text-gray-200">Username:</span> {user?.username}</p>
+            </div>
+          </div>
+          
+          <button
+            onClick={handleSignOut}
+            className="w-full px-6 py-3 bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-500 transition-all duration-200 font-medium shadow-sm hover:shadow-md"
+          >
+            Sign Out
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
-function RejectedAccess() {
-  const { signOut } = useAuthStore();
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 text-center">
-        <div className="mb-6">
-          <div className="mx-auto w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4">
-            <svg className="w-8 h-8 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Account Rejected</h2>
-          <p className="text-gray-600 dark:text-gray-300">
-            Your account request was rejected. Please contact an administrator if you believe this is a mistake.
-          </p>
-        </div>
-        <button
-          onClick={() => signOut()}
-          className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors mt-2"
-        >
-          Sign Out
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function AppRoutes() {
-  const { user, setUser } = useAuthStore();
-  const { session, user: sessionUser, loading: sessionLoading } = useSession();
-  const { theme } = useTheme();
-  const [loading, setLoading] = useState(true);
-  const location = useLocation();
-
-  // Sync session user to auth store
-  useEffect(() => {
-    if (sessionUser) {
-      console.log('AppRoutes: Setting user from session context', sessionUser);
-      setUser(sessionUser);
-    } else {
-      console.log('AppRoutes: Clearing user');
-      setUser(null);
-    }
-  }, [sessionUser, setUser]);
-
-  // Set theme and initialize RLS policies
-  useEffect(() => {
-    document.documentElement.classList.remove('light', 'dark');
-    document.documentElement.classList.add(theme);
-    setupRLSPolicies().catch(error => {
-      console.warn('RLS policy setup failed, continuing anyway:', error);
-    });
-  }, [theme]);
-
-  // Handle loading state based on session loading
-  useEffect(() => {
-    if (!sessionLoading) {
-      setLoading(false);
-    }
-  }, [sessionLoading]);
-
-  // Additional timeout to prevent infinite loading
-  useEffect(() => {
-    if (loading) {
-      const timer = setTimeout(() => {
-        console.log('AppRoutes: Loading timeout reached, forcing loading to false');
-        setLoading(false);
-      }, 6000);
-      return () => clearTimeout(timer);
-    }
-  }, [loading]);
+// Protected Route Component
+function ProtectedRoute({ children, requiredRole }: { children: React.ReactNode; requiredRole?: string[] }) {
+  const { user, loading } = useSession();
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading...</p>
-          {sessionLoading && (
-            <p className="mt-2 text-sm text-gray-500 dark:text-gray-500">Checking session...</p>
-          )}
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading...</p>
         </div>
       </div>
     );
   }
 
   if (!user) {
-    // If sessionUser exists but user is null, show rejected message
-    if (sessionUser) {
-      return <RejectedAccess />;
-    }
-    return (
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    );
+    return <Navigate to="/login" replace />;
   }
 
-  // Check if user has pending access
+  // Check if user is pending
   if (user.role === 'pending') {
     return <PendingAccess />;
   }
 
-  const storedClassId = localStorage.getItem('selectedClassId');
-  const isAdmin = user.role === 'ultra_admin' || user.role === 'admin';
-  const needsClassSelection = isAdmin && !storedClassId && location.pathname !== '/select-class';
-
-  if (needsClassSelection) {
+  // Check role requirements
+  if (requiredRole && !requiredRole.includes(user.role)) {
     return (
-      <Routes>
-        <Route path="*" element={<Navigate to="/select-class" replace />} />
-      </Routes>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertTriangle className="w-8 h-8 text-red-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+            Access Denied
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            You don't have permission to access this page.
+          </p>
+        </div>
+      </div>
     );
   }
 
+  return <>{children}</>;
+}
+
+// Main App Component
+function AppContent() {
+  const { user, loading } = useSession();
+  const [classes, setClasses] = useState<any[]>([]);
+  const [currentClass, setCurrentClass] = useState<any>(null);
+
+  useEffect(() => {
+    const loadClassesData = async () => {
+      try {
+        const { classes: classesData, error } = await loadClasses();
+        if (error) {
+          console.error('Error loading classes:', error);
+          return;
+        }
+        if (classesData) {
+          setClasses(classesData);
+        }
+      } catch (err) {
+        console.error('Error in loadClassesData:', err);
+      }
+    };
+
+    loadClassesData();
+  }, []);
+
+  useEffect(() => {
+    const savedClassId = localStorage.getItem('selectedClassId');
+    if (savedClassId && classes.length > 0) {
+      const savedClass = classes.find(cls => cls.id === savedClassId);
+      if (savedClass) {
+        setCurrentClass(savedClass);
+      }
+    }
+  }, [classes]);
+
+  const handleClassChange = (selectedClass: any) => {
+    setCurrentClass(selectedClass);
+    if (selectedClass) {
+      localStorage.setItem('selectedClassId', selectedClass.id);
+    } else {
+      localStorage.removeItem('selectedClassId');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
+
+  // Show pending access for pending users
+  if (user?.role === 'pending') {
+    return <PendingAccess />;
+  }
+
   return (
-    <Routes>
-      <Route path="/select-class" element={<ClassSelect />} />
-      <Route path="/" element={<Layout />}>
-        <Route index element={<Home />} />
-        <Route path="announcements" element={<Announcements />} />
-        <Route path="subjects" element={<Subjects />} />
-        <Route path="subjects/:id" element={<SubjectDetail />} />
-        <Route path="library" element={<Library />} />
-        <Route path="record-room" element={<RecordRoom />} />
-        <Route path="afternoon-clubs" element={<AfternoonClubs />} />
-        <Route path="settings" element={<Settings />} />
-        <Route path="custom/:path" element={<CustomPage />} />
-        <Route path="users" element={<Users />} />
-        <Route path="customize" element={<Customize />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Route>
-    </Routes>
+    <>
+      <Routes>
+        {/* Standalone routes without sidebar */}
+        <Route path="/class-select" element={<ClassSelect />} />
+        <Route path="/select-class" element={<ClassSelect />} />
+        
+        {/* Routes with sidebar */}
+        <Route path="/" element={<Layout />}>
+          <Route index element={<Home />} />
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="classes" element={<Classes />} />
+          <Route path="subjects" element={<Subjects />} />
+          <Route path="subjects/:id" element={<SubjectDetail />} />
+          <Route path="assignments" element={<Assignments />} />
+          <Route path="announcements" element={<Announcements />} />
+          <Route path="library" element={<Library />} />
+          <Route path="users" element={<ProtectedRoute requiredRole={['admin', 'ultra_admin']}><Users /></ProtectedRoute>} />
+          <Route path="settings" element={<Settings />} />
+          <Route path="customize" element={<ProtectedRoute requiredRole={['admin', 'ultra_admin']}><Customize /></ProtectedRoute>} />
+          <Route path="custom/:path" element={<CustomPage />} />
+          <Route path="record-room" element={<ProtectedRoute requiredRole={['admin', 'ultra_admin', 'teacher', 'student']}><RecordRoom /></ProtectedRoute>} />
+          <Route path="afternoon-clubs" element={<AfternoonClubs />} />
+          <Route path="other" element={<Other />} />
+        </Route>
+      </Routes>
+    </>
   );
 }
 
+// Root App Component with Session Provider
 function App() {
-  // Handle OAuth redirect on app mount
-  useEffect(() => {
-    handleOAuthRedirect();
-  }, []);
-
   return (
     <SessionProvider>
-      <AppRoutes />
+      <AppContent />
     </SessionProvider>
   );
 }

@@ -5,29 +5,13 @@ import type { UserRole } from '../types';
 const supabaseUrl = 'https://hovpbitodsfarvojjvqh.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhvdnBiaXRvZHNmYXJ2b2pqdnFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc3MzcwMTgsImV4cCI6MjA1MzMxMzAxOH0.La3MbLvfG42MzxJq610pMcQfjsmPgSg2IL4Ws86tB9o';
 
-// Get the current URL for OAuth redirects
-const getRedirectUrl = () => {
-  if (typeof window !== 'undefined') {
-    return window.location.origin;
-  }
-  return 'http://localhost:3000'; // fallback for SSR
-};
-
 // Validate environment variables
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
-// Create Supabase client with error handling and proper redirect URL
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true,
-    flowType: 'pkce',
-    redirectTo: getRedirectUrl(),
-  },
-});
+// Create Supabase client with error handling
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
 // Utility function to check if error is "not found"
 export const isNotFoundError = (error: any) => {
@@ -77,35 +61,6 @@ export const signInWithEmail = async (email: string, password: string) => {
   }
 };
 
-// OAuth sign-in with proper redirect URL
-export const signInWithOAuth = async (provider: 'google' | 'github' | 'discord') => {
-  try {
-    console.log(`Attempting to sign in with ${provider}`);
-    
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: getRedirectUrl(),
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-        },
-      },
-    });
-
-    if (error) {
-      console.error('OAuth authentication error:', error);
-      throw new Error(error.message || 'OAuth authentication failed. Please try again.');
-    }
-
-    console.log('OAuth sign in initiated:', data);
-    return data;
-  } catch (error: any) {
-    console.error('OAuth sign in error:', error);
-    throw error;
-  }
-};
-
 export const signOut = async () => {
   try {
     const { error } = await supabase.auth.signOut();
@@ -115,79 +70,6 @@ export const signOut = async () => {
     throw new Error(error.message || 'Failed to sign out');
   }
 };
-
-export async function createUser({
-  email,
-  password,
-  username,
-  role = 'student',
-}: {
-  email: string;
-  password: string;
-  username: string;
-  role?: UserRole;
-}) {
-  try {
-    // Validate inputs
-    if (!email || !password || !username) {
-      throw new Error('Email, password, and username are required');
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      throw new Error('Please enter a valid email address');
-    }
-
-    // Validate password length
-    if (password.length < 6) {
-      throw new Error('Password must be at least 6 characters long');
-    }
-
-    // First check if username is taken
-    const { data: existingUser, error } = await supabase
-      .from('profiles')
-      .select('username')
-      .eq('username', username)
-      .single();
-
-    if (existingUser) {
-      throw new Error('Username already taken');
-    }
-
-    // Use the Supabase Auth Admin API to create the user
-    const { data: userData, error: adminError } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: {
-        username,
-        role,
-      },
-    });
-
-    if (adminError) throw adminError;
-    if (!userData || !userData.user) throw new Error('Failed to create user');
-
-    // The trigger on auth.users will create the profile row automatically
-    // Optionally, fetch the profile after creation
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userData.user.id)
-      .single();
-
-    if (profileError) {
-      // Profile may not be immediately available due to trigger timing
-      return { user: userData.user, profile: null };
-    }
-
-    return { user: userData.user, profile };
-  } catch (error) {
-    console.error('Create user error:', error);
-    throw error;
-  }
-}
 
 export async function updateUserProfile(
   userId: string,
@@ -252,7 +134,7 @@ async function assignStudentToClass(userId: string, grade: number, section: stri
         ]);
 
       if (assignmentError) {
-        console.error('Error assigning to class:', assignmentError);
+        console.error('Error creating class assignment:', assignmentError);
       }
     }
   } catch (error) {
@@ -260,179 +142,60 @@ async function assignStudentToClass(userId: string, grade: number, section: stri
   }
 }
 
-// Function to clear any existing sessions
 export async function clearAllSessions() {
   try {
-    await supabase.auth.signOut({ scope: 'global' });
-    console.log('All sessions cleared');
-    localStorage.removeItem('supabase.auth.token');
-    localStorage.removeItem('selectedClassId');
-    
-    // Clear any other auth-related items in localStorage
-    Object.keys(localStorage).forEach(key => {
-      if (key.includes('supabase') || key.includes('auth') || key.includes('session')) {
-        localStorage.removeItem(key);
-      }
-    });
-  } catch (error) {
-    console.error('Error clearing sessions:', error);
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+  } catch (error: any) {
+    console.error('Clear sessions error:', error);
+    throw new Error(error.message || 'Failed to clear sessions');
   }
 }
 
-// Helper function to create admin profile directly
 async function createAdminProfile(email: string, username: string, role: UserRole) {
   try {
-    // Try to get the auth user ID first
-    const { data: userData } = await supabase.auth.admin.listUsers();
-    const user = userData?.users?.find(u => u.email?.toLowerCase() === email.toLowerCase());
-    
-    if (!user?.id) {
-      throw new Error(`Auth user not found for email: ${email}`);
-    }
-    
-    // Create the profile
-    const { data: profile, error } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
-      .insert([{
-        id: user.id,
-        email,
-        username,
-        role,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }])
+      .insert([
+        {
+          email,
+          username,
+          role,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ])
       .select()
       .single();
-      
-    if (error) {
-      throw error;
-    }
-    
-    return profile;
-  } catch (error) {
-    console.error(`Failed to create profile for ${email}:`, error);
+
+    if (error) throw error;
+    return data;
+  } catch (error: any) {
+    console.error('Create admin profile error:', error);
     throw error;
   }
 }
 
-// Initialize default accounts if they don't exist
 export async function initializeDefaultAdmin() {
   try {
-    // Check if auth user exists first to avoid user_already_exists errors
-    const { data: authUsers } = await supabase.auth.admin.listUsers();
-    const existingEmails = new Set(
-      authUsers?.users?.map(user => user.email?.toLowerCase()) || []
-    );
-    
-    // Check if admin exists in profiles
-    const { data: existingAdmin, error: adminError } = await supabase
+    // Check if admin already exists
+    const { data: existingAdmin } = await supabase
       .from('profiles')
       .select('*')
-      .eq('username', 'admin')
-      .maybeSingle();
+      .eq('email', 'admin@lgs.edu.pk')
+      .single();
 
-    if (!existingAdmin && !adminError && !existingEmails.has('admin@lgs.edu.pk')) {
-      try {
-        await createUser({
-          email: 'admin@lgs.edu.pk',
-          password: 'admin1234',
-          username: 'admin',
-          role: 'admin'
-        });
-        console.log('Admin user created successfully');
-      } catch (error: any) {
-        // Ignore user_already_exists errors
-        if (error?.name === 'AuthApiError' && error?.code === 'user_already_exists') {
-          console.log('Admin user already exists in auth but not in profiles');
-          // Try to create just the profile
-          try {
-            await createAdminProfile('admin@lgs.edu.pk', 'admin', 'admin');
-          } catch (profileError) {
-            console.warn('Failed to create admin profile:', profileError);
-          }
-        } else {
-          console.error('Error creating admin user:', error);
-        }
-      }
+    if (existingAdmin) {
+      console.log('Admin already exists');
+      return existingAdmin;
     }
 
-    // Check if ultra admin exists in profiles
-    const { data: existingUltraAdmin, error: ultraAdminError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('username', 'ultraadmin')
-      .maybeSingle();
-
-    if (!existingUltraAdmin && !ultraAdminError && !existingEmails.has('ultraadmin@lgs.edu.pk')) {
-      try {
-        await createUser({
-          email: 'ultraadmin@lgs.edu.pk',
-          password: 'ultraadmin1234',
-          username: 'ultraadmin',
-          role: 'ultra_admin'
-        });
-        console.log('Ultra admin user created successfully');
-      } catch (error: any) {
-        // Ignore user_already_exists errors
-        if (error?.name === 'AuthApiError' && error?.code === 'user_already_exists') {
-          console.log('Ultra admin user already exists in auth but not in profiles');
-          // Try to create just the profile
-          try {
-            await createAdminProfile('ultraadmin@lgs.edu.pk', 'ultraadmin', 'ultra_admin');
-          } catch (profileError) {
-            console.warn('Failed to create ultra admin profile:', profileError);
-          }
-        } else {
-          console.error('Error creating ultra admin user:', error);
-        }
-      }
-    }
-
-    // Check if student exists in profiles
-    const { data: existingStudent, error: studentError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('username', 'student')
-      .maybeSingle();
-
-    if (!existingStudent && !studentError && !existingEmails.has('student@lgs.edu.pk')) {
-      try {
-        const studentUser = await createUser({
-          email: 'student@lgs.edu.pk',
-          password: 'student1234',
-          username: 'student',
-          role: 'student'
-        });
-
-        // Assign student to class 7C
-        if (studentUser?.user?.id) {
-          await assignStudentToClass(studentUser.user.id, 7, 'C');
-        }
-        console.log('Student user created successfully');
-      } catch (error: any) {
-        // Ignore user_already_exists errors
-        if (error?.name === 'AuthApiError' && error?.code === 'user_already_exists') {
-          console.log('Student user already exists in auth but not in profiles');
-          // Try to create just the profile
-          try {
-            const profile = await createAdminProfile('student@lgs.edu.pk', 'student', 'student');
-            // Assign student to class 7C if profile was created
-            if (profile?.id) {
-              await assignStudentToClass(profile.id, 7, 'C');
-            }
-          } catch (profileError) {
-            console.warn('Failed to create student profile:', profileError);
-          }
-        } else {
-          console.error('Error creating student user:', error);
-        }
-      }
-    }
-
-    console.log('Default accounts initialized');
-  } catch (error) {
-    console.error('Error initializing accounts:', error);
-    // Don't throw the error to prevent breaking the app
-    return null;
+    // Create default admin
+    const adminProfile = await createAdminProfile('admin@lgs.edu.pk', 'admin', 'ultra_admin');
+    console.log('Default admin created:', adminProfile);
+    return adminProfile;
+  } catch (error: any) {
+    console.error('Initialize default admin error:', error);
+    throw error;
   }
 }

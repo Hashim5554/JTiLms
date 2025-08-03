@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAuthStore } from '../store/auth';
+import { useSession } from '../contexts/SessionContext';
 import { supabase } from '../lib/supabase';
 import { 
   FileText, 
@@ -147,7 +147,7 @@ interface ClassAssignment {
 }
 
 export function RecordRoom() {
-  const { user } = useAuthStore();
+  const { user } = useSession();
   const [activeTab, setActiveTab] = useState<RecordType>('results');
   const [classes, setClasses] = useState<RecordClass[]>([]);
   const [selectedClass, setSelectedClass] = useState<string>('');
@@ -187,7 +187,7 @@ export function RecordRoom() {
     date: new Date().toISOString().split('T')[0]
   });
 
-  const isAdmin = user?.role === 'ultra_admin' || user?.role === 'admin';
+  const isAdmin = user?.role === 'ultra_admin' || user?.role === 'admin' || user?.role === 'teacher';
 
   useEffect(() => {
     if (isAdmin) {
@@ -205,6 +205,13 @@ export function RecordRoom() {
       loadRecords();
     }
   }, [selectedClass, isAdmin]);
+
+  // Reload records when activeTab changes
+  useEffect(() => {
+    if (selectedClass && isAdmin) {
+      loadRecords();
+    }
+  }, [activeTab, selectedClass, isAdmin]);
 
   const fetchClassesData = async () => {
     setLoading(true);
@@ -328,8 +335,10 @@ export function RecordRoom() {
     
     setLoading(true);
     try {
+      console.log('Loading records for:', { activeTab, selectedClass });
+      
       if (activeTab === 'results') {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('results')
           .select(`
             *,
@@ -339,11 +348,12 @@ export function RecordRoom() {
           .eq('class_id', selectedClass)
           .order('test_date', { ascending: false });
         
+        if (error) throw error;
+        console.log('Loaded results:', data?.length || 0);
         if (data) setResults(data);
       } 
       else if (activeTab === 'schoolAttendance') {
-        
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('attendance')
           .select(`
             *,
@@ -353,10 +363,12 @@ export function RecordRoom() {
           .eq('type', 'school')
           .order('date', { ascending: false });
         
+        if (error) throw error;
+        console.log('Loaded attendance:', data?.length || 0);
         if (data) setAttendances(data);
       } 
       else if (activeTab === 'discipline') {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('discipline')
           .select(`
             *,
@@ -365,6 +377,8 @@ export function RecordRoom() {
           .eq('class_id', selectedClass)
           .order('date', { ascending: false });
         
+        if (error) throw error;
+        console.log('Loaded discipline:', data?.length || 0);
         if (data) setDisciplines(data);
       }
     } catch (error) {
@@ -416,6 +430,13 @@ export function RecordRoom() {
           test_name: ''
         });
         setMessage({ type: 'success', text: 'Result added successfully' });
+        
+        // Reload records after a short delay to ensure data persistence
+        setTimeout(() => {
+          if (selectedClass && isAdmin) {
+            loadRecords();
+          }
+        }, 1000);
       }
     } catch (error: any) {
       setMessage({ type: 'error', text: error.message });
@@ -476,12 +497,28 @@ export function RecordRoom() {
       }
       
       if (data) {
-        // Update the attendance list
-        const updatedAttendances = attendances.filter(a => 
-          !(a.student_id === studentId && a.date === currentDate && a.type === type)
+        // Update the attendance list by replacing the existing record or adding new one
+        const existingIndex = attendances.findIndex(a => 
+          a.student_id === studentId && a.date === currentDate && a.type === type
         );
-        setAttendances([data, ...updatedAttendances]);
+        
+        if (existingIndex !== -1) {
+          // Update existing record
+          const updatedAttendances = [...attendances];
+          updatedAttendances[existingIndex] = data;
+          setAttendances(updatedAttendances);
+        } else {
+          // Add new record
+          setAttendances([data, ...attendances]);
+        }
         setMessage({ type: 'success', text: 'Attendance updated' });
+        
+        // Reload records after a short delay to ensure data persistence
+        setTimeout(() => {
+          if (selectedClass && isAdmin) {
+            loadRecords();
+          }
+        }, 1000);
       }
     } catch (error: any) {
       setMessage({ type: 'error', text: error.message });
@@ -522,6 +559,13 @@ export function RecordRoom() {
           date: new Date().toISOString().split('T')[0]
         });
         setMessage({ type: 'success', text: 'Discipline record added successfully' });
+        
+        // Reload records after a short delay to ensure data persistence
+        setTimeout(() => {
+          if (selectedClass && isAdmin) {
+            loadRecords();
+          }
+        }, 1000);
       }
     } catch (error: any) {
       setMessage({ type: 'error', text: error.message });
@@ -530,64 +574,87 @@ export function RecordRoom() {
 
   // Student view component
   const StudentResultsView = () => (
-    <div className="bg-theme-secondary shadow-lg rounded-xl overflow-hidden">
-      <div className="px-4 py-5 sm:px-6 flex justify-between items-center border-b border-theme-border-primary">
-        <h3 className="text-lg leading-6 font-medium text-theme-text-primary">Your Results</h3>
-      </div>
-      <div className="border-t border-theme-border-primary">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-theme-border-primary">
-            <thead className="bg-theme-tertiary">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider rounded-tl-lg">
-                  Subject
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider">
-                  Test
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider">
-                  Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider">
-                  Grade
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider rounded-tr-lg">
-                  Marks
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-theme-secondary divide-y divide-theme-border-primary">
-              {results.length > 0 ? (
-                results.map((result) => (
-                  <tr key={result.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {result.subjects?.name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {result.test_name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(result.test_date).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {result.grade}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {result.marks}/{result.total_marks}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-sm text-gray-500">
-                    No results found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+    <div className="space-y-6">
+      {/* Header with stats */}
+      <div className="bg-gradient-to-r from-red-500 to-pink-600 rounded-2xl p-6 text-white shadow-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-2xl font-bold">Your Academic Results</h3>
+            <p className="text-red-100 mt-1">Track your performance across all subjects</p>
+          </div>
+          <div className="hidden sm:block">
+            <div className="text-right">
+              <div className="text-3xl font-bold">{results.length}</div>
+              <div className="text-red-100 text-sm">Total Tests</div>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Results Cards */}
+      {results.length > 0 ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {results.map((result) => (
+            <div key={result.id} className="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200 dark:border-gray-700 overflow-hidden">
+              {/* Card Header */}
+              <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-4 text-white">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-lg">{result.subjects?.name || 'Unknown Subject'}</h4>
+                  <div className="text-right">
+                    <div className="text-2xl font-bold">{result.grade}</div>
+                    <div className="text-blue-100 text-xs">Grade</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card Content */}
+              <div className="p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Test Name</span>
+                  <span className="font-medium text-gray-900 dark:text-white">{result.test_name}</span>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Date</span>
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    {new Date(result.test_date).toLocaleDateString()}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Score</span>
+                  <div className="text-right">
+                    <div className="font-bold text-lg text-gray-900 dark:text-white">
+                      {result.marks}/{result.total_marks}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {Math.round((result.marks / result.total_marks) * 100)}%
+                    </div>
+                  </div>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                  <div 
+                    className="bg-gradient-to-r from-green-500 to-emerald-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${(result.marks / result.total_marks) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-12">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg border border-gray-200 dark:border-gray-700">
+            <FileText className="mx-auto h-16 w-16 text-gray-400 dark:text-gray-600 mb-4" />
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No Results Yet</h3>
+            <p className="text-gray-600 dark:text-gray-400">
+              Your academic results will appear here once they are added by your teachers.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -595,91 +662,222 @@ export function RecordRoom() {
     const type = 'school';
     const filteredAttendances = attendances.filter(a => a.type === type);
     
+    // Calculate attendance statistics
+    const totalDays = filteredAttendances.length;
+    const presentDays = filteredAttendances.filter(a => a.status === 'present').length;
+    const absentDays = filteredAttendances.filter(a => a.status === 'absent').length;
+    const leaveDays = filteredAttendances.filter(a => a.status === 'leave').length;
+    const attendancePercentage = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
+    
     return (
-      <div className="bg-theme-secondary shadow-lg rounded-xl overflow-hidden">
-        <div className="px-4 py-5 sm:px-6 flex justify-between items-center border-b border-theme-border-primary">
-          <h3 className="text-lg leading-6 font-medium text-theme-text-primary">
-            School Attendance
-          </h3>
-        </div>
-        <div className="border-t border-theme-border-primary">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-theme-border-primary">
-              <thead className="bg-theme-tertiary">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider rounded-tl-lg">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-theme-secondary divide-y divide-theme-border-primary">
-                {filteredAttendances.length > 0 ? (
-                  filteredAttendances.map((attendance) => (
-                    <tr key={attendance.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {new Date(attendance.date).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          attendance.status === 'present' 
-                            ? 'bg-green-100 text-green-800' 
-                            : attendance.status === 'absent'
-                              ? 'bg-red-100 text-red-800'
-                              : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {attendance.status.charAt(0).toUpperCase() + attendance.status.slice(1)}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={2} className="px-6 py-4 text-center text-sm text-gray-500">
-                      No attendance records found
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+      <div className="space-y-6">
+        {/* Header with stats */}
+        <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-2xl font-bold">School Attendance</h3>
+              <p className="text-green-100 mt-1">Track your daily attendance record</p>
+            </div>
+            <div className="hidden sm:block">
+              <div className="text-right">
+                <div className="text-3xl font-bold">{attendancePercentage}%</div>
+                <div className="text-green-100 text-sm">Attendance Rate</div>
+              </div>
+            </div>
           </div>
         </div>
+
+        {/* Attendance Statistics */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-lg border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center">
+              <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                <UserCheck className="h-6 w-6 text-green-600 dark:text-green-400" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Present</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{presentDays}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-lg border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center">
+              <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                <X className="h-6 w-6 text-red-600 dark:text-red-400" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Absent</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{absentDays}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-lg border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                <Calendar className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Leave</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{leaveDays}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-lg border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center">
+              <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                <GraduationCap className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Days</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalDays}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Attendance Records */}
+        {filteredAttendances.length > 0 ? (
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Attendance</h4>
+            </div>
+            <div className="divide-y divide-gray-200 dark:divide-gray-700">
+              {filteredAttendances.slice(0, 10).map((attendance) => (
+                <div key={attendance.id} className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <div className={`w-3 h-3 rounded-full ${
+                        attendance.status === 'present' 
+                          ? 'bg-green-500' 
+                          : attendance.status === 'absent'
+                          ? 'bg-red-500'
+                          : 'bg-blue-500'
+                      }`}></div>
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {new Date(attendance.date).toLocaleDateString('en-US', { 
+                            weekday: 'long', 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                          })}
+                        </p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {new Date(attendance.date).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                      attendance.status === 'present' 
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200' 
+                        : attendance.status === 'absent'
+                        ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200'
+                        : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200'
+                    }`}>
+                      {attendance.status.charAt(0).toUpperCase() + attendance.status.slice(1)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg border border-gray-200 dark:border-gray-700">
+              <UserCheck className="mx-auto h-16 w-16 text-gray-400 dark:text-gray-600 mb-4" />
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No Attendance Records</h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                Your attendance records will appear here once they are marked by your teachers.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
 
   const StudentDisciplineView = () => (
-    <div className="bg-theme-secondary shadow-lg rounded-xl overflow-hidden">
-      <div className="px-4 py-5 sm:px-6 flex justify-between items-center border-b border-theme-border-primary">
-        <h3 className="text-lg leading-6 font-medium text-theme-text-primary">Discipline Records</h3>
+    <div className="space-y-6">
+      {/* Header with stats */}
+      <div className="bg-gradient-to-r from-orange-500 to-red-600 rounded-2xl p-6 text-white shadow-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-2xl font-bold">Discipline Records</h3>
+            <p className="text-orange-100 mt-1">Track your behavioral records and warnings</p>
+          </div>
+          <div className="hidden sm:block">
+            <div className="text-right">
+              <div className="text-3xl font-bold">{disciplines.length}</div>
+              <div className="text-orange-100 text-sm">Total Records</div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div className="border-t border-theme-border-primary">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-theme-border-primary">
-            <thead className="bg-theme-tertiary">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider rounded-tl-lg">
-                  Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider">
-                  Warning Count
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-theme-text-secondary uppercase tracking-wider">
-                  Reason
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-theme-secondary divide-y divide-theme-border-primary">
-              {disciplines.length > 0 ? (
-                disciplines.map((discipline) => (
-                  <tr key={discipline.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {new Date(discipline.date).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
+
+      {/* Discipline Records */}
+      {disciplines.length > 0 ? (
+        <div className="space-y-4">
+          {disciplines.map((discipline) => (
+            <div key={discipline.id} className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-xl transition-all duration-300">
+              {/* Card Header */}
+              <div className={`px-6 py-4 ${
+                discipline.warning_count >= 3
+                  ? 'bg-red-500 text-white'
+                  : discipline.warning_count === 2
+                  ? 'bg-yellow-500 text-white'
+                  : 'bg-blue-500 text-white'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <AlertTriangle className="h-5 w-5" />
+                    <div>
+                      <h4 className="font-semibold">
+                        {discipline.warning_count === 3 
+                          ? 'Serious Warning' 
+                          : discipline.warning_count === 2 
+                          ? 'Moderate Warning' 
+                          : 'Minor Warning'}
+                      </h4>
+                      <p className="text-sm opacity-90">
+                        {new Date(discipline.date).toLocaleDateString('en-US', { 
+                          weekday: 'long', 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-bold">{discipline.warning_count}</div>
+                    <div className="text-xs opacity-90">Warnings</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card Content */}
+              <div className="p-6">
+                <div className="space-y-4">
+                  <div>
+                    <h5 className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Reason</h5>
+                    <p className="text-gray-900 dark:text-white leading-relaxed">
+                      {discipline.reason}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center space-x-2">
+                      <div className={`w-3 h-3 rounded-full ${
+                        discipline.warning_count >= 3
+                          ? 'bg-red-500'
+                          : discipline.warning_count === 2
+                          ? 'bg-yellow-500'
+                          : 'bg-blue-500'
+                      }`}></div>
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                         discipline.warning_count >= 3
                           ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200'
                           : discipline.warning_count === 2
@@ -692,23 +890,27 @@ export function RecordRoom() {
                           ? 'A Grade' 
                           : 'Tardy'}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {discipline.reason}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={3} className="px-6 py-4 text-center text-sm text-theme-text-secondary">
-                    No discipline records found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                    </div>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      {new Date(discipline.date).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
-      </div>
+      ) : (
+        <div className="text-center py-12">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg border border-gray-200 dark:border-gray-700">
+            <AlertTriangle className="mx-auto h-16 w-16 text-gray-400 dark:text-gray-600 mb-4" />
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No Discipline Records</h3>
+            <p className="text-gray-600 dark:text-gray-400">
+              Great job! You have no discipline records. Keep up the good behavior.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 

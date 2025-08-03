@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
-import { useAuthStore } from '../store/auth';
+import { useSession } from '../contexts/SessionContext';
 import { useTheme } from '../hooks/useTheme';
 import { 
-  Plus, Trash2, Edit, Eye, Layout, LayoutGrid, LayoutList, Columns, Grid3X3, PanelLeft, PanelRight, PanelTop, Rows, Palette, Sun, Moon, Check, X, AlertCircle, Layers, ChevronDown, ChevronRight
+  Plus, Trash2, Edit, Eye, Layout, LayoutGrid, LayoutList, Columns, Grid3X3, PanelLeft, PanelRight, PanelTop, Rows, Check, X, AlertCircle, Layers, ChevronDown, ChevronRight
 } from 'lucide-react';
 import type { Class } from '../types';
 
@@ -53,7 +53,7 @@ const layoutStarterContent: Record<string, any[]> = {
   ],
 };
 
-// --- Layout and Theme Options ---
+// --- Layout Options ---
 const layoutOptions = [
   { id: 'standard', name: 'Standard', icon: <Layout className="w-5 h-5" />, preview: <div className="h-10 w-16 bg-gradient-to-br from-gray-200 to-gray-400 rounded-lg mx-auto" /> },
   { id: 'grid', name: 'Grid', icon: <LayoutGrid className="w-5 h-5" />, preview: <div className="grid grid-cols-2 gap-1 h-10 w-16"><div className="bg-gray-300 rounded"></div><div className="bg-gray-400 rounded"></div><div className="bg-gray-200 rounded"></div><div className="bg-gray-400 rounded"></div></div> },
@@ -64,14 +64,6 @@ const layoutOptions = [
   { id: 'right-sidebar', name: 'Right Sidebar', icon: <PanelRight className="w-5 h-5" />, preview: <div className="flex h-10 w-16"><div className="bg-gray-200 w-3/4 h-full rounded-l"></div><div className="bg-gray-400 w-1/4 h-full rounded-r"></div></div> },
   { id: 'hero', name: 'Hero', icon: <PanelTop className="w-5 h-5" />, preview: <div className="h-10 w-16 bg-gradient-to-t from-gray-400 to-gray-200 rounded-lg mx-auto" /> },
   { id: 'masonry', name: 'Masonry', icon: <Rows className="w-5 h-5" />, preview: <div className="grid grid-cols-2 gap-1 h-10 w-16"><div className="bg-gray-300 h-6 rounded"></div><div className="bg-gray-400 h-3 rounded"></div><div className="bg-gray-200 h-3 rounded col-span-2"></div></div> },
-];
-const themeOptions = [
-  { id: 'default', name: 'Default', icon: <Palette className="w-5 h-5" />, preview: <div className="h-6 w-6 rounded-full bg-gradient-to-br from-gray-200 to-gray-400 mx-auto" /> },
-  { id: 'light', name: 'Light', icon: <Sun className="w-5 h-5" />, preview: <div className="h-6 w-6 rounded-full bg-white border mx-auto" /> },
-  { id: 'dark', name: 'Dark', icon: <Moon className="w-5 h-5" />, preview: <div className="h-6 w-6 rounded-full bg-gray-900 mx-auto" /> },
-  { id: 'red', name: 'Red', icon: <Palette className="w-5 h-5 text-red-500" />, preview: <div className="h-6 w-6 rounded-full bg-gradient-to-br from-red-400 to-red-700 mx-auto" /> },
-  { id: 'blue', name: 'Blue', icon: <Palette className="w-5 h-5 text-blue-500" />, preview: <div className="h-6 w-6 rounded-full bg-gradient-to-br from-blue-400 to-blue-700 mx-auto" /> },
-  { id: 'green', name: 'Green', icon: <Palette className="w-5 h-5 text-green-500" />, preview: <div className="h-6 w-6 rounded-full bg-gradient-to-br from-green-400 to-green-700 mx-auto" /> },
 ];
 
 interface CustomPageData {
@@ -94,7 +86,7 @@ interface ContextType {
 }
 
 export function Customize() {
-  const { user } = useAuthStore();
+  const { user } = useSession();
   const { theme } = useTheme();
   const navigate = useNavigate();
   const { currentClass, classes } = useOutletContext<ContextType>();
@@ -110,7 +102,6 @@ export function Customize() {
     path: '',
     class_id: '',
     layout: 'standard',
-    theme: 'default',
     content: layoutStarterContent['standard'], // Now stores JSON array
   });
   const [searchTerm, setSearchTerm] = useState('');
@@ -121,7 +112,6 @@ export function Customize() {
   const [isCreating, setIsCreating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [layoutPreview, setLayoutPreview] = useState('standard');
-  const [themePreview, setThemePreview] = useState('default');
   const [classDropdownOpen, setClassDropdownOpen] = useState(false);
   const classDropdownRef = useRef<HTMLDivElement>(null);
   
@@ -177,14 +167,14 @@ export function Customize() {
           path: newPage.path.trim(),
           class_id: newPage.class_id || null,
           content: JSON.stringify(newPage.content || []), // Store as JSON string
-          config: { layout: newPage.layout, theme: newPage.theme },
+          config: { layout: newPage.layout, theme: 'default' },
         }])
         .select()
         .single();
       if (error) throw error;
       setPages([...pages, data]);
       setShowCreateModal(false);
-      setNewPage({ title: '', path: '', class_id: '', layout: 'standard', theme: 'default', content: layoutStarterContent['standard'] });
+      setNewPage({ title: '', path: '', class_id: '', layout: 'standard', content: layoutStarterContent['standard'] });
       setSuccess('Page created successfully!');
       setTimeout(() => setSuccess(null), 3000);
       navigate(`/custom/${data.path}`);
@@ -356,7 +346,7 @@ export function Customize() {
                     </div>
                     <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
                       <div>Updated {new Date(page.updated_at).toLocaleDateString()}</div>
-                      <div className="flex items-center gap-1"><Palette className="w-4 h-4" /><span className="capitalize">{page.config?.theme || 'Default'}</span></div>
+                      <div className="flex items-center gap-1"><Layout className="w-4 h-4" /><span className="capitalize">{page.config?.theme || 'Default'}</span></div>
                     </div>
                   </div>
                   {/* Action buttons */}
@@ -455,18 +445,7 @@ export function Customize() {
                       )}
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-sm text-gray-700 dark:text-gray-200 font-medium mb-1">Theme</label>
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                      {themeOptions.map(opt => (
-                        <motion.button key={opt.id} type="button" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.97 }} onClick={() => { setNewPage({ ...newPage, theme: opt.id }); setThemePreview(opt.id); }} className={`flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all ${newPage.theme === opt.id ? 'border-red-500 bg-red-50 dark:bg-red-900/30' : 'border-transparent bg-white/80 dark:bg-gray-800/80'}` } aria-pressed={newPage.theme === opt.id} aria-label={opt.name}>
-                          {opt.icon}
-                          <span className="text-xs font-medium text-gray-700 dark:text-gray-200">{opt.name}</span>
-                          <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: newPage.theme === opt.id ? 1 : 0.5, scale: newPage.theme === opt.id ? 1.1 : 0.9 }} className="mt-1">{opt.preview}</motion.div>
-                        </motion.button>
-                      ))}
-                  </div>
-                </div>
+
                   <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleCreatePage} disabled={isCreating} className="w-full mt-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                     {isCreating ? <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}><Layout className="w-5 h-5 animate-spin" /></motion.span> : <Plus className="w-5 h-5" />} Create Page
                     </motion.button>

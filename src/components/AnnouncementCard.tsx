@@ -1,7 +1,7 @@
 import React from 'react';
 import { Trash2, Bell } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { useAuthStore } from '../store/auth';
+import { useSession } from '../contexts/SessionContext';
 import '../styles/animations.css';
 
 interface Announcement {
@@ -25,7 +25,7 @@ interface AnnouncementCardProps {
 }
 
 export function AnnouncementCard({ announcement, onDelete }: AnnouncementCardProps) {
-  const user = useAuthStore((state) => state.user);
+  const { user } = useSession();
   const canDelete = user?.role === 'admin' || user?.role === 'ultra_admin';
 
   const handleDelete = async () => {

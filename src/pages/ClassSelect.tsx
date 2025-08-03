@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '../lib/supabase';
-import { useAuthStore } from '../store/auth';
+import { useSession } from '../contexts/SessionContext';
 import type { Class } from '../types';
 import { Check, ShieldAlert, School, Loader2, GraduationCap } from 'lucide-react';
 import { loadClasses, getStudentClasses } from '../utils/classUtils';
 
 export function ClassSelect() {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user } = useSession();
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedClass, setSelectedClass] = useState<Class | null>(null);
@@ -122,7 +122,7 @@ export function ClassSelect() {
         throw new Error('Invalid class selection');
       }
 
-      // Admin users can select any class, only check assignments for students
+      // Admin and teacher users can select any class, only check assignments for students
       if (user?.role === 'student') {
         const { data: assignment, error: assignmentError } = await supabase
           .from('class_assignments')
@@ -276,11 +276,12 @@ export function ClassSelect() {
                   const isAvailable = !!cls;
                   const isSelected = selectedClass?.id === cls?.id;
                   
-                  // For admin users, all classes are selectable
+                  // For admin and teacher users, all classes are selectable
                   // For students, only their assigned classes are selectable
                   const isSelectable = isAvailable && (
                     user?.role === 'ultra_admin' || 
                     user?.role === 'admin' || 
+                    user?.role === 'teacher' || 
                     studentAssignments.some(c => cls && c.id === cls.id)
                   );
                   

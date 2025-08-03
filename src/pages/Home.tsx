@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { useAuthStore } from '../store/auth';
+import { useSession } from '../contexts/SessionContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { 
@@ -25,7 +25,7 @@ import {
 import { Class } from '../types';
 import '../styles/cards.css';
 import { useTheme } from '../hooks/useTheme';
-import { notifyDiscussionParticipants } from '../lib/notifications';
+import { markMessagesAsRead } from '../lib/messageTracking';
 
 interface HomeContextType {
   currentClass: Class | null;
@@ -136,7 +136,7 @@ export function Home() {
     class_id: ''
   });
   const [subjects, setSubjects] = useState<any[]>([]);
-  const user = useAuthStore((state) => state.user);
+  const { user } = useSession();
   const { currentClass, classes } = useOutletContext<HomeContextType>();
   const [newNews, setNewNews] = useState({
     title: '',
@@ -149,6 +149,7 @@ export function Home() {
   const [newNewsContent, setNewNewsContent] = useState('');
   const [creatingNews, setCreatingNews] = useState(false);
   const [deletingNews, setDeletingNews] = useState<string | null>(null);
+  const [movingNews, setMovingNews] = useState<string | null>(null);
   const [creatingDueWork, setCreatingDueWork] = useState(false);
   const [showDueWorkDetailsModal, setShowDueWorkDetailsModal] = useState(false);
   const [showCreateDueWorkModal, setShowCreateDueWorkModal] = useState(false);
@@ -432,22 +433,39 @@ export function Home() {
   const handleCreateDueWork = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreatingDueWork(true);
+    
     try {
+      console.log('Creating due work for classes:', selectedClasses);
+      console.log('Due work data:', newDueWork);
+      
       // Create due work for each selected class
-      const dueWorkPromises = selectedClasses.map(classId => 
-        supabase
-        .from('due_works')
-        .insert([{
+      const dueWorkPromises = selectedClasses.map(async (classId) => {
+        console.log('Creating due work for class:', classId);
+        
+        const { data, error } = await supabase
+          .from('due_works')
+          .insert([{
             title: newDueWork.title,
             description: newDueWork.description,
             due_date: newDueWork.due_date,
-          subject_id: newDueWork.subject_id,
+            subject_id: newDueWork.subject_id,
             class_id: classId,
             created_by: user?.id
           }])
-      );
+          .select();
+
+        if (error) {
+          console.error('Error creating due work for class', classId, ':', error);
+          throw error;
+        }
+        
+        console.log('Successfully created due work for class', classId, ':', data);
+        return data;
+      });
 
       await Promise.all(dueWorkPromises);
+      console.log('All due works created successfully');
+      
       await loadDueWorks();
       setShowCreateDueWorkModal(false);
       setNewDueWork({
@@ -458,11 +476,44 @@ export function Home() {
         class_id: ''
       });
       setSelectedClasses([]);
-    } catch (error) {
+      
+      // Show success message
+      alert('Due work created successfully!');
+    } catch (error: any) {
       console.error('Error creating due work:', error);
-      setError('Failed to create due work');
+      alert(`Failed to create due work: ${error.message}`);
     } finally {
       setCreatingDueWork(false);
+    }
+  };
+
+  // Handle delete due work
+  const handleDeleteDueWork = async (dueWorkId: string) => {
+    if (!user) return;
+    
+    try {
+      console.log('Deleting due work:', dueWorkId);
+      
+      const { error } = await supabase
+        .from('due_works')
+        .delete()
+        .eq('id', dueWorkId);
+
+      if (error) {
+        console.error('Error deleting due work:', error);
+        throw error;
+      }
+
+      console.log('Due work deleted successfully');
+      
+      // Refresh due works
+      await loadDueWorks();
+      
+      // Show success message
+      alert('Due work deleted successfully!');
+    } catch (error: any) {
+      console.error('Error deleting due work:', error);
+      alert(`Failed to delete due work: ${error.message}`);
     }
   };
 
@@ -548,7 +599,7 @@ export function Home() {
       return;
     }
 
-    if (user.role !== 'admin' && user.role !== 'ultra_admin') {
+    if (user.role !== 'admin' && user.role !== 'ultra_admin' && user.role !== 'teacher') {
       setError('You do not have permission to create news');
       return;
     }
@@ -798,9 +849,32 @@ export function Home() {
     setUploadingFile(true);
 
     try {
+      // Check file size (50MB limit)
+      if (file.size > 52428800) {
+        throw new Error('File size must be less than 50MB');
+      }
+
+      // Check file type
+      const allowedTypes = [
+        'application/pdf',
+        'text/plain',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'image/webp'
+      ];
+      
+      if (!allowedTypes.includes(file.type)) {
+        throw new Error('File type not supported. Please upload PDF, Word documents, text files, or images.');
+      }
+
       // Upload file to storage
       const fileExt = file.name.split('.').pop();
       const fileName = `${month}/${user.id}-${Date.now()}.${fileExt}`;
+      
+      console.log('Uploading file to storage:', fileName);
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('attainment-targets')
         .upload(fileName, file, {
@@ -810,12 +884,14 @@ export function Home() {
 
       if (uploadError) {
         console.error('Storage upload error:', uploadError);
-        throw uploadError;
+        throw new Error(`Storage upload failed: ${uploadError.message}`);
       }
 
       if (!uploadData?.path) {
         throw new Error('Upload failed - no path returned');
       }
+
+      console.log('File uploaded to storage, adding to database...');
 
       // Add file record to database
       const { error: dbError } = await supabase
@@ -824,26 +900,32 @@ export function Home() {
           name: file.name,
           url: uploadData.path,
           month: month,
-          created_by: user.id,  // Changed from uploaded_by to created_by
+          created_by: user.id,
           uploaded_at: new Date().toISOString()
         }]);
 
       if (dbError) {
+        console.error('Database insert error:', dbError);
         // If database insert fails, clean up the uploaded file
         await supabase.storage
           .from('attainment-targets')
           .remove([uploadData.path]);
-        throw dbError;
+        throw new Error(`Database insert failed: ${dbError.message}`);
       }
+
+      console.log('File successfully uploaded and added to database');
 
       // Refresh files
       await loadTargetFiles();
       
       // Clear the input
       e.target.value = '';
-    } catch (error) {
+      
+      // Show success message
+      alert('File uploaded successfully!');
+    } catch (error: any) {
       console.error('Error uploading file:', error);
-      alert('Failed to upload file. Please try again.');
+      alert(`Failed to upload file: ${error.message}`);
     } finally {
       setUploadingFile(false);
     }
@@ -855,12 +937,19 @@ export function Home() {
     setDeletingFile(fileId);
 
     try {
+      console.log('Deleting file from storage:', fileUrl);
+      
       // Delete from storage
       const { error: storageError } = await supabase.storage
         .from('attainment-targets')
         .remove([fileUrl]);
 
-      if (storageError) throw storageError;
+      if (storageError) {
+        console.error('Storage delete error:', storageError);
+        throw new Error(`Storage delete failed: ${storageError.message}`);
+      }
+
+      console.log('File deleted from storage, removing from database...');
 
       // Delete from database
       const { error: dbError } = await supabase
@@ -868,12 +957,21 @@ export function Home() {
         .delete()
         .eq('id', fileId);
 
-      if (dbError) throw dbError;
+      if (dbError) {
+        console.error('Database delete error:', dbError);
+        throw new Error(`Database delete failed: ${dbError.message}`);
+      }
+
+      console.log('File successfully deleted from database');
 
       // Refresh files
       await loadTargetFiles();
-    } catch (error) {
+      
+      // Show success message
+      alert('File deleted successfully!');
+    } catch (error: any) {
       console.error('Error deleting file:', error);
+      alert(`Failed to delete file: ${error.message}`);
     } finally {
       setDeletingFile(null);
     }
@@ -944,12 +1042,11 @@ export function Home() {
   };
 
   const loadPrivateDiscussions = async () => {
-    if (!currentClass?.id || !selectedUser?.id || !user?.id) return;
+    if (!selectedUser?.id || !user?.id) return;
     
     try {
       const { data, error } = await supabase
         .rpc('get_private_discussions_with_profiles')
-        .eq('class_id', currentClass.id)
         .or(`created_by.eq.${user.id},recipient_id.eq.${user.id}`)
         .order('created_at', { ascending: true });
 
@@ -968,16 +1065,8 @@ export function Home() {
   };
 
   const handleSendMessage = async () => {
-    console.log('Send button clicked'); // Debug log for button click
-    console.log('Current state:', {
-      newMessage,
-      userId: user?.id,
-      classId: currentClass?.id,
-      discussions: discussions.length
-    });
-    
     if (!newMessage.trim() || !user?.id || !currentClass?.id) {
-      console.log('Missing required data:', { 
+      console.log('Missing required data for open discussion:', { 
         hasMessage: !!newMessage.trim(), 
         hasUserId: !!user?.id, 
         hasClassId: !!currentClass?.id 
@@ -986,7 +1075,7 @@ export function Home() {
     }
 
     try {
-      console.log('Attempting to insert message into Supabase');
+      console.log('Attempting to insert open discussion message into Supabase');
       const { data, error } = await supabase
         .from('discussions')
         .insert([{
@@ -1007,11 +1096,11 @@ export function Home() {
         // Reload discussions to get the updated list with profile information
         await loadDiscussions();
         setNewMessage('');
-        // Notify all participants except the sender
-        await notifyDiscussionParticipants(currentClass.id, user.id, newMessage);
+        // Message tracking is now handled automatically by the real-time subscription
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending message:', error);
+      alert(`Failed to send message: ${error.message}`);
     }
   };
 
@@ -1055,16 +1144,14 @@ export function Home() {
     console.log('Attempting to send private message:', { 
       newMessage, 
       userId: user?.id, 
-      recipientId: selectedUser?.id,
-      classId: currentClass?.id 
+      recipientId: selectedUser?.id
     });
     
-    if (!newMessage.trim() || !user?.id || !selectedUser?.id || !currentClass?.id) {
-      console.log('Missing required data:', { 
+    if (!newMessage.trim() || !user?.id || !selectedUser?.id) {
+      console.log('Missing required data for private discussion:', { 
         hasMessage: !!newMessage.trim(), 
         hasUserId: !!user?.id, 
-        hasRecipientId: !!selectedUser?.id,
-        hasClassId: !!currentClass?.id 
+        hasRecipientId: !!selectedUser?.id
       });
       return;
     }
@@ -1077,7 +1164,7 @@ export function Home() {
           content: newMessage,
           created_by: user.id,
           recipient_id: selectedUser.id,
-          class_id: currentClass.id
+          class_id: null // Allow private messages without class restriction
         }])
         .select();
 
@@ -1093,8 +1180,9 @@ export function Home() {
         await loadPrivateDiscussions();
         setNewMessage('');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending private message:', error);
+      alert(`Failed to send private message: ${error.message}`);
     }
   };
 
@@ -1103,11 +1191,22 @@ export function Home() {
     if (showDiscussionsModal) {
       if (selectedDiscussionType === 'open') {
         loadDiscussions();
+        // Mark discussions as read when user opens discussions
+        markMessagesAsRead('discussions');
       } else if (selectedDiscussionType === 'private' && selectedUser) {
         loadPrivateDiscussions();
+        // Mark private discussions as read when user opens private discussions
+        markMessagesAsRead('private_discussions');
       }
     }
   }, [showDiscussionsModal, selectedDiscussionType, selectedUser]);
+
+  // Mark announcements as read when component mounts (user visits home page)
+  useEffect(() => {
+    if (user) {
+      markMessagesAsRead('announcements');
+    }
+  }, [user]);
 
   // Add error boundary
   if (error) {
@@ -1148,6 +1247,24 @@ export function Home() {
   // Add a check for required data
   if (!user || !currentClass) {
     console.log('Missing required data:', { user, currentClass }); // Debug log
+    
+    // Show different messages based on the situation
+    let message = "Missing required data. Please try logging in again.";
+    let actionText = "Go to Login";
+    let action = () => navigate('/login');
+    
+    if (user && !currentClass) {
+      if (user.role === 'student') {
+        message = "Your class information is being loaded. Please wait a moment...";
+        actionText = "Refresh Page";
+        action = () => window.location.reload();
+      } else {
+        message = "Please select a class to continue.";
+        actionText = "Select Class";
+        action = () => navigate('/select-class');
+      }
+    }
+    
     return (
       <motion.div 
         initial={{ opacity: 0 }}
@@ -1155,10 +1272,19 @@ export function Home() {
         className="page-container flex items-center justify-center"
       >
         <div className="card p-8 max-w-md">
-          <p className="text-red-600 mb-4">Missing required data. Please try logging in again.</p>
-          <button onClick={() => navigate('/login')} className="button-primary">
-            Go to Login
-          </button>
+          <div className="text-center">
+            {user && !currentClass && user.role === 'student' ? (
+              <Loader2 className="h-8 w-8 animate-spin text-red-600 mx-auto mb-4" />
+            ) : (
+              <div className="w-8 h-8 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-red-600 dark:text-red-400 text-sm font-bold">!</span>
+              </div>
+            )}
+            <p className="text-gray-700 dark:text-gray-300 mb-4">{message}</p>
+            <button onClick={action} className="button-primary">
+              {actionText}
+            </button>
+          </div>
         </div>
       </motion.div>
     );
@@ -1281,13 +1407,15 @@ export function Home() {
                     <div className="text-sm sm:text-base text-gray-500 dark:text-gray-400 py-8 sm:py-12 text-center">No news in the last week.</div>
                   ) : (
                     <div className="space-y-3 sm:space-y-6 max-h-[18vh] min-h-[80px] sm:min-h-[100px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-red-300 dark:scrollbar-thumb-red-900/60 scrollbar-track-transparent">
-                      {recentNews.map((n: NewsItem, idx: number) => (
+                      <AnimatePresence mode="popLayout">
+                        {recentNews.map((n: NewsItem, idx: number) => (
                     <motion.div
                           key={n.id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: idx * 0.1 }}
-                          className="group relative bg-white/70 dark:bg-gray-900/70 rounded-xl p-3 sm:p-4 shadow-md border border-white/20 dark:border-gray-800/30 hover:shadow-lg transition-shadow"
+                      exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                          transition={{ delay: idx * 0.1, duration: 0.3 }}
+                          className="group relative bg-white/70 dark:bg-gray-900/70 rounded-xl p-3 sm:p-4 shadow-md border border-white/20 dark:border-gray-800/30 hover:shadow-lg transition-all duration-300"
                           onClick={() => {
                             setSelectedNews(n);
                             setShowNewsDetailsModal(true);
@@ -1303,10 +1431,15 @@ export function Home() {
                               <div className="flex items-center gap-1 sm:gap-2">
                           <button
                                   onClick={() => handleMoveToOldNews(n.id)}
-                                  className="p-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                                  disabled={movingNews === n.id}
+                                  className="p-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                   title="Move to Old News"
                           >
-                                  <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400" />
+                                  {movingNews === n.id ? (
+                                    <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin text-blue-600 dark:text-blue-400" />
+                                  ) : (
+                                    <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400" />
+                                  )}
                           </button>
                                 <button 
                                   onClick={(e) => {
@@ -1328,6 +1461,7 @@ export function Home() {
                           <div className="text-sm sm:text-base text-gray-700 dark:text-gray-200">{n.content}</div>
                     </motion.div>
                   ))}
+                        </AnimatePresence>
                 </div>
                   )}
                   <div className="flex justify-between items-center mt-4 sm:mt-8">
@@ -1350,11 +1484,10 @@ export function Home() {
                 {(user?.role === 'admin' || user?.role === 'ultra_admin' || user?.role === 'teacher') && (
                   <button
                     onClick={() => {
-                      setSelectedDueWork(null);
-                      setShowDueWorkModal(true);
+                      setShowCreateDueWorkModal(true);
                       loadSubjects();
                     }}
-                    className="p-1.5 sm:p-2 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors"
+                    className="p-1.5 sm:p-2 rounded-full bg-gradient-to-r from-red-600 to-red-700 text-white hover:from-red-700 hover:to-red-800 transition-all duration-200 shadow-lg hover:shadow-xl"
                   >
                     <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
@@ -1380,22 +1513,35 @@ export function Home() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
-                        transition={{ duration: 0.3 }}
-                        className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
-                        onClick={() => {
-                          setSelectedDueWork(work);
-                          setShowDueWorkDetailsModal(true);
-                          setShowDueWorkModal(false);
+                    transition={{ duration: 0.3 }}
+                    className="group relative flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 cursor-pointer hover:from-gray-100 hover:to-gray-200 dark:hover:from-gray-700/50 dark:hover:to-gray-600/50 transition-all duration-200 border border-gray-200/50 dark:border-gray-700/50 hover:border-red-200 dark:hover:border-red-800/50"
+                    onClick={() => {
+                      setSelectedDueWork(work);
+                      setShowDueWorkDetailsModal(true);
+                      setShowDueWorkModal(false);
+                    }}
+                  >
+                    <div className="p-1.5 sm:p-2 bg-gradient-to-r from-red-100 to-red-200 dark:from-red-900/30 dark:to-red-800/30 rounded-lg shadow-sm">
+                      <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 dark:text-red-400" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm sm:text-base text-gray-900 dark:text-white font-medium">{work.title}</p>
+                      <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{work.subject_name}</p>
+                      <p className="text-xs sm:text-sm text-red-600 dark:text-red-400 font-medium">{getTimeLeft(work.due_date)}</p>
+                    </div>
+                    {(user?.id === work.created_by || user?.role === 'admin' || user?.role === 'ultra_admin' || user?.role === 'teacher') && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm('Are you sure you want to delete this due work?')) {
+                            handleDeleteDueWork(work.id);
+                          }
                         }}
+                        className="opacity-0 group-hover:opacity-100 p-1.5 sm:p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200"
                       >
-                        <div className="p-1.5 sm:p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                          <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 dark:text-red-400" />
-                      </div>
-                        <div className="flex-1">
-                          <p className="text-sm sm:text-base text-gray-900 dark:text-white font-medium">{work.title}</p>
-                          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{work.subject_name}</p>
-                          <p className="text-xs sm:text-sm text-red-600 dark:text-red-400">{getTimeLeft(work.due_date)}</p>
-                  </div>
+                        <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                      </button>
+                    )}
                   </motion.div>
                 ))}
               </AnimatePresence>
@@ -1580,7 +1726,7 @@ export function Home() {
       {showCreateDueWorkModal && createPortal(
         <div className="fixed inset-0 bg-black/60 z-[9999]">
           <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4">
-            <div className="bg-white/90 dark:bg-gray-900/90 rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-8 max-w-4xl w-full relative border border-white/30 dark:border-gray-800/40 backdrop-blur-xl max-h-[90vh] overflow-y-auto">
+            <div className="bg-white/95 dark:bg-gray-900/95 rounded-3xl shadow-2xl p-6 sm:p-8 max-w-5xl w-full relative border border-white/30 dark:border-gray-800/40 backdrop-blur-xl max-h-[90vh] overflow-y-auto">
                 <button
                 onClick={() => {
                   setShowCreateDueWorkModal(false);
@@ -1592,46 +1738,45 @@ export function Home() {
                     class_id: ''
                   });
                   setSelectedClasses([]);
-                  setShowDueWorkModal(true);
                 }} 
-                className="absolute top-2 sm:top-4 right-2 sm:right-4 p-1.5 sm:p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors shadow-lg"
               >
-                <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                <X className="w-5 h-5" />
                 </button>
               
-              <div className="space-y-4 sm:space-y-6">
-                <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
-                  <div className="p-2 sm:p-3 bg-red-100 dark:bg-red-900/30 rounded-xl">
-                    <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-red-600 dark:text-red-400" />
-              </div>
-                <div>
-                    <h3 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Create Due Work</h3>
-                    <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Assign work to one or multiple classes</p>
+              <div className="space-y-6 sm:space-y-8">
+                <div className="flex items-center gap-4 mb-6 sm:mb-8">
+                  <div className="p-3 sm:p-4 bg-gradient-to-r from-red-100 to-red-200 dark:from-red-900/30 dark:to-red-800/30 rounded-2xl shadow-lg">
+                    <FileText className="w-6 h-6 sm:w-8 sm:h-8 text-red-600 dark:text-red-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">Create Due Work</h3>
+                    <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">Assign work to one or multiple classes</p>
                   </div>
                 </div>
 
-                <form onSubmit={handleCreateDueWork} className="space-y-4 sm:space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                <form onSubmit={handleCreateDueWork} className="space-y-6 sm:space-y-8">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
                     {/* Left Column - Basic Info */}
-                    <div className="space-y-4 sm:space-y-6">
-                      <div>
-                        <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-700 dark:text-gray-200">Title</label>
-                  <input
-                    type="text"
-                    value={newDueWork.title}
+                    <div className="space-y-6 sm:space-y-8">
+                      <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 p-4 sm:p-6 rounded-2xl border border-gray-200/50 dark:border-gray-700/50">
+                        <label className="block text-sm sm:text-base font-semibold mb-2 text-gray-700 dark:text-gray-200">Assignment Title</label>
+                        <input
+                          type="text"
+                          value={newDueWork.title}
                           onChange={e => setNewDueWork(prev => ({ ...prev, title: e.target.value }))} 
-                          className="w-full px-3 py-1.5 sm:py-2 text-sm sm:text-base rounded-xl border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all" 
+                          className="w-full px-4 py-3 text-base sm:text-lg rounded-xl border border-gray-200 dark:border-gray-700 bg-white/90 dark:bg-gray-800/90 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all shadow-sm" 
                           placeholder="Enter assignment title"
                           required 
-                  />
-                </div>
+                        />
+                      </div>
 
-                <div>
-                        <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-700 dark:text-gray-200">Subject</label>
+                      <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 p-4 sm:p-6 rounded-2xl border border-gray-200/50 dark:border-gray-700/50">
+                        <label className="block text-sm sm:text-base font-semibold mb-2 text-gray-700 dark:text-gray-200">Subject</label>
                         <select
                           value={newDueWork.subject_id}
                           onChange={e => setNewDueWork(prev => ({ ...prev, subject_id: e.target.value }))}
-                          className="w-full px-3 py-1.5 sm:py-2 text-sm sm:text-base rounded-xl border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                          className="w-full px-4 py-3 text-base sm:text-lg rounded-xl border border-gray-200 dark:border-gray-700 bg-white/90 dark:bg-gray-800/90 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all shadow-sm"
                           required
                         >
                           <option value="">Select a subject</option>
@@ -1639,30 +1784,30 @@ export function Home() {
                             <option key={subject.id} value={subject.id}>{subject.name}</option>
                           ))}
                         </select>
-                </div>
+                      </div>
 
-                <div>
-                        <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-700 dark:text-gray-200">Due Date</label>
-                  <input
-                    type="datetime-local"
-                    value={newDueWork.due_date}
+                      <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 p-4 sm:p-6 rounded-2xl border border-gray-200/50 dark:border-gray-700/50">
+                        <label className="block text-sm sm:text-base font-semibold mb-2 text-gray-700 dark:text-gray-200">Due Date & Time</label>
+                        <input
+                          type="datetime-local"
+                          value={newDueWork.due_date}
                           onChange={e => setNewDueWork(prev => ({ ...prev, due_date: e.target.value }))} 
-                          className="w-full px-3 py-1.5 sm:py-2 text-sm sm:text-base rounded-xl border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all" 
+                          className="w-full px-4 py-3 text-base sm:text-lg rounded-xl border border-gray-200 dark:border-gray-700 bg-white/90 dark:bg-gray-800/90 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all shadow-sm" 
                           required 
-                  />
-                </div>
+                        />
+                      </div>
                     </div>
 
                     {/* Right Column - Class Selection */}
-                    <div className="space-y-6">
-                <div>
-                        <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-700 dark:text-gray-200">Select Classes</label>
-                        <div className="space-y-2 max-h-[200px] overflow-y-auto p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
+                    <div className="space-y-6 sm:space-y-8">
+                      <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 p-4 sm:p-6 rounded-2xl border border-gray-200/50 dark:border-gray-700/50">
+                        <label className="block text-sm sm:text-base font-semibold mb-3 text-gray-700 dark:text-gray-200">Select Classes</label>
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto p-3 bg-white/80 dark:bg-gray-800/80 rounded-xl border border-gray-200/50 dark:border-gray-700/50">
                           {classes.length === 0 ? (
                             <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No classes available</p>
                           ) : (
-                            classes.map((classItem: Class) => ( // Explicitly type classItem
-                              <label key={classItem.id} className="flex items-center space-x-3 p-2 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-lg cursor-pointer transition-colors">
+                            classes.map((classItem: Class) => (
+                              <label key={classItem.id} className="flex items-center space-x-3 p-3 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-lg cursor-pointer transition-colors">
                                 <input
                                   type="checkbox"
                                   checked={selectedClasses.includes(classItem.id)}
@@ -1673,53 +1818,64 @@ export function Home() {
                                       setSelectedClasses(prev => prev.filter(id => id !== classItem.id));
                                     }
                                   }}
-                                  className="w-4 h-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                                  className="w-5 h-5 text-red-600 focus:ring-red-500 border-gray-300 rounded"
                                 />
-                                <span className="text-gray-900 dark:text-white">
+                                <span className="text-gray-900 dark:text-white font-medium">
                                   Grade {classItem.grade} - {classItem.section}
                                 </span>
-                  </label>
+                              </label>
                             ))
                           )}
-                </div>
+                        </div>
                         {classes.length > 0 && selectedClasses.length === 0 && (
-                          <p className="text-sm text-red-500 mt-2">Please select at least one class</p>
+                          <p className="text-sm text-red-500 mt-2 font-medium">Please select at least one class</p>
+                        )}
+                        {selectedClasses.length > 0 && (
+                          <p className="text-sm text-green-600 dark:text-green-400 mt-2 font-medium">
+                            ✓ {selectedClasses.length} {selectedClasses.length === 1 ? 'class' : 'classes'} selected
+                          </p>
                         )}
                       </div>
                     </div>
                   </div>
 
                   {/* Description - Full Width */}
-                <div>
-                    <label className="block text-xs sm:text-sm font-medium mb-1 text-gray-700 dark:text-gray-200">Description</label>
+                  <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 p-4 sm:p-6 rounded-2xl border border-gray-200/50 dark:border-gray-700/50">
+                    <label className="block text-sm sm:text-base font-semibold mb-2 text-gray-700 dark:text-gray-200">Assignment Description</label>
                     <textarea 
                       value={newDueWork.description} 
                       onChange={e => setNewDueWork(prev => ({ ...prev, description: e.target.value }))} 
-                      className="w-full px-3 py-1.5 sm:py-2 text-sm sm:text-base rounded-xl border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all" 
+                      className="w-full px-4 py-3 text-base sm:text-lg rounded-xl border border-gray-200 dark:border-gray-700 bg-white/90 dark:bg-gray-800/90 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all shadow-sm" 
                       rows={6} 
-                      placeholder="Enter assignment description"
+                      placeholder="Enter detailed assignment description..."
                       required 
                     />
-                </div>
+                  </div>
 
-                  <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <div className="text-sm text-gray-600 dark:text-gray-400">
-                      {selectedClasses.length} {selectedClasses.length === 1 ? 'class' : 'classes'} selected
+                  <div className="flex items-center justify-between pt-6 border-t border-gray-200 dark:border-gray-700">
+                    <div className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+                      {selectedClasses.length > 0 ? (
+                        <span className="text-green-600 dark:text-green-400">
+                          ✓ {selectedClasses.length} {selectedClasses.length === 1 ? 'class' : 'classes'} selected
+                        </span>
+                      ) : (
+                        'No classes selected'
+                      )}
                     </div>
-                  <button
+                    <button
                       type="submit" 
                       disabled={creatingDueWork || selectedClasses.length === 0} 
-                      className="px-6 py-2 rounded-xl bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed hover:from-red-700 hover:to-red-800"
+                      className="px-8 py-3 rounded-xl bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed hover:from-red-700 hover:to-red-800 shadow-lg hover:shadow-xl transform hover:scale-105"
                     >
                       {creatingDueWork ? (
                         <div className="flex items-center gap-2">
-                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <Loader2 className="w-5 h-5 animate-spin" />
                           <span>Creating...</span>
                         </div>
                       ) : (
                         'Create Due Work'
                       )}
-                  </button>
+                    </button>
                   </div>
                 </form>
               </div>
@@ -1923,13 +2079,13 @@ export function Home() {
                   
                   <div className="h-[40vh] sm:h-[60vh] flex flex-col">
                     <div className="flex-1 p-2 sm:p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 overflow-y-auto space-y-2 sm:space-y-4">
-                      {privateDiscussions.length > 0 ? (
-                        privateDiscussions.map((discussion) => (
+                      {discussions.length > 0 ? (
+                        discussions.map((discussion) => (
                           <div key={discussion.id} className="flex items-start gap-2 p-2 rounded-lg bg-white dark:bg-gray-800 shadow-sm">
                             <div className="flex-1">
                               <div className="flex items-center gap-2">
                                 <span className="font-medium text-sm text-gray-900 dark:text-white">
-                                  {discussion.sender_username || 'Unknown User'}
+                                  {discussion.profiles?.username || discussion.username || 'Unknown User'}
                                 </span>
                                 <span className="text-xs text-gray-500 dark:text-gray-400">
                                   {new Date(discussion.created_at).toLocaleString()}
@@ -1942,7 +2098,7 @@ export function Home() {
                               user?.role === 'ultra_admin' || 
                               user?.role === 'teacher') && (
                               <button
-                                onClick={() => handleDeletePrivateMessage(discussion.id)}
+                                onClick={() => handleDeleteMessage(discussion.id)}
                                 className="p-1 text-gray-400 hover:text-red-500 transition-colors"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -1967,7 +2123,7 @@ export function Home() {
                   <button
                         onClick={() => {
                           console.log('Send button clicked'); // Debug log
-                          handleSendPrivateMessage();
+                          handleSendMessage();
                         }}
                         className="px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-red-700 text-white font-semibold hover:from-red-700 hover:to-red-800 transition-colors"
                       >
@@ -2177,56 +2333,108 @@ export function Home() {
       {showOldNews && createPortal(
         <div className="fixed inset-0 bg-black/60 z-[9999]">
           <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4">
-            <div className="bg-white/90 dark:bg-gray-900/90 rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-8 max-w-5xl w-full relative border border-white/30 dark:border-gray-800/40 backdrop-blur-xl max-h-[90vh] overflow-y-auto">
-                  <button
+            <div className="bg-white/95 dark:bg-gray-900/95 rounded-3xl shadow-2xl p-8 sm:p-10 max-w-7xl w-full relative border border-white/30 dark:border-gray-800/40 backdrop-blur-xl max-h-[90vh] overflow-y-auto">
+              <button
                 onClick={() => setShowOldNews(false)} 
-                className="absolute top-2 sm:top-4 right-2 sm:right-4 p-1.5 sm:p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors shadow-lg"
               >
-                <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                <X className="w-5 h-5" />
               </button>
-              <h3 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-gray-900 dark:text-white">Old News</h3>
-              {oldNews.length === 0 ? (
-                <div className="text-sm sm:text-base text-gray-500 dark:text-gray-400 text-center py-8 sm:py-12">No old news.</div>
-              ) : (
-                <ol className="relative border-l-4 border-red-200 dark:border-red-900/40 ml-6 mt-6 space-y-4 sm:space-y-8 max-h-[70vh] overflow-y-auto">
-                  {oldNews.map((n, idx) => (
-                    <li key={n.id} className="group flex items-start gap-3 sm:gap-4">
-                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-red-400 flex items-center justify-center text-white font-bold shadow-lg border-2 border-white dark:border-gray-900 -ml-8 mt-1">{idx + 1}</span>
-                      <div className="flex-1 bg-white/70 dark:bg-gray-900/70 rounded-xl p-3 sm:p-4 shadow-md border border-white/20 dark:border-gray-800/30">
-                        <div className="flex items-center gap-2 mb-1 sm:mb-2">
-                          <span className="font-semibold text-sm sm:text-lg text-gray-900 dark:text-white">{n.title}</span>
-                          <span className="ml-auto text-xs text-gray-500 dark:text-gray-400 bg-white/40 dark:bg-gray-800/40 px-1.5 sm:px-2 py-0.5 rounded-full">
-                            {new Date(n.created_at).toLocaleDateString()}
-                          </span>
-                          {(user?.role === 'admin' || user?.role === 'ultra_admin') && (
-                            <div className="flex items-center gap-1 sm:gap-2">
-                              <button
-                                onClick={() => handleMoveToRecentNews(n.id)}
-                                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-800/40 transition-colors"
-                                title="Move to Recent News"
-                              >
-                                <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-green-600 dark:text-green-400" />
-                                <span className="text-xs sm:text-sm text-green-600 dark:text-green-400">Move to Recent</span>
-                              </button>
-                              <button
-                                onClick={() => handleDeleteNews(n.id)}
-                                disabled={deletingNews === n.id}
-                                className="p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-                              >
-                                {deletingNews === n.id ? (
-                                  <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin text-red-600 dark:text-red-400" />
-                                ) : (
-                                  <Trash2 className="w-3 h-3 sm:w-4 sm:h-4 text-red-600 dark:text-red-400" />
-                    )}
-                  </button>
+              
+              {/* Header Section */}
+              <div className="flex items-center gap-6 mb-10">
+                <div className="p-5 bg-gradient-to-r from-amber-100 to-orange-100 dark:from-amber-900/40 dark:to-orange-900/40 rounded-3xl shadow-xl border border-amber-200/50 dark:border-amber-700/30">
+                  <Newspaper className="w-10 h-10 text-amber-600 dark:text-amber-400" />
                 </div>
-                          )}
-                        </div>
-                        <div className="text-sm sm:text-base text-gray-700 dark:text-gray-200 mb-1">{n.content}</div>
+                <div className="flex-1">
+                  <h3 className="text-4xl sm:text-5xl font-bold text-gray-900 dark:text-white mb-2">News Archive</h3>
+                  <p className="text-base sm:text-lg text-gray-600 dark:text-gray-400 font-medium">Historical news and announcements from the past</p>
+                </div>
+                <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-6 py-3 rounded-full text-base font-bold shadow-xl border-2 border-amber-400/30">
+                  {oldNews.length} {oldNews.length === 1 ? 'item' : 'items'}
+                </div>
+              </div>
+
+              {oldNews.length === 0 ? (
+                <div className="text-center py-20">
+                  <div className="p-10 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-700/50 rounded-3xl border border-gray-200/50 dark:border-gray-700/50 shadow-xl">
+                    <div className="p-6 bg-gradient-to-r from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 rounded-full w-24 h-24 mx-auto mb-6 flex items-center justify-center">
+                      <Newspaper className="w-12 h-12 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <h4 className="text-2xl font-bold text-gray-700 dark:text-gray-300 mb-3">No Archived News</h4>
+                    <p className="text-gray-500 dark:text-gray-400 text-lg">There are no old news items in the archive yet.</p>
+                    <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">News items older than 7 days will appear here automatically.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 max-h-[70vh] overflow-y-auto pr-2">
+                  {oldNews.map((n, idx) => (
+                    <motion.div
+                      key={n.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.1 }}
+                      className="relative bg-gradient-to-br from-white/95 to-gray-50/95 dark:from-gray-800/95 dark:to-gray-700/95 rounded-2xl p-6 shadow-lg border border-gray-200/50 dark:border-gray-700/50 backdrop-blur-sm"
+                    >
+                      {/* Number Badge - Moved to top-right */}
+                      <div className="absolute top-4 left-4 w-8 h-8 bg-gradient-to-r from-amber-500 to-orange-500 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg border-2 border-white dark:border-gray-900">
+                        {idx + 1}
                       </div>
-                    </li>
+
+                      {/* Date Badge */}
+                      <div className="absolute top-4 right-4">
+                        <span className="text-xs text-gray-600 dark:text-gray-300 bg-white/90 dark:bg-gray-800/90 px-3 py-1.5 rounded-full font-medium shadow-sm border border-gray-200/50 dark:border-gray-700/50">
+                          {new Date(n.created_at).toLocaleDateString('en-US', { 
+                            year: 'numeric', 
+                            month: 'short', 
+                            day: 'numeric' 
+                          })}
+                        </span>
+                      </div>
+
+                      {/* Content */}
+                      <div className="mt-8">
+                        <h4 className="font-bold text-lg sm:text-xl text-gray-900 dark:text-white mb-3 leading-tight">
+                          {n.title}
+                        </h4>
+                        <p className="text-gray-700 dark:text-gray-300 text-sm sm:text-base leading-relaxed mb-4 overflow-hidden">
+                          {n.content.length > 150 ? `${n.content.substring(0, 150)}...` : n.content}
+                        </p>
+                      </div>
+
+                      {/* Admin Actions */}
+                      {(user?.role === 'admin' || user?.role === 'ultra_admin') && (
+                        <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-200/50 dark:border-gray-700/50">
+                          <button
+                            onClick={() => handleMoveToRecentNews(n.id)}
+                            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 text-white text-sm font-medium hover:from-green-600 hover:to-emerald-600 transition-all duration-200 shadow-md hover:shadow-lg"
+                            title="Move to Recent News"
+                          >
+                            <Clock className="w-4 h-4" />
+                            <span>Move to Recent</span>
+                          </button>
+                          <button
+                            onClick={() => handleDeleteNews(n.id)}
+                            disabled={deletingNews === n.id}
+                            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-red-500 to-pink-500 text-white text-sm font-medium hover:from-red-600 hover:to-pink-600 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50"
+                          >
+                            {deletingNews === n.id ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span>Deleting...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Trash2 className="w-4 h-4" />
+                                <span>Delete</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </motion.div>
                   ))}
-                </ol>
+                </div>
               )}
             </div>
           </div>

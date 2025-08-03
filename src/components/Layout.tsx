@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../store/auth';
+import { useSession } from '../contexts/SessionContext';
 import { supabase } from '../lib/supabase';
 import { ThemeToggle } from './ThemeToggle';
+import { MessageNotifications } from './MessageNotifications';
 import { 
   Home, 
   Bell, 
@@ -25,50 +26,29 @@ import {
   NotebookPen,
   Users2
 } from 'lucide-react';
-import { getUnreadNotificationCount, markNotificationsAsRead, fetchUnreadNotifications } from '../lib/notifications';
+
 import type { Class } from '../types/index';
 
-interface NotificationCounts {
-  announcements: number;
-  subjects: number;
-  library: number;
-  recordRoom: number;
-  clubs: number;
-  timetable: number;
-}
 
-type NotificationType = 'announcement' | 'subject' | 'library' | 'record' | 'club' | 'timetable';
-
-const notificationTypes: Record<keyof NotificationCounts, NotificationType> = {
-  announcements: 'announcement',
-  subjects: 'subject',
-  library: 'library',
-  recordRoom: 'record',
-  clubs: 'club',
-  timetable: 'timetable'
-};
 
 export function Layout() {
-  const { user, signOut } = useAuthStore();
+  const { user } = useSession();
+  
+  const signOut = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationCounts>({
-    announcements: 0,
-    subjects: 0,
-    library: 0,
-    recordRoom: 0,
-    clubs: 0,
-    timetable: 0
-  });
-  const [notificationError, setNotificationError] = useState<string | null>(null);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [classes, setClasses] = useState<Class[]>([]);
   const [currentClass, setCurrentClass] = useState<Class | null>(null);
-  const [isNotificationDropdownOpen, setIsNotificationDropdownOpen] = useState(false);
-  const [notificationItems, setNotificationItems] = useState<Array<{ id: string; message: string; created_at: string }>>([]);
-  const [totalUnread, setTotalUnread] = useState(0);
   const [sidebarPages, setSidebarPages] = useState<Array<{ id: string; page_id: string; title: string; order_index: number }>>([]);
+  const [isClassLoading, setIsClassLoading] = useState(false);
 
   const isAdmin = user && (user.role === 'admin' || user.role === 'ultra_admin');
 
@@ -77,10 +57,9 @@ export function Layout() {
     setIsMobileMenuOpen(false);
   }, [location]);
 
-  // Load notifications and classes
+  // Load classes
   useEffect(() => {
     if (user) {
-      loadNotifications();
       loadClasses();
     }
   }, [user]);
@@ -124,84 +103,12 @@ export function Layout() {
     }
   };
 
-  // Subscribe to real-time notification changes using Supabase channel API
-  useEffect(() => {
-    if (!user) return;
-    const channel = supabase.channel('notifications_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          loadNotifications();
-          loadNotificationItems();
-        }
-      )
-      .subscribe();
 
-    return () => {
-      channel.unsubscribe();
-    };
-  }, [user]);
-
-  // Load notification items (dropdown content)
-  const loadNotificationItems = async () => {
-    if (!user) return;
-    try {
-      const items = await fetchUnreadNotifications(user.id);
-      setNotificationItems(items);
-    } catch (error) {
-      console.error('Error loading notification items:', error);
-    }
-  };
-
-  // Toggle notification dropdown
-  const toggleNotificationDropdown = () => {
-    setIsNotificationDropdownOpen(!isNotificationDropdownOpen);
-    if (!isNotificationDropdownOpen) {
-      loadNotificationItems();
-    }
-  };
-
-  // Mark notification as read
-  const markNotificationAsRead = async (id: string) => {
-    const { error } = await supabase
-      .from('notifications')
-      .update({ read: true })
-      .eq('id', id);
-    if (error) {
-      console.error('Error marking notification as read:', error);
-      return;
-    }
-    loadNotificationItems();
-    loadNotifications();
-  };
-
-  const loadNotifications = async () => {
-    try {
-      const notificationPromises = Object.entries(notificationTypes).map(
-        async ([key, type]) => {
-          const count = await getUnreadNotificationCount(type);
-          return [key, count] as [keyof NotificationCounts, number];
-        }
-      );
-
-      const results = await Promise.all(notificationPromises);
-      const newNotifications = Object.fromEntries(results) as unknown as NotificationCounts;
-      setNotifications(newNotifications);
-    } catch (error) {
-      setNotificationError('Failed to load notifications');
-      console.error('Error loading notifications:', error);
-    }
-  };
 
   const loadClasses = async () => {
     if (!user) return;
     
+    setIsClassLoading(true);
     try {
       const { data: classData, error } = await supabase
         .from('classes')
@@ -216,7 +123,44 @@ export function Layout() {
       console.log("Classes loaded:", classData.length);
       setClasses(classData);
       
-      // Get the stored class ID
+      // For students, automatically load their assigned class
+      if (user.role === 'student') {
+        console.log("Loading assigned class for student:", user.id);
+        const { data: assignmentData, error: assignmentError } = await supabase
+          .from('class_assignments')
+          .select('class_id')
+          .eq('user_id', user.id)
+          .single();
+
+        if (assignmentError) {
+          console.error('Error loading class assignment:', assignmentError);
+          if (assignmentError.code === 'PGRST116') {
+            // No class assignment found for student
+            console.warn("No class assignment found for student:", user.id);
+            // You might want to show a message to the user here
+          }
+        } else if (assignmentData) {
+          console.log("Student assigned to class:", assignmentData.class_id);
+          const assignedClass = classData.find(c => c.id === assignmentData.class_id);
+          if (assignedClass) {
+            console.log("Setting assigned class for student:", assignedClass.id);
+            setSelectedClassId(assignedClass.id);
+            localStorage.setItem('selectedClassId', assignedClass.id);
+            
+            // Navigate to home if we're on the select page
+            if (location.pathname === '/select-class') {
+              console.log("Navigating to home from select page");
+              navigate('/');
+            }
+            setIsClassLoading(false);
+            return; // Exit early for students
+          } else {
+            console.error("Assigned class not found in available classes");
+          }
+        }
+      }
+      
+      // For non-students, use the stored class ID
       const storedClassId = localStorage.getItem('selectedClassId');
       console.log("Stored class ID:", storedClassId);
       
@@ -243,6 +187,8 @@ export function Layout() {
       }
     } catch (error) {
       console.error('Error loading classes:', error);
+    } finally {
+      setIsClassLoading(false);
     }
   };
 
@@ -256,25 +202,16 @@ export function Layout() {
     }
   };
 
-  const handleNotificationClick = async (key: keyof NotificationCounts) => {
-    try {
-      const type = notificationTypes[key];
-      await markNotificationsAsRead(type);
-      setNotifications(prev => ({ ...prev, [key]: 0 }));
-    } catch (error) {
-      console.error('Error marking notifications as read:', error);
-    }
-  };
+
 
   const isActive = (path: string) => {
     return location.pathname === path;
   };
 
-  const NavLink = ({ to, icon: Icon, label, notificationCount = 0 }: { 
+  const NavLink = ({ to, icon: Icon, label }: { 
     to: string; 
     icon: React.ElementType; 
     label: string;
-    notificationCount?: number;
   }) => (
     <Link
       to={to}
@@ -288,11 +225,6 @@ export function Layout() {
         isActive(to) ? 'text-red-600 dark:text-red-400' : 'text-gray-400 dark:text-gray-500 group-hover:text-red-500 dark:group-hover:text-red-400'
       }`} />
       <span className="flex-1">{label}</span>
-      {notificationCount > 0 && (
-        <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 rounded-full animate-pulse">
-          {notificationCount}
-        </span>
-      )}
     </Link>
   );
 
@@ -325,36 +257,11 @@ export function Layout() {
           {/* Navigation */}
           <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
             <NavLink to="/" icon={Home} label="Home" />
-            <NavLink 
-              to="/announcements" 
-              icon={Bell} 
-              label="Announcements" 
-              notificationCount={notifications.announcements} 
-            />
-            <NavLink 
-              to="/subjects" 
-              icon={BookOpen} 
-              label="Subjects" 
-              notificationCount={notifications.subjects} 
-            />
-            <NavLink 
-              to="/library" 
-              icon={Library} 
-              label="Library" 
-              notificationCount={notifications.library} 
-            />
-            <NavLink 
-              to="/record-room" 
-              icon={FileText} 
-              label="Record Room" 
-              notificationCount={notifications.recordRoom} 
-            />
-            <NavLink 
-              to="/afternoon-clubs" 
-              icon={Users} 
-              label="Clubs" 
-              notificationCount={notifications.clubs} 
-            />
+            <NavLink to="/announcements" icon={Bell} label="Announcements" />
+            <NavLink to="/subjects" icon={BookOpen} label="Subjects" />
+            <NavLink to="/library" icon={Library} label="Library" />
+            <NavLink to="/record-room" icon={FileText} label="Record Room" />
+            <NavLink to="/afternoon-clubs" icon={Users} label="Clubs" />
             {isAdmin && (
               <NavLink to="/users" icon={Users} label="Users" />
             )}
@@ -373,15 +280,15 @@ export function Layout() {
                 {sidebarPages.map((sidebarPage) => (
                   <Link
                     key={sidebarPage.id}
-                    to={`/custom-page/${sidebarPage.page_id}`}
+                    to={`/custom/${sidebarPage.page_id}`}
                     className={`group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 ${
-                      isActive(`/custom-page/${sidebarPage.page_id}`)
+                      isActive(`/custom/${sidebarPage.page_id}`)
                         ? 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400'
                         : 'text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400'
                     }`}
                   >
                     <FileText className={`h-5 w-5 mr-3 transition-transform duration-200 group-hover:scale-110 ${
-                      isActive(`/custom-page/${sidebarPage.page_id}`) ? 'text-red-600 dark:text-red-400' : 'text-gray-400 dark:text-gray-500 group-hover:text-red-500 dark:group-hover:text-red-400'
+                      isActive(`/custom/${sidebarPage.page_id}`) ? 'text-red-600 dark:text-red-400' : 'text-gray-400 dark:text-gray-500 group-hover:text-red-500 dark:group-hover:text-red-400'
                     }`} />
                     <span className="flex-1 truncate">{sidebarPage.title}</span>
                   </Link>
@@ -435,60 +342,20 @@ export function Layout() {
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     {user?.role === 'ultra_admin' ? 'Ultra Admin' : user?.role || 'Ultra Admin'}
+                    {user?.role === 'student' && currentClass && (
+                      <span className="ml-1 text-green-600 dark:text-green-400">
+                        • Grade {currentClass.grade}-{currentClass.section}
+                      </span>
+                    )}
+                    {user?.role === 'student' && isClassLoading && (
+                      <span className="ml-1 text-amber-600 dark:text-amber-400">
+                        • Loading class...
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>
-              <div className="relative">
-                <button
-                  onClick={toggleNotificationDropdown}
-                  className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-red-600 dark:hover:text-red-400 transition-colors duration-200"
-                >
-                  <Bell className="h-5 w-5" />
-                  {totalUnread > 0 && (
-                    <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full">
-                      {totalUnread}
-                    </span>
-                  )}
-                </button>
-                {isNotificationDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden z-10">
-                    <div className="p-4">
-                      <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Notifications</h3>
-                        <button
-                          onClick={() => {
-                            notificationItems.forEach(item => markNotificationAsRead(item.id));
-                            setNotificationItems([]);
-                          }}
-                          className="text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
-                        >
-                          Mark all as read
-                        </button>
-                      </div>
-                      {notificationItems.length === 0 ? (
-                        <p className="text-gray-500 dark:text-gray-400">No new notifications</p>
-                      ) : (
-                        <ul className="mt-2 space-y-2">
-                          {notificationItems.map((item) => (
-                            <li key={item.id} className="flex items-start p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg">
-                              <div className="flex-1">
-                                <p className="text-sm text-gray-900 dark:text-white">{item.message}</p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">{new Date(item.created_at).toLocaleString()}</p>
-                              </div>
-                              <button
-                                onClick={() => markNotificationAsRead(item.id)}
-                                className="ml-2 text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
-                              >
-                                Mark as read
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <MessageNotifications />
               <button
                 onClick={signOut}
                 className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-red-600 dark:hover:text-red-400 transition-colors duration-200"

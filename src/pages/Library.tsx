@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import type { LibraryResource } from '../types';
-import { useAuthStore } from '../store/auth';
+import { useSession } from '../contexts/SessionContext';
 import { Plus, Trash2, Book, Image, Users, X } from 'lucide-react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 
@@ -21,7 +21,7 @@ export function Library() {
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
   const [modalLoading, setModalLoading] = useState(false);
-  const user = useAuthStore((state) => state.user);
+  const { user } = useSession();
   const isAdmin = user?.role === 'ultra_admin' || user?.role === 'admin' || user?.role === 'teacher';
 
   useEffect(() => {
@@ -135,7 +135,7 @@ export function Library() {
               tabIndex={0}
             >
               {tab.icon}
-              {tab.label}
+              <span className="hidden sm:inline">{tab.label}</span>
             </button>
           ))}
           {/* Animated underline */}
@@ -259,7 +259,7 @@ export function Library() {
       <AnimatePresence>
         {showModal && (
           <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

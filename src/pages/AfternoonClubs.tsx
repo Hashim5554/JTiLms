@@ -48,21 +48,24 @@ const statusColors = {
 };
 
 export default function AfternoonClubs() {
-  const [sectors, setSectors] = useState([]);
-  const [clubs, setClubs] = useState([]);
-  const [activeSector, setActiveSector] = useState(null);
-  const [user, setUser] = useState(null);
-  const [clubMembers, setClubMembers] = useState([]);
-  const [selectedClub, setSelectedClub] = useState(null);
-  const [attendance, setAttendance] = useState([]);
+  const [sectors, setSectors] = useState<any[]>([]);
+  const [clubs, setClubs] = useState<any[]>([]);
+  const [activeSector, setActiveSector] = useState<string | null>(null);
+  const [user, setUser] = useState<any>(null);
+  const [clubMembers, setClubMembers] = useState<any[]>([]);
+  const [userClubMemberships, setUserClubMemberships] = useState<any[]>([]); // New state for user's club memberships
+  const [allClubMembers, setAllClubMembers] = useState<any[]>([]); // New state for all club members
+  const [allAttendance, setAllAttendance] = useState<any[]>([]); // New state for all attendance data
+  const [selectedClub, setSelectedClub] = useState<any>(null);
+  const [attendance, setAttendance] = useState<any[]>([]);
   const [attendanceDate, setAttendanceDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [message, setMessage] = useState(null);
+  const [message, setMessage] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
   const [showCreateSectorModal, setShowCreateSectorModal] = useState(false);
-  const [availableStudents, setAvailableStudents] = useState([]);
-  const [filteredStudents, setFilteredStudents] = useState([]);
+  const [availableStudents, setAvailableStudents] = useState<any[]>([]);
+  const [filteredStudents, setFilteredStudents] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [newClubData, setNewClubData] = useState({
     name: '',
@@ -84,6 +87,10 @@ export default function AfternoonClubs() {
       const { data: clubData } = await supabase.from('clubs').select('*');
       setClubs(clubData || []);
       
+      // Load all club members for all clubs
+      await loadAllClubMembers();
+      await loadAllAttendance(); // Load all attendance data
+      
       // Get current user and their profile
       const { data: { user: userData } } = await supabase.auth.getUser();
       if (userData) {
@@ -93,6 +100,11 @@ export default function AfternoonClubs() {
           .eq('id', userData.id)
           .single();
         setUser(profileData || userData);
+        
+        // Load user's club memberships after user data is set
+        if (profileData || userData) {
+          await loadUserClubMemberships();
+        }
       } else {
         setUser(null);
       }
@@ -100,6 +112,13 @@ export default function AfternoonClubs() {
     }
     fetchData();
   }, []);
+
+  // Refresh attendance data when date changes
+  useEffect(() => {
+    if (attendanceDate) {
+      loadAllAttendance();
+    }
+  }, [attendanceDate]);
 
   const isAdminOrTeacher = user?.role === 'admin' || user?.role === 'ultra_admin' || user?.role === 'teacher';
   const isStudent = user && !isAdminOrTeacher;
@@ -110,7 +129,7 @@ export default function AfternoonClubs() {
   console.log('isAdminOrTeacher:', isAdminOrTeacher);
   console.log('isStudent:', isStudent);
 
-  async function loadClubMembers(clubId) {
+  async function loadClubMembers(clubId: string) {
       const { data } = await supabase
         .from('club_members')
       .select('*, profiles:user_id (id, username, photo_url)')
@@ -118,7 +137,44 @@ export default function AfternoonClubs() {
     setClubMembers(data || []);
   }
 
-  async function loadAttendance(clubId, date) {
+  // New function to load all club memberships for the current user
+  async function loadUserClubMemberships() {
+    if (!user?.id) return;
+    
+    console.log('Loading user club memberships for user ID:', user.id);
+    
+    const { data, error } = await supabase
+      .from('club_members')
+      .select('club_id')
+      .eq('user_id', user.id);
+    
+    console.log('User club memberships query result:', { data, error });
+    
+    setUserClubMemberships(data || []);
+  }
+
+  async function loadAllClubMembers() {
+    const { data } = await supabase
+      .from('club_members')
+      .select('*, profiles:user_id (id, username, photo_url), clubs:club_id (id, name)');
+    setAllClubMembers(data || []);
+    
+    console.log('All club members loaded:', data);
+    if (user?.id) {
+      const userMemberships = data?.filter(m => m.user_id === user.id) || [];
+      console.log('Current user memberships in allClubMembers:', userMemberships);
+    }
+  }
+
+  async function loadAllAttendance() {
+    const { data } = await supabase
+      .from('club_attendance')
+      .select('*, profiles:user_id (id, username), clubs:club_id (id, name)')
+      .eq('date', attendanceDate);
+    setAllAttendance(data || []);
+  }
+
+  async function loadAttendance(clubId: string, date: string) {
     const { data } = await supabase
       .from('club_attendance')
       .select('*, profiles:user_id (id, username)')
@@ -127,7 +183,7 @@ export default function AfternoonClubs() {
     setAttendance(data || []);
   }
 
-  async function handleMarkAttendance(clubId, userId, status) {
+  async function handleMarkAttendance(clubId: string, userId: string, status: string) {
     await supabase.from('club_attendance').upsert({
       club_id: clubId,
       user_id: userId,
@@ -136,6 +192,10 @@ export default function AfternoonClubs() {
       marked_by: user.id
     });
     await loadAttendance(clubId, attendanceDate);
+    
+    // Refresh all attendance data to update the attendance counts
+    await loadAllAttendance();
+    
     setMessage({ type: 'success', text: 'Attendance marked successfully!' });
   }
 
@@ -191,7 +251,7 @@ export default function AfternoonClubs() {
     setMessage({ type: 'success', text: 'Sector created successfully!' });
   }
 
-  async function handleDeleteSector(sectorId) {
+  async function handleDeleteSector(sectorId: string) {
     const { error } = await supabase
       .from('sectors')
       .delete()
@@ -209,7 +269,7 @@ export default function AfternoonClubs() {
     setMessage({ type: 'success', text: 'Sector deleted successfully!' });
   }
 
-  async function handleDeleteClub(clubId) {
+  async function handleDeleteClub(clubId: string) {
       const { error } = await supabase
         .from('clubs')
         .delete()
@@ -227,7 +287,7 @@ export default function AfternoonClubs() {
     setMessage({ type: 'success', text: 'Club deleted successfully!' });
   }
 
-  async function handleAddStudent(studentId) {
+  async function handleAddStudent(studentId: string) {
     if (!selectedClub) return;
 
       const { error } = await supabase
@@ -243,6 +303,15 @@ export default function AfternoonClubs() {
     }
 
     await loadClubMembers(selectedClub.id);
+    
+    // Refresh all club members to update the member counts
+    await loadAllClubMembers();
+    
+    // Refresh user's club memberships if the added student is the current user
+    if (studentId === user?.id) {
+      await loadUserClubMemberships();
+    }
+    
     setShowAddStudentModal(false);
     setMessage({ type: 'success', text: 'Student added successfully!' });
   }
@@ -288,7 +357,7 @@ export default function AfternoonClubs() {
     
     console.log('Students found:', students);
     
-    const enrolledStudentIds = clubMembers.map(m => m.user_id);
+    const enrolledStudentIds = allClubMembers.map(m => m.user_id);
     console.log('Enrolled student IDs:', enrolledStudentIds);
     
     // Include all profiles that aren't enrolled (regardless of role)
@@ -317,8 +386,39 @@ export default function AfternoonClubs() {
 
   // Filter clubs for students (only show clubs they're enrolled in)
   const visibleClubs = isStudent
-    ? clubs.filter(club => clubMembers.some(m => m.club_id === club.id && m.user_id === user.id))
+    ? clubs.filter(club => {
+        // First check if the club is in the current active sector
+        if (club.sector_id !== activeSector) return false;
+        
+        // Then check if the user is enrolled in this club
+        const inUserMemberships = userClubMemberships.some(m => m.club_id === club.id);
+        // Fallback: check allClubMembers if userClubMemberships is empty
+        const inAllMembers = allClubMembers.some(m => m.club_id === club.id && m.user_id === user?.id);
+        return inUserMemberships || inAllMembers;
+      })
     : clubs.filter(club => club.sector_id === activeSector);
+
+  // Debug logging for student view
+  if (isStudent) {
+    console.log('Student view debugging:');
+    console.log('User ID:', user?.id);
+    console.log('User club memberships:', userClubMemberships);
+    console.log('All clubs:', clubs);
+    console.log('Active sector:', activeSector);
+    
+    // Debug sector filtering
+    const clubsInActiveSector = clubs.filter(club => club.sector_id === activeSector);
+    console.log('Clubs in active sector:', clubsInActiveSector);
+    
+    const userEnrolledClubs = clubs.filter(club => {
+      const inUserMemberships = userClubMemberships.some(m => m.club_id === club.id);
+      const inAllMembers = allClubMembers.some(m => m.club_id === club.id && m.user_id === user?.id);
+      return inUserMemberships || inAllMembers;
+    });
+    console.log('User enrolled clubs (all sectors):', userEnrolledClubs);
+    
+    console.log('Visible clubs:', visibleClubs);
+  }
 
   // Animation variants
   const containerVariants = {
@@ -468,20 +568,20 @@ export default function AfternoonClubs() {
                   className="group relative bg-white dark:bg-gray-800 rounded-3xl shadow-xl overflow-hidden border border-gray-200 dark:border-gray-700 hover:shadow-3xl transition-all duration-500 hover:scale-[1.02]"
                 >
                   {/* Club Header with Gradient Background */}
-                  <div className="relative bg-gradient-to-br from-red-500 via-pink-500 to-red-600 p-6 text-white">
+                  <div className="relative bg-gradient-to-br from-red-500 via-pink-500 to-red-600 p-4 sm:p-6 text-white">
                     <div className="absolute inset-0 bg-black/10"></div>
                     <div className="relative z-10">
-                      <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-start justify-between mb-3 sm:mb-4">
                         <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-                              {sectorIcons[sectors.find(s => s.id === club.sector_id)?.name] || <Star className="h-5 w-5" />}
+                          <div className="flex items-center gap-2 sm:gap-3 mb-2">
+                            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                              {sectorIcons[sectors.find(s => s.id === club.sector_id)?.name] || <Star className="h-4 w-4 sm:h-5 sm:w-5" />}
                             </div>
                 <div>
-                              <h3 className="text-2xl font-bold mb-1">
+                              <h3 className="text-lg sm:text-2xl font-bold mb-1">
                     {club.name}
                   </h3>
-                              <p className="text-white/80 text-base font-medium">
+                              <p className="text-white/80 text-sm sm:text-base font-medium">
                                 {sectors.find(s => s.id === club.sector_id)?.name || 'Unknown Sector'}
                   </p>
                 </div>
@@ -492,89 +592,90 @@ export default function AfternoonClubs() {
                             whileHover={{ scale: 1.1, rotate: 5 }}
                             whileTap={{ scale: 0.9 }}
                             onClick={() => handleDeleteClub(club.id)}
-                            className="p-2 bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 rounded-xl transition-all duration-300 opacity-0 group-hover:opacity-100"
+                            className="p-1.5 sm:p-2 bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 rounded-xl transition-all duration-300 opacity-0 group-hover:opacity-100"
                             title="Delete club"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                           </motion.button>
                         )}
               </div>
                       
-                      <p className="text-white/90 text-base leading-relaxed mb-4 line-clamp-2">
+                      <p className="text-white/90 text-sm sm:text-base leading-relaxed mb-3 sm:mb-4 line-clamp-2">
                         {club.description || 'No description available.'}
                       </p>
 
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4 text-white/80">
-                          <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
-                              <Users className="h-3 w-3" />
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
+                        <div className="flex items-center gap-3 sm:gap-4 text-white/80">
+                          <div className="flex items-center gap-1.5 sm:gap-2">
+                            <div className="w-5 h-5 sm:w-6 sm:h-6 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
+                              <Users className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
             </div>
-                            <span className="font-semibold text-sm">{clubMembers.filter(m => m.club_id === club.id).length} members</span>
+                            <span className="font-semibold text-xs sm:text-sm">{allClubMembers.filter(m => m.club_id === club.id).length} members</span>
         </div>
-                          <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
-                              <Calendar className="h-3 w-3" />
+                          <div className="flex items-center gap-1.5 sm:gap-2">
+                            <div className="w-5 h-5 sm:w-6 sm:h-6 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
+                              <Calendar className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
     </div>
-                            <span className="font-semibold text-sm">{new Date(club.created_at).toLocaleDateString()}</span>
+                            <span className="font-semibold text-xs sm:text-sm">{new Date(club.created_at).toLocaleDateString()}</span>
                           </div>
                         </div>
                         
                         <motion.button
                           whileHover={{ scale: 1.05, y: -2 }}
                           whileTap={{ scale: 0.95 }}
-                          className="px-6 py-3 bg-white/20 backdrop-blur-sm text-white rounded-xl font-bold shadow-2xl hover:shadow-3xl hover:bg-white/30 transition-all duration-300 flex items-center gap-2 border border-white/30"
+                          className="px-4 sm:px-6 py-2.5 sm:py-3 bg-white/20 backdrop-blur-sm text-white rounded-xl font-bold shadow-2xl hover:shadow-3xl hover:bg-white/30 transition-all duration-300 flex items-center gap-2 border border-white/30 text-sm sm:text-base"
                           onClick={async () => {
                             setSelectedClub(club);
                             await loadClubMembers(club.id);
                             await loadAttendance(club.id, attendanceDate);
                           }}
                         >
-                          <Users className="h-4 w-4" />
-                          View Details
+                          <Users className="h-3 w-3 sm:h-4 sm:w-4" />
+                          <span className="hidden xs:inline">View Details</span>
+                          <span className="xs:hidden">Details</span>
                         </motion.button>
                       </div>
                     </div>
         </div>
 
                   {/* Club Stats with Glass Effect */}
-                  <div className="p-6">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-600 shadow-lg">
+                  <div className="p-4 sm:p-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                      <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 rounded-xl p-3 sm:p-4 border border-gray-200 dark:border-gray-600 shadow-lg">
                         <div className="flex items-center gap-2 mb-2">
-                          <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
-                            <Users className="h-4 w-4 text-white" />
+                          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                            <Users className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
                           </div>
               <div>
                             <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">Capacity</div>
-                            <div className="text-lg font-bold text-gray-900 dark:text-white">
-                              {clubMembers.filter(m => m.club_id === club.id).length}/{club.max_capacity || 30}
+                            <div className="text-sm sm:text-lg font-bold text-gray-900 dark:text-white">
+                              {allClubMembers.filter(m => m.club_id === club.id).length}/{club.max_capacity || 30}
               </div>
               </div>
           </div>
                         <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-1.5">
                           <div 
                             className="bg-gradient-to-r from-green-500 to-emerald-600 h-1.5 rounded-full transition-all duration-500"
-                            style={{ width: `${Math.min((clubMembers.filter(m => m.club_id === club.id).length / (club.max_capacity || 30)) * 100, 100)}%` }}
+                            style={{ width: `${Math.min((allClubMembers.filter(m => m.club_id === club.id).length / (club.max_capacity || 30)) * 100, 100)}%` }}
                           ></div>
             </div>
       </div>
                       
-                      <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-600 shadow-lg">
+                      <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 rounded-xl p-3 sm:p-4 border border-gray-200 dark:border-gray-600 shadow-lg">
                         <div className="flex items-center gap-2 mb-2">
-                          <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                            <Calendar className="h-4 w-4 text-white" />
+                          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                            <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
     </div>
                           <div>
                             <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">Attendance Today</div>
-                            <div className="text-lg font-bold text-gray-900 dark:text-white">
-                              {attendance.filter(a => a.club_id === club.id && a.date === attendanceDate && a.status === 'present').length}
+                            <div className="text-sm sm:text-lg font-bold text-gray-900 dark:text-white">
+                              {allAttendance.filter(a => a.club_id === club.id && a.status === 'present').length}
                             </div>
                           </div>
                         </div>
                         <div className="text-xs text-gray-500 dark:text-gray-400">
-                          {attendance.filter(a => a.club_id === club.id && a.date === attendanceDate).length > 0 
-                            ? `${Math.round((attendance.filter(a => a.club_id === club.id && a.date === attendanceDate && a.status === 'present').length / attendance.filter(a => a.club_id === club.id && a.date === attendanceDate).length) * 100)}% present`
+                          {allAttendance.filter(a => a.club_id === club.id).length > 0 
+                            ? `${Math.round((allAttendance.filter(a => a.club_id === club.id && a.status === 'present').length / allAttendance.filter(a => a.club_id === club.id).length) * 100)}% present`
                             : 'No attendance marked'
                           }
                         </div>
@@ -636,13 +737,13 @@ export default function AfternoonClubs() {
               exit={{ scale: 0.9, opacity: 0 }}
               className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl w-full max-w-6xl max-h-[95vh] overflow-y-auto"
             >
-              <div className="p-8">
-                <div className="flex items-center justify-between mb-6">
+              <div className="p-4 sm:p-8">
+                <div className="flex items-center justify-between mb-4 sm:mb-6">
                   <div>
-                    <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                    <h2 className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2">
                       {selectedClub.name}
                     </h2>
-                    <p className="text-gray-600 dark:text-gray-300">
+                    <p className="text-gray-600 dark:text-gray-300 text-sm sm:text-base">
                       {sectors.find(s => s.id === selectedClub.sector_id)?.name} • {clubMembers.length} members
                     </p>
             </div>
@@ -650,15 +751,15 @@ export default function AfternoonClubs() {
                     onClick={() => setSelectedClub(null)}
                     className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
                   >
-                    <X className="h-6 w-6" />
+                    <X className="h-5 w-5 sm:h-6 sm:w-6" />
                   </button>
           </div>
           
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
                                     {/* Members Section */}
                   <div>
-                    <div className="flex items-center justify-between mb-6">
-                      <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 gap-3 sm:gap-0">
+                      <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">
                         Enrolled Students ({clubMembers.length})
                       </h3>
                       {isAdminOrTeacher && (
@@ -669,9 +770,9 @@ export default function AfternoonClubs() {
                             setShowAddStudentModal(true);
                             loadAvailableStudents();
                           }}
-                          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all duration-200"
+                          className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-red-600 to-pink-600 text-white rounded-lg hover:shadow-lg transition-all duration-200 text-sm sm:text-base"
                         >
-                          <UserPlus className="h-4 w-4" />
+                          <UserPlus className="h-3 w-3 sm:h-4 sm:w-4" />
                           Add Student
               </motion.button>
                       )}
@@ -689,17 +790,17 @@ export default function AfternoonClubs() {
                             key={member.id}
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
-                            className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600"
+                            className="flex items-center justify-between p-3 sm:p-4 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600"
                           >
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-pink-600 rounded-full flex items-center justify-center text-white font-semibold text-lg">
+                            <div className="flex items-center gap-2 sm:gap-3">
+                              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-red-500 to-pink-600 rounded-full flex items-center justify-center text-white font-semibold text-sm sm:text-lg">
                                 {member.profiles?.username?.charAt(0) || 'U'}
                               </div>
                               <div>
-                                <span className="font-medium text-gray-900 dark:text-white">
+                                <span className="font-medium text-gray-900 dark:text-white text-sm sm:text-base">
                                   {member.profiles?.username || 'Unknown'}
                                 </span>
-                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                                   Joined {new Date(member.joined_at).toLocaleDateString()}
                                 </div>
                               </div>
@@ -712,10 +813,10 @@ export default function AfternoonClubs() {
                                   await supabase.from('club_members').delete().eq('id', member.id);
                                   await loadClubMembers(selectedClub.id);
                                 }}
-                                className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
+                                className="p-1.5 sm:p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors"
                                 title="Remove student"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
               </motion.button>
                             )}
                           </motion.div>
@@ -726,11 +827,11 @@ export default function AfternoonClubs() {
 
                   {/* Attendance Section */}
                   <div>
-                    <div className="flex items-center justify-between mb-6">
-                      <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-6 gap-3 sm:gap-0">
+                      <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">
                         Attendance ({attendanceDate})
                       </h3>
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
                         <input
                           type="date"
                           value={attendanceDate}
@@ -738,7 +839,7 @@ export default function AfternoonClubs() {
                             setAttendanceDate(e.target.value);
                             loadAttendance(selectedClub.id, e.target.value);
                           }}
-                          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm sm:text-base"
                         />
                         {isAdminOrTeacher && (
           <motion.button
@@ -775,19 +876,19 @@ export default function AfternoonClubs() {
                               key={member.user_id}
                               initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-                              className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600"
+                              className="flex items-center justify-between p-3 sm:p-4 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600"
                             >
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-pink-600 rounded-full flex items-center justify-center text-white font-semibold text-lg">
+                              <div className="flex items-center gap-2 sm:gap-3">
+                                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-red-500 to-pink-600 rounded-full flex items-center justify-center text-white font-semibold text-sm sm:text-lg">
                                   {member.profiles?.username?.charAt(0) || 'U'}
                                 </div>
-                                <span className="font-medium text-gray-900 dark:text-white">
+                                <span className="font-medium text-gray-900 dark:text-white text-sm sm:text-base">
                                   {member.profiles?.username || 'Unknown'}
                                 </span>
                               </div>
                               
-                              <div className="flex items-center gap-3">
-                                <span className={`px-4 py-2 rounded-full text-sm font-medium border ${statusColors[att?.status] || 'bg-gray-100 text-gray-800 border-gray-200'}`}>
+                              <div className="flex items-center gap-2 sm:gap-3">
+                                <span className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium border ${statusColors[att?.status] || 'bg-gray-100 text-gray-800 border-gray-200'}`}>
                                   {att?.status || 'Not marked'}
                                 </span>
                                 
@@ -798,7 +899,7 @@ export default function AfternoonClubs() {
                                         key={status}
                                         whileHover={{ scale: 1.1 }}
                                         whileTap={{ scale: 0.9 }}
-                                        className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                                        className={`px-2 sm:px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
                                           att?.status === status
                                             ? 'bg-red-600 text-white shadow-lg'
                                             : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500'

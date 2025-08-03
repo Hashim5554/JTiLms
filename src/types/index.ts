@@ -23,6 +23,7 @@ export type UserRole = 'ultra_admin' | 'admin' | 'student' | 'pending';
 export interface Profile {
   id: string;
   username: string;
+  email?: string;
   role: UserRole;
   photo_url?: string;
   created_at: string;

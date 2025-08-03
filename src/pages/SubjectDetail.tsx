@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useOutletContext, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { useAuthStore } from '../store/auth';
+import { useSession } from '../contexts/SessionContext';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import type { Subject, Class, SubjectMaterial, Folder } from '../types';
 import { 
@@ -94,8 +94,10 @@ export function SubjectDetail() {
   const [editImageUrl, setEditImageUrl] = useState('');
   const [showImageInput, setShowImageInput] = useState(false);
   const { currentClass } = useOutletContext<ContextType>();
-  const user = useAuthStore((state) => state.user);
+  const { user } = useSession();
   const isAdmin = user?.role === 'admin' || user?.role === 'ultra_admin';
+  const isTeacher = user?.role === 'teacher';
+  const canManageContent = isAdmin || isTeacher; // Both admins and teachers can manage folders/materials
   const [message, setMessage] = useState<Message | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
@@ -114,9 +116,11 @@ export function SubjectDetail() {
   useEffect(() => {
     loadSubject();
     loadLinks();
-    loadMaterials();
-    loadFolders();
-  }, [id]);
+    if (currentClass) {
+      loadMaterials();
+      loadFolders();
+    }
+  }, [id, currentClass]);
 
   const loadSubject = async () => {
     if (!id) return;
@@ -154,13 +158,13 @@ export function SubjectDetail() {
   };
 
   const loadFolders = async () => {
-    if (!id) return;
+    if (!id || !currentClass) return;
     try {
       const { data, error } = await supabase
-        .from('folders')
-        .select('*')
-        .eq('subject_id', id)
-        .order('name');
+        .rpc('get_folders_for_class_subject', { 
+          class_uuid: currentClass.id, 
+          subject_uuid: id 
+        });
 
       if (error) throw error;
       if (data) setFolders(data);
@@ -171,7 +175,7 @@ export function SubjectDetail() {
   };
 
   const loadMaterials = async () => {
-    if (!id) return;
+    if (!id || !currentClass) return;
     try {
       const { data, error } = await supabase
         .from('subject_materials')
@@ -180,6 +184,7 @@ export function SubjectDetail() {
           folder:folders(*)
         `)
         .eq('subject_id', id)
+        .eq('class_id', currentClass.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -254,7 +259,7 @@ export function SubjectDetail() {
 
   const handleCreate = async () => {
     try {
-      if (!formData.title || !formData.description) {
+      if (!formData.title || !formData.description || !currentClass) {
         setMessage({ type: 'error', text: 'Title and description are required' });
         return;
       }
@@ -266,6 +271,7 @@ export function SubjectDetail() {
           ...formData,
           due_date: dueDateValue,
           subject_id: id,
+          class_id: currentClass.id,
           created_by: user?.id || null,
         }])
         .select()
@@ -348,11 +354,12 @@ export function SubjectDetail() {
   };
 
   const handleCreateFolder = async () => {
+    if (!currentClass) return;
     setIsCreatingFolder(true);
     try {
       const { data, error } = await supabase
         .from('folders')
-        .insert([{ ...newFolder, subject_id: id, created_by: user?.id }])
+        .insert([{ ...newFolder, subject_id: id, class_id: currentClass.id, created_by: user?.id }])
         .select()
         .single();
       if (error) throw error;
@@ -436,7 +443,7 @@ export function SubjectDetail() {
             </div>
             <span className="text-gray-900 dark:text-white font-medium">{folder.name}</span>
           </div>
-          {isAdmin && (
+          {canManageContent && (
             <motion.button
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
@@ -467,7 +474,7 @@ export function SubjectDetail() {
                     <FileText className="h-5 w-5 text-blue-500 dark:text-blue-400" />
                   </div>
                   <span className="text-gray-700 dark:text-gray-300">{material.title}</span>
-                  {isAdmin && (
+                  {canManageContent && (
                     <div className="flex items-center space-x-2 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
                       <motion.button
                         whileHover={{ scale: 1.1 }}
@@ -551,7 +558,7 @@ export function SubjectDetail() {
                 </motion.p>
         </div>
               <div className="flex items-center gap-4">
-                {isAdmin && (
+                {canManageContent && (
                   <>
                     <motion.button
                       whileHover={{ scale: 1.05 }}
@@ -595,6 +602,29 @@ export function SubjectDetail() {
         )}
       </AnimatePresence>
 
+      {/* No Class Selected Message */}
+      {!currentClass && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6 mb-6"
+        >
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <BookOpen className="h-5 w-5 text-yellow-400" />
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                No Class Selected
+              </h3>
+              <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+                <p>Please select a class to view folders and materials for this subject.</p>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Folders Card */}
@@ -624,7 +654,7 @@ export function SubjectDetail() {
                         <FileText className="h-5 w-5 text-blue-500 dark:text-blue-400" />
                       </div>
                       <span className="text-gray-700 dark:text-gray-300">{material.title}</span>
-                      {isAdmin && (
+                      {canManageContent && (
                         <div className="flex items-center space-x-2 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
                           <motion.button
                             whileHover={{ scale: 1.1 }}
@@ -681,7 +711,7 @@ export function SubjectDetail() {
                             {material.description}
                           </p>
                         </div>
-                        {isAdmin && (
+                        {canManageContent && (
                           <div className="flex items-center space-x-2">
                             <motion.button
                               whileHover={{ scale: 1.1 }}
