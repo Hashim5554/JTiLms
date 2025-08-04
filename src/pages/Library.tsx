@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, validateSession } from '../lib/supabase';
 import type { LibraryResource } from '../types';
 import { useSession } from '../contexts/SessionContext';
 import { Plus, Trash2, Book, Image, Users, X } from 'lucide-react';
@@ -42,6 +42,16 @@ export function Library() {
 
     try {
       console.log('Loading library resources...');
+      
+      // Validate session before making request
+      const sessionValid = await validateSession();
+      if (!sessionValid) {
+        console.error('Session validation failed, cannot load library resources');
+        setResources([]);
+        setMessage({ type: 'error', text: 'Session expired. Please refresh the page.' });
+        return;
+      }
+      
       const { data, error } = await supabase
         .from('library_resources')
         .select('*')

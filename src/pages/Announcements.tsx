@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { supabase } from '../lib/supabase';
+import { supabase, validateSession } from '../lib/supabase';
 import { useSession } from '../contexts/SessionContext';
 import { useTheme } from '../hooks/useTheme';
 import { markMessagesAsRead } from '../lib/messageTracking';
@@ -140,35 +140,44 @@ export function Announcements() {
         setAnnouncements([]);
       }, 8000); // 8 second timeout
 
-      try {
-        console.log('Loading announcements...');
-        const { data, error } = await supabase
-          .from('announcements')
-          .select(`
-            *,
-            profiles:created_by (
-              username,
-              photo_url
-            )
-          `)
-          .order('created_at', { ascending: false });
-
-        clearTimeout(timeoutId);
-
-        if (error) {
-          console.error('Error loading announcements:', error);
-          setAnnouncements([]);
-        } else {
-          console.log('Announcements loaded successfully:', data?.length || 0);
-          setAnnouncements(data || []);
-        }
-      } catch (err: any) {
-        console.error('Exception loading announcements:', err.message);
+          try {
+      console.log('Loading announcements...');
+      
+      // Validate session before making request
+      const sessionValid = await validateSession();
+      if (!sessionValid) {
+        console.error('Session validation failed, cannot load announcements');
         setAnnouncements([]);
-      } finally {
-        clearTimeout(timeoutId);
-        setLoading(false);
+        return;
       }
+      
+      const { data, error } = await supabase
+        .from('announcements')
+        .select(`
+          *,
+          profiles:created_by (
+            username,
+            photo_url
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      clearTimeout(timeoutId);
+
+      if (error) {
+        console.error('Error loading announcements:', error);
+        setAnnouncements([]);
+      } else {
+        console.log('Announcements loaded successfully:', data?.length || 0);
+        setAnnouncements(data || []);
+      }
+    } catch (err: any) {
+      console.error('Exception loading announcements:', err.message);
+      setAnnouncements([]);
+    } finally {
+      clearTimeout(timeoutId);
+      setLoading(false);
+    }
     };
 
     loadAnnouncements();
@@ -183,34 +192,43 @@ export function Announcements() {
         setAchievers([]);
       }, 8000); // 8 second timeout
 
-      try {
-        console.log('Loading achievers...');
-        const { data, error } = await supabase
-          .from('achievers')
-          .select(`
-            *,
-            profiles:student_id (
-              username,
-              photo_url
-            )
-          `)
-          .order('date', { ascending: false });
-
-        clearTimeout(timeoutId);
-
-        if (error) {
-          console.error('Error loading achievers:', error);
-          setAchievers([]);
-        } else {
-          console.log('Achievers loaded successfully:', data?.length || 0);
-          setAchievers(data || []);
-        }
-      } catch (err: any) {
-        console.error('Exception loading achievers:', err.message);
+          try {
+      console.log('Loading achievers...');
+      
+      // Validate session before making request
+      const sessionValid = await validateSession();
+      if (!sessionValid) {
+        console.error('Session validation failed, cannot load achievers');
         setAchievers([]);
-      } finally {
-        clearTimeout(timeoutId);
+        return;
       }
+      
+      const { data, error } = await supabase
+        .from('achievers')
+        .select(`
+          *,
+          profiles:student_id (
+            username,
+            photo_url
+          )
+        `)
+        .order('date', { ascending: false });
+
+      clearTimeout(timeoutId);
+
+      if (error) {
+        console.error('Error loading achievers:', error);
+        setAchievers([]);
+      } else {
+        console.log('Achievers loaded successfully:', data?.length || 0);
+        setAchievers(data || []);
+      }
+    } catch (err: any) {
+      console.error('Exception loading achievers:', err.message);
+      setAchievers([]);
+    } finally {
+      clearTimeout(timeoutId);
+    }
     };
 
     loadAchievers();

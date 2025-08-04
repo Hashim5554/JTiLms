@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSession } from '../contexts/SessionContext';
-import { supabase } from '../lib/supabase';
+import { supabase, validateSession } from '../lib/supabase';
 import { 
   FileText, 
   UserCheck, 
@@ -266,6 +266,16 @@ export function RecordRoom() {
 
     try {
       console.log('Loading students for class:', selectedClass);
+      
+      // Validate session before making request
+      const sessionValid = await validateSession();
+      if (!sessionValid) {
+        console.error('Session validation failed, cannot load students');
+        setStudents([]);
+        setMessage({ type: 'error', text: 'Session expired. Please refresh the page.' });
+        return;
+      }
+      
       const { data, error } = await supabase
         .from('class_assignments')
         .select(`

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import { useSession } from '../contexts/SessionContext';
-import { supabase, isNotFoundError } from '../lib/supabase';
+import { supabase, isNotFoundError, validateSession } from '../lib/supabase';
 import type { Subject, Class } from '../types';
 import { 
   PlusCircle, 
@@ -78,6 +78,19 @@ export function Subjects() {
 
     try {
       console.log('Loading subjects for class:', currentClass.id);
+      
+      // Validate session before making request
+      const sessionValid = await validateSession();
+      if (!sessionValid) {
+        console.error('Session validation failed, cannot load subjects');
+        setSubjects([]);
+        setMessage({
+          type: 'error',
+          text: 'Session expired. Please refresh the page.'
+        });
+        return;
+      }
+      
       // Use direct query to get subjects for the current class
       const { data, error } = await supabase
         .from('subjects')

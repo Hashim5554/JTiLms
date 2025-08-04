@@ -30,6 +30,40 @@ export const validateConnection = async () => {
   }
 };
 
+// Validate session and refresh if needed
+export const validateSession = async () => {
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error || !session) {
+      console.error('Session validation failed:', error);
+      return false;
+    }
+    
+    // Check if session is expired or about to expire
+    const expiresAt = session.expires_at;
+    if (expiresAt) {
+      const now = Math.floor(Date.now() / 1000);
+      const timeUntilExpiry = expiresAt - now;
+      
+      // If session expires in less than 5 minutes, refresh it
+      if (timeUntilExpiry < 300) {
+        console.log('Session expiring soon, refreshing...');
+        const { data, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError) {
+          console.error('Session refresh failed:', refreshError);
+          return false;
+        }
+        console.log('Session refreshed successfully');
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Session validation error:', error);
+    return false;
+  }
+};
+
 // Enhanced error handling for auth
 export const signInWithEmail = async (email: string, password: string) => {
   try {

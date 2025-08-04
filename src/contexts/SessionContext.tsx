@@ -25,6 +25,16 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const loadUserProfile = async (userId: string) => {
     try {
+      console.log('SessionProvider: Loading profile for user:', userId);
+      
+      // First check if session is still valid
+      const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !currentSession) {
+        console.error('SessionProvider: Session is invalid', sessionError);
+        setUser(null);
+        return;
+      }
+
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
@@ -37,8 +47,8 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         // Just set a basic user object to show pending status
         const pendingUser: Profile = {
           id: userId,
-          email: session?.user?.email || '',
-          username: session?.user?.email?.split('@')[0] || 'User',
+          email: currentSession?.user?.email || '',
+          username: currentSession?.user?.email?.split('@')[0] || 'User',
           role: 'pending',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
