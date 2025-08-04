@@ -64,7 +64,20 @@ export function Subjects() {
     
     setLoading(true);
     setMessage(null);
+    
+    // Add timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      console.log('Subjects loading timeout reached');
+      setLoading(false);
+      setSubjects([]);
+      setMessage({
+        type: 'error',
+        text: 'Loading timeout - please try again.'
+      });
+    }, 8000); // 8 second timeout
+
     try {
+      console.log('Loading subjects for class:', currentClass.id);
       // Use direct query to get subjects for the current class
       const { data, error } = await supabase
         .from('subjects')
@@ -72,22 +85,32 @@ export function Subjects() {
         .eq('class_id', currentClass.id)
         .order('name');
 
+      clearTimeout(timeoutId);
+
       if (error) {
+        console.error('Error loading subjects:', error);
         if (isNotFoundError(error)) {
           setSubjects([]);
           return;
         }
-        throw error;
+        setMessage({
+          type: 'error',
+          text: 'Failed to load subjects. Please try again.'
+        });
+        setSubjects([]);
+      } else {
+        console.log('Subjects loaded successfully:', data?.length || 0);
+        setSubjects(data || []);
       }
-
-      setSubjects(data || []);
     } catch (error: any) {
-      console.error('Error loading subjects:', error);
+      console.error('Exception loading subjects:', error);
       setMessage({
         type: 'error',
         text: 'Failed to load subjects. Please try again.'
       });
+      setSubjects([]);
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   };

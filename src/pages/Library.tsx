@@ -31,17 +31,38 @@ export function Library() {
 
   const loadResources = async () => {
     setLoading(true);
+    
+    // Add timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      console.log('Library resources loading timeout reached');
+      setLoading(false);
+      setResources([]);
+      setMessage({ type: 'error', text: 'Loading timeout - please try again.' });
+    }, 8000); // 8 second timeout
+
     try {
+      console.log('Loading library resources...');
       const { data, error } = await supabase
         .from('library_resources')
         .select('*')
         .order('created_at', { ascending: false });
-      if (error) throw error;
-      setResources(data || []);
+      
+      clearTimeout(timeoutId);
+      
+      if (error) {
+        console.error('Error loading library resources:', error);
+        setMessage({ type: 'error', text: 'Failed to load resources.' });
+        setResources([]);
+      } else {
+        console.log('Library resources loaded successfully:', data?.length || 0);
+        setResources(data || []);
+      }
     } catch (error) {
+      console.error('Exception loading library resources:', error);
       setMessage({ type: 'error', text: 'Failed to load resources.' });
-      console.error('Error loading resources:', error);
+      setResources([]);
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   };

@@ -133,7 +133,15 @@ export function Announcements() {
   // Load announcements
   useEffect(() => {
     const loadAnnouncements = async () => {
+      // Add timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        console.log('Announcements loading timeout reached');
+        setLoading(false);
+        setAnnouncements([]);
+      }, 8000); // 8 second timeout
+
       try {
+        console.log('Loading announcements...');
         const { data, error } = await supabase
           .from('announcements')
           .select(`
@@ -145,11 +153,20 @@ export function Announcements() {
           `)
           .order('created_at', { ascending: false });
 
-        if (error) throw error;
-        setAnnouncements(data || []);
+        clearTimeout(timeoutId);
+
+        if (error) {
+          console.error('Error loading announcements:', error);
+          setAnnouncements([]);
+        } else {
+          console.log('Announcements loaded successfully:', data?.length || 0);
+          setAnnouncements(data || []);
+        }
       } catch (err: any) {
-        console.error(err.message);
+        console.error('Exception loading announcements:', err.message);
+        setAnnouncements([]);
       } finally {
+        clearTimeout(timeoutId);
         setLoading(false);
       }
     };
@@ -160,8 +177,15 @@ export function Announcements() {
   // Load achievers
   useEffect(() => {
     const loadAchievers = async () => {
-    try {
-      const { data, error } = await supabase
+      // Add timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        console.log('Achievers loading timeout reached');
+        setAchievers([]);
+      }, 8000); // 8 second timeout
+
+      try {
+        console.log('Loading achievers...');
+        const { data, error } = await supabase
           .from('achievers')
           .select(`
             *,
@@ -172,10 +196,20 @@ export function Announcements() {
           `)
           .order('date', { ascending: false });
 
-      if (error) throw error;
-        setAchievers(data || []);
+        clearTimeout(timeoutId);
+
+        if (error) {
+          console.error('Error loading achievers:', error);
+          setAchievers([]);
+        } else {
+          console.log('Achievers loaded successfully:', data?.length || 0);
+          setAchievers(data || []);
+        }
       } catch (err: any) {
-        console.error(err.message);
+        console.error('Exception loading achievers:', err.message);
+        setAchievers([]);
+      } finally {
+        clearTimeout(timeoutId);
       }
     };
 

@@ -255,7 +255,17 @@ export function RecordRoom() {
     if (!selectedClass) return;
     
     setLoading(true);
+    
+    // Add timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      console.log('Students loading timeout reached');
+      setLoading(false);
+      setStudents([]);
+      setMessage({ type: 'error', text: 'Loading timeout - please try again.' });
+    }, 8000); // 8 second timeout
+
     try {
+      console.log('Loading students for class:', selectedClass);
       const { data, error } = await supabase
         .from('class_assignments')
         .select(`
@@ -270,20 +280,29 @@ export function RecordRoom() {
         `)
         .eq('class_id', selectedClass);
       
-      if (error) throw error;
+      clearTimeout(timeoutId);
       
-      if (data) {
-        const assignments = data.map((assignment: any) => ({
-          id: assignment.id,
-          class_id: assignment.class_id,
-          profiles: assignment.profiles ? [assignment.profiles] : []
-        })) as ClassAssignment[];
-        setStudents(assignments.map(assignment => assignment.profiles).flat());
+      if (error) {
+        console.error('Error loading students:', error);
+        setMessage({ type: 'error', text: 'Failed to load students' });
+        setStudents([]);
+      } else {
+        console.log('Students loaded successfully:', data?.length || 0);
+        if (data) {
+          const assignments = data.map((assignment: any) => ({
+            id: assignment.id,
+            class_id: assignment.class_id,
+            profiles: assignment.profiles ? [assignment.profiles] : []
+          })) as ClassAssignment[];
+          setStudents(assignments.map(assignment => assignment.profiles).flat());
+        }
       }
     } catch (error) {
-      console.error('Error loading students:', error);
+      console.error('Exception loading students:', error);
       setMessage({ type: 'error', text: 'Failed to load students' });
+      setStudents([]);
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   };
