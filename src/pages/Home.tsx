@@ -316,7 +316,7 @@ export function Home() {
       console.log('Cleanup running'); // Debug log
       clearTimeout(forceRenderTimer);
     };
-  }, [loadData]);
+  }, [currentClass, user?.role]);
 
   // Load subjects when needed
   const loadSubjects = async () => {
