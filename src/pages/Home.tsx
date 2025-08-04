@@ -216,15 +216,8 @@ export function Home() {
     setLoading(true);
     setError(null);
     
-    // Add request timeout and cancellation
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      console.log('Request timeout reached, cancelling requests');
-      controller.abort();
-    }, 15000); // 15 second timeout for individual requests
-    
     try {
-      // Load announcements with timeout
+      // Load announcements
       try {
         console.log('Loading announcements'); // Debug log
         let announcementsQuery = supabase
@@ -249,7 +242,7 @@ export function Home() {
         setAnnouncements([]);
       }
 
-      // Load discussions with timeout
+      // Load discussions
       try {
         console.log('Loading discussions'); // Debug log
         let discussionsQuery = supabase
@@ -274,7 +267,7 @@ export function Home() {
         setDiscussions([]);
       }
 
-      // Load due works with timeout
+      // Load due works
       try {
         console.log('Loading due works'); // Debug log
         await loadDueWorks(false);
@@ -313,14 +306,8 @@ export function Home() {
       console.log('Data loading completed successfully'); // Debug log
     } catch (error: any) {
       console.error('Error in loadData:', error);
-      if (error.name === 'AbortError') {
-        console.log('Request was aborted due to timeout');
-        setError('Request timeout - please try again');
-      } else {
-        setError(error.message || 'Failed to load data');
-      }
+      setError(error.message || 'Failed to load data');
     } finally {
-      clearTimeout(timeoutId);
       setLoading(false);
     }
   }, [currentClass?.id, user?.role]);
@@ -330,35 +317,21 @@ export function Home() {
     console.log('Current user:', user); // Debug log
     console.log('Current class:', currentClass); // Debug log
 
-    // Prevent multiple simultaneous data loads
-    if (loading) {
-      console.log('Already loading, skipping data load');
-      return;
-    }
-
     // Start loading data
     loadData();
     loadSubjects(); // Load subjects on mount
     
-    // Force render after a longer timeout even if data isn't fully loaded
-    const forceRenderTimer = setTimeout(() => {
-      console.log('Force render timeout reached'); // Debug log
+    // Simple timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      console.log('Loading timeout reached'); // Debug log
       setLoading(false);
-    }, 15000); // 15 second timeout - increased from 10 seconds
-    
-    // Additional safety timeout to prevent infinite loading
-    const safetyTimer = setTimeout(() => {
-      console.log('Safety timeout reached, forcing loading to false');
-      setLoading(false);
-      setError('Loading timeout - please refresh the page');
-    }, 30000); // 30 second safety timeout
+    }, 5000); // 5 second timeout
     
     return () => {
       console.log('Cleanup running'); // Debug log
-      clearTimeout(forceRenderTimer);
-      clearTimeout(safetyTimer);
+      clearTimeout(timeoutId);
     };
-  }, [currentClass?.id, user?.role, loading]); // More stable dependencies
+  }, [currentClass?.id, user?.role]); // Stable dependencies
 
   // Load subjects when needed
   const loadSubjects = async () => {
@@ -406,15 +379,6 @@ export function Home() {
   };
 
   const loadDueWorks = async (manageLoading = true) => {
-    // Add request timeout
-    const timeoutId = setTimeout(() => {
-      console.log('Due works request timeout, setting empty array');
-      setDueWorks([]);
-      if (manageLoading) {
-        setLoading(false);
-      }
-    }, 8000); // 8 second timeout for due works
-
     try {
       if (manageLoading) {
         setLoading(true);
@@ -436,7 +400,6 @@ export function Home() {
           }
 
           setDueWorks(filteredWorks);
-          clearTimeout(timeoutId);
           return;
         } else {
           console.warn('RPC failed for due works, using fallback:', error);
@@ -473,7 +436,6 @@ export function Home() {
         }
 
         setDueWorks(filteredWorks);
-        clearTimeout(timeoutId);
       }
     } catch (error: any) {
       console.error('Error loading due works:', error);
@@ -482,7 +444,6 @@ export function Home() {
       }
       // Set empty array to prevent UI from being stuck in loading
       setDueWorks([]);
-      clearTimeout(timeoutId);
     } finally {
       if (manageLoading) {
         setLoading(false);
