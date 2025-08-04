@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useSession } from '../contexts/SessionContext';
 import { supabase } from '../lib/supabase';
@@ -370,7 +370,7 @@ export function Layout() {
       {/* Main content */}
       <div className="lg:pl-64">
         <main className="p-6">
-          <Outlet context={{ currentClass, selectedClassId, classes }} />
+          <Outlet context={useMemo(() => ({ currentClass, selectedClassId, classes }), [currentClass, selectedClassId, classes])} />
         </main>
       </div>
     </div>
