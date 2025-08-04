@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { useDatabase } from '../hooks/useDatabase';
 import { useSession } from '../contexts/SessionContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
@@ -143,6 +143,7 @@ export function Home() {
   const [subjects, setSubjects] = useState<any[]>([]);
   const { user } = useSession();
   const { currentClass, classes } = useOutletContext<HomeContextType>();
+  const { query, mutate, supabase } = useDatabase();
   
   // Log user changes
   React.useEffect(() => {

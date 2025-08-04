@@ -10,8 +10,19 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
-// Create Supabase client with error handling
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+// Create Supabase client with enhanced configuration
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true
+  },
+  global: {
+    headers: {
+      'X-Client-Info': 'supabase-js/2.x'
+    }
+  }
+});
 
 // Utility function to check if error is "not found"
 export const isNotFoundError = (error: any) => {
@@ -30,9 +41,17 @@ export const validateConnection = async () => {
   }
 };
 
+// Global session manager
+let sessionRefreshPromise: Promise<boolean> | null = null;
+
 // Validate session and refresh if needed
 export const validateSession = async () => {
   try {
+    // Prevent multiple simultaneous refresh attempts
+    if (sessionRefreshPromise) {
+      return await sessionRefreshPromise;
+    }
+
     const { data: { session }, error } = await supabase.auth.getSession();
     if (error || !session) {
       console.error('Session validation failed:', error);
@@ -45,22 +64,57 @@ export const validateSession = async () => {
       const now = Math.floor(Date.now() / 1000);
       const timeUntilExpiry = expiresAt - now;
       
-      // If session expires in less than 5 minutes, refresh it
-      if (timeUntilExpiry < 300) {
+      // If session expires in less than 10 minutes, refresh it
+      if (timeUntilExpiry < 600) {
         console.log('Session expiring soon, refreshing...');
-        const { data, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError) {
-          console.error('Session refresh failed:', refreshError);
-          return false;
-        }
-        console.log('Session refreshed successfully');
+        
+        sessionRefreshPromise = (async () => {
+          try {
+            const { data, error: refreshError } = await supabase.auth.refreshSession();
+            if (refreshError) {
+              console.error('Session refresh failed:', refreshError);
+              return false;
+            }
+            console.log('Session refreshed successfully');
+            return true;
+          } finally {
+            sessionRefreshPromise = null;
+          }
+        })();
+        
+        return await sessionRefreshPromise;
       }
     }
     
     return true;
   } catch (error) {
     console.error('Session validation error:', error);
+    sessionRefreshPromise = null;
     return false;
+  }
+};
+
+// Global database operation wrapper
+export const dbOperation = async <T>(
+  operation: () => Promise<T>,
+  fallbackValue: T,
+  operationName: string = 'Database operation'
+): Promise<T> => {
+  try {
+    // Validate session before any database operation
+    const sessionValid = await validateSession();
+    if (!sessionValid) {
+      console.error(`${operationName}: Session validation failed`);
+      return fallbackValue;
+    }
+
+    console.log(`${operationName}: Starting operation`);
+    const result = await operation();
+    console.log(`${operationName}: Operation completed successfully`);
+    return result;
+  } catch (error) {
+    console.error(`${operationName}: Operation failed:`, error);
+    return fallbackValue;
   }
 };
 
