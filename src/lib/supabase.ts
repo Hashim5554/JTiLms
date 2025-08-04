@@ -10,112 +10,54 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
-// Create Supabase client with enhanced configuration
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true
-  },
-  global: {
-    headers: {
-      'X-Client-Info': 'supabase-js/2.x'
-    }
-  }
-});
+// Create Supabase client with basic configuration
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
 // Utility function to check if error is "not found"
 export const isNotFoundError = (error: any) => {
   return error?.code === 'PGRST116';
 };
 
-// Validate database connection
-export const validateConnection = async () => {
+// Test database connection and show detailed error
+export const testDatabaseConnection = async () => {
+  console.log('=== DATABASE CONNECTION TEST ===');
+  
   try {
-    const { error } = await supabase.from('profiles').select('count').limit(1);
-    if (error) throw error;
-    return true;
-  } catch (error) {
-    console.error('Supabase connection error:', error);
-    return false;
-  }
-};
-
-// Global session manager
-let sessionRefreshPromise: Promise<boolean> | null = null;
-
-// Validate session and refresh if needed
-export const validateSession = async () => {
-  try {
-    // Prevent multiple simultaneous refresh attempts
-    if (sessionRefreshPromise) {
-      return await sessionRefreshPromise;
-    }
-
-    const { data: { session }, error } = await supabase.auth.getSession();
-    if (error || !session) {
-      console.error('Session validation failed:', error);
-      return false;
-    }
+    // Test 1: Basic connection
+    console.log('1. Testing basic connection...');
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    console.log('Session:', session ? 'Valid' : 'No session');
+    console.log('Session error:', sessionError);
     
-    // Check if session is expired or about to expire
-    const expiresAt = session.expires_at;
-    if (expiresAt) {
-      const now = Math.floor(Date.now() / 1000);
-      const timeUntilExpiry = expiresAt - now;
-      
-      // If session expires in less than 10 minutes, refresh it
-      if (timeUntilExpiry < 600) {
-        console.log('Session expiring soon, refreshing...');
-        
-        sessionRefreshPromise = (async () => {
-          try {
-            const { data, error: refreshError } = await supabase.auth.refreshSession();
-            if (refreshError) {
-              console.error('Session refresh failed:', refreshError);
-              return false;
-            }
-            console.log('Session refreshed successfully');
-            return true;
-          } finally {
-            sessionRefreshPromise = null;
-          }
-        })();
-        
-        return await sessionRefreshPromise;
+    // Test 2: Simple query
+    console.log('2. Testing simple query...');
+    const { data, error } = await supabase.from('profiles').select('count').limit(1);
+    console.log('Query result:', data);
+    console.log('Query error:', error);
+    
+    // Test 3: Check if tables exist
+    console.log('3. Testing table access...');
+    const tables = ['profiles', 'announcements', 'subjects', 'discussions', 'due_works'];
+    for (const table of tables) {
+      try {
+        const { error: tableError } = await supabase.from(table).select('count').limit(1);
+        console.log(`${table}: ${tableError ? 'ERROR - ' + tableError.message : 'OK'}`);
+      } catch (e) {
+        console.log(`${table}: ERROR - ${e}`);
       }
     }
     
     return true;
   } catch (error) {
-    console.error('Session validation error:', error);
-    sessionRefreshPromise = null;
+    console.error('Database connection test failed:', error);
     return false;
   }
 };
 
-// Global database operation wrapper
-export const dbOperation = async <T>(
-  operation: () => Promise<T>,
-  fallbackValue: T,
-  operationName: string = 'Database operation'
-): Promise<T> => {
-  try {
-    // Validate session before any database operation
-    const sessionValid = await validateSession();
-    if (!sessionValid) {
-      console.error(`${operationName}: Session validation failed`);
-      return fallbackValue;
-    }
-
-    console.log(`${operationName}: Starting operation`);
-    const result = await operation();
-    console.log(`${operationName}: Operation completed successfully`);
-    return result;
-  } catch (error) {
-    console.error(`${operationName}: Operation failed:`, error);
-    return fallbackValue;
-  }
+// Simple database test function
+export const testDatabase = async () => {
+  console.log('Testing database connection...');
+  await testDatabaseConnection();
 };
 
 // Enhanced error handling for auth

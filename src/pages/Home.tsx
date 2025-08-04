@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
-import { useDatabase } from '../hooks/useDatabase';
+import { DatabaseTest } from '../components/DatabaseTest';
+import { supabase } from '../lib/supabase';
 import { useSession } from '../contexts/SessionContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
@@ -143,7 +144,6 @@ export function Home() {
   const [subjects, setSubjects] = useState<any[]>([]);
   const { user } = useSession();
   const { currentClass, classes } = useOutletContext<HomeContextType>();
-  const { query, mutate, supabase } = useDatabase();
   
   // Log user changes
   React.useEffect(() => {
@@ -1315,6 +1315,7 @@ export function Home() {
   console.log('Rendering main content'); // Debug log
   return (
     <div className="min-h-screen bg-white dark:bg-[#181929] flex items-center justify-center py-2 sm:py-6 px-1 sm:px-2 md:py-10 md:px-0 transition-colors duration-300">
+      <DatabaseTest />
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-7xl bg-gradient-to-br from-red-700 to-red-900 rounded-[24px] sm:rounded-[40px] md:rounded-[48px] shadow-2xl p-2 sm:p-4 md:p-12 lg:p-16 overflow-hidden">
         {/* 3D Hero Section with Parallax and Light Hover */}
         <div className="w-full mb-4 sm:mb-12 md:mb-16">
