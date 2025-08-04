@@ -57,9 +57,6 @@ export const getUnreadAnnouncementCount = async (userId: string, classId?: strin
 export const getUnreadDiscussionCount = async (userId: string, classId?: string): Promise<number> => {
   if (!userId) return 0;
   
-  // Temporarily return 0 to test if this is causing the issue
-  return 0;
-  
   const lastViewed = getLastViewedTime('discussions');
   
   try {
@@ -86,9 +83,6 @@ export const getUnreadDiscussionCount = async (userId: string, classId?: string)
 // Get unread private discussion count
 export const getUnreadPrivateDiscussionCount = async (userId: string): Promise<number> => {
   if (!userId) return 0;
-  
-  // Temporarily return 0 to test if this is causing the issue
-  return 0;
   
   const lastViewed = getLastViewedTime('private_discussions');
   
@@ -142,9 +136,6 @@ export const getUnreadMessages = async (userId: string, classId?: string): Promi
       privateDiscussions: lastViewedPrivateDiscussions
     });
     
-    // Temporarily return empty array to test if this is causing the issue
-    return [];
-    
     const [announcements, discussions, privateDiscussions] = await Promise.all([
       // Get unread announcements
       supabase
@@ -166,7 +157,6 @@ export const getUnreadMessages = async (userId: string, classId?: string): Promi
         .from('discussions')
         .select(`
           id,
-          title,
           content,
           created_at,
           created_by,
@@ -217,7 +207,7 @@ export const getUnreadMessages = async (userId: string, classId?: string): Promi
         messages.push({
           id: discussion.id,
           type: 'discussion',
-          title: discussion.title || 'New Discussion Message',
+          title: 'New Discussion Message',
           content: discussion.content,
           created_at: discussion.created_at,
           created_by: discussion.created_by,
