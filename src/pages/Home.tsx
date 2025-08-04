@@ -120,6 +120,11 @@ export function Home() {
   const navigate = useNavigate();
   console.log('Home component rendering'); // Debug log
 
+  // Add a render counter to track re-renders
+  const renderCount = React.useRef(0);
+  renderCount.current += 1;
+  console.log('Render count:', renderCount.current);
+
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
   const [newDiscussion, setNewDiscussion] = useState('');
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -138,6 +143,16 @@ export function Home() {
   const [subjects, setSubjects] = useState<any[]>([]);
   const { user } = useSession();
   const { currentClass, classes } = useOutletContext<HomeContextType>();
+  
+  // Log user changes
+  React.useEffect(() => {
+    console.log('User changed:', user);
+  }, [user]);
+  
+  // Log currentClass changes
+  React.useEffect(() => {
+    console.log('CurrentClass changed:', currentClass);
+  }, [currentClass]);
   const [newNews, setNewNews] = useState({
     title: '',
     content: ''
