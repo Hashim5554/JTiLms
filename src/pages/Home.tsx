@@ -269,7 +269,7 @@ export function Home() {
       // Load due works
       try {
         console.log('Loading due works'); // Debug log
-        await loadDueWorks();
+        await loadDueWorks(false);
       } catch (dueWorksError) {
         console.warn('Error loading due works:', dueWorksError);
         setDueWorks([]);
@@ -309,7 +309,7 @@ export function Home() {
     } finally {
       setLoading(false);
     }
-  }, [currentClass, user?.role]);
+  }, [currentClass?.id, user?.role]);
 
   useEffect(() => {
     console.log('Initial useEffect running'); // Debug log
@@ -318,7 +318,6 @@ export function Home() {
 
     // Start loading data
     loadData();
-    loadDueWorks();
     loadSubjects(); // Load subjects on mount
     
     // Force render after a short timeout even if data isn't fully loaded
@@ -378,10 +377,12 @@ export function Home() {
     }
   };
 
-  const loadDueWorks = async () => {
+  const loadDueWorks = async (manageLoading = true) => {
     try {
-      setLoading(true);
-      setError(null);
+      if (manageLoading) {
+        setLoading(true);
+        setError(null);
+      }
 
       try {
         // Try to get due works with the RPC function first
@@ -437,11 +438,15 @@ export function Home() {
       }
     } catch (error: any) {
       console.error('Error loading due works:', error);
-      setError('Failed to load due works. Please try again.');
+      if (manageLoading) {
+        setError('Failed to load due works. Please try again.');
+      }
       // Set empty array to prevent UI from being stuck in loading
       setDueWorks([]);
     } finally {
-      setLoading(false);
+      if (manageLoading) {
+        setLoading(false);
+      }
     }
   };
 
