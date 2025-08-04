@@ -161,10 +161,11 @@ export function SubjectDetail() {
     if (!id || !currentClass) return;
     try {
       const { data, error } = await supabase
-        .rpc('get_folders_for_class_subject', { 
-          class_uuid: currentClass.id, 
-          subject_uuid: id 
-        });
+        .from('folders')
+        .select('*')
+        .eq('subject_id', id)
+        .eq('class_id', currentClass.id)
+        .order('name');
 
       if (error) throw error;
       if (data) setFolders(data);

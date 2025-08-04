@@ -65,9 +65,12 @@ export function Subjects() {
     setLoading(true);
     setMessage(null);
     try {
-      // Use the new function to get subjects for the current class
+      // Use direct query to get subjects for the current class
       const { data, error } = await supabase
-        .rpc('get_subjects_for_class', { class_uuid: currentClass.id });
+        .from('subjects')
+        .select('*')
+        .eq('class_id', currentClass.id)
+        .order('name');
 
       if (error) {
         if (isNotFoundError(error)) {
